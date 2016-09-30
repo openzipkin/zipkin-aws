@@ -52,7 +52,7 @@ public class SqsCollector implements CollectorComponent, Closeable {
 
         @Override
         public CollectorComponent.Builder metrics(CollectorMetrics metrics) {
-            this.metrics = Util.checkNotNull(metrics, "metrics").forTransport("kafka");
+            this.metrics = Util.checkNotNull(metrics, "metrics").forTransport("sqs");
             delegate.metrics(metrics);
             return this;
         }
