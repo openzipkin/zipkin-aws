@@ -36,23 +36,33 @@ public class SqsStreamProcessor implements Runnable, Closeable {
 
     @Override
     public void run() {
-        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(sqsQueueUrl).withWaitTimeSeconds(waitTimeSeconds);
-        try{
+        ReceiveMessageRequest receiveMessageRequest = new ReceiveMessageRequest(sqsQueueUrl)
+                .withWaitTimeSeconds(waitTimeSeconds)
+                .withMessageAttributeNames("spans");
+
+        try {
             while (run.get()) {
                 ReceiveMessageResult result = client.receiveMessage(receiveMessageRequest);
                 List<DeleteMessageBatchRequestEntry> deletes = new ArrayList<>();
                 for (Message message : result.getMessages()) {
-                    MessageAttributeValue value = message.getMessageAttributes().get("spans");
-                    String type = message.getMessageAttributes().get("spans").getDataType();
-                    switch (type.split(".")[1]) {
-                        case "JSON":
-                            collector.acceptSpans(value.getBinaryValue().array(), Codec.JSON, Callback.NOOP);
-                            break;
-                        case "THRIFT":
-                            collector.acceptSpans(value.getBinaryValue().array(), Codec.THRIFT, Callback.NOOP);
-                            break;
+                    MessageAttributeValue spansAttribute = message.getMessageAttributes().get("spans");
+                    if (spansAttribute != null) {
+                        String type = spansAttribute.getDataType();
+                        try {
+                            switch (type.split("\\.")[1]) {
+                                case "JSON":
+                                    collector.acceptSpans(spansAttribute.getBinaryValue().array(), Codec.JSON, Callback.NOOP);
+                                    break;
+                                case "THRIFT":
+                                    collector.acceptSpans(spansAttribute.getBinaryValue().array(), Codec.THRIFT, Callback.NOOP);
+                                    break;
+                            }
+                        } catch (ArrayIndexOutOfBoundsException e) {
+                            e.printStackTrace();
+                        }
+                        // Should we delete messages that don't get accepted? Maybe dead letter them?
+                        deletes.add(new DeleteMessageBatchRequestEntry(message.getMessageId(), message.getReceiptHandle()));
                     }
-                    deletes.add(new DeleteMessageBatchRequestEntry(message.getMessageId(), message.getReceiptHandle()));
                 }
                 if (deletes.size() > 0) {
                     client.deleteMessageBatch(sqsQueueUrl, deletes);
