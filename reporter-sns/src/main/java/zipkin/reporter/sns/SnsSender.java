@@ -62,7 +62,7 @@ public abstract class SnsSender extends LazyCloseable<AmazonSNSClient> implement
     }
 
     public void sendSpans(List<byte[]> list, Callback callback) {
-        PublishRequest publishRequest = new PublishRequest(topicArn(), "z");
+        PublishRequest publishRequest = new PublishRequest(topicArn(), "zipkin");
         publishRequest.addMessageAttributesEntry(
                 "spans",
                 new MessageAttributeValue()
