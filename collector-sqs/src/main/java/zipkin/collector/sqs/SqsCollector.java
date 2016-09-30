@@ -77,12 +77,15 @@ public class SqsCollector implements CollectorComponent, Closeable {
     @Override
     public CollectorComponent start() {
         client = new AmazonSQSClient(credentialsProvider);
+
+        // Do the collection
+
         return this;
     }
 
     @Override
     public CheckResult check() {
-        return null;
+        return CheckResult.OK;
     }
 
     @Override
