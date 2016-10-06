@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package zipkin.reporter.awssqs;
+package zipkin.reporter.sqs;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
@@ -27,6 +27,8 @@ import zipkin.reporter.internal.AwaitableCallback;
 
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
+
+import zipkin.junit.aws.AmazonSqsRule;
 
 public class AwsBufferedSqsSenderTest {
 

@@ -19,8 +19,20 @@ Credentials are provided using the DefaultAwsCredentialsProviderChain by default
 
 ```java
 reporter = AsyncReporter.builder(
-  AwsBufferedSqsSender.create("http://sqs.us-east-1.amazonaws.com/123456789012/queue2")).build();
+  AwsBufferedSqsSender.create("https://sqs.us-east-1.amazonaws.com/123456789012/queue")).build();
 ```
+
+Span messages sent to SQS use several keywords to indicate that message is a Zipkin span and what
+type of encoding is being used. The message keywords are as follows:
+Message body: 'zipkin'
+Message attribute: 'span'
+Message attribute data type: 'Binary.JSON' or 'Binary.THRIFT'
+
+When the SQS collector requests messages it only requests messages with binary attributes of type
+'span'. The attribute data type is then used to determine which Zipkin codec to use for
+deserialization.
+
+The message body is not used but is required by SQS and must not be null or empty.
 
 #### Properties
 
@@ -35,5 +47,20 @@ TODO
 ## Collectors
 
 ### AwsSqsCollector
-TODO
+
+Collects Spans from SQS using the AwsBufferedAsyncClient. This client maintains a queue and thread
+for buffering API requests and pre-fetching messages. By default this client will block a request
+for up to 20 seconds while waiting for messages. After messages are received or the wait time is
+reached the client will start a new request.  Messages that are accepted by the collector are
+deleted from SQS.
+
+```java
+new AwsSqsCollector.Builder()
+  .queueUrl("https://sqs.us-east-1.amazonaws.com/123456789012/queue")
+  .metrics(CollectorMetrics.NOOP_METRICS)
+  .sampler(CollectorSampler.ALWAY_SAMPLE)
+  .storage(new InMemoryStorage())
+  .build()
+  .start()
+```
 

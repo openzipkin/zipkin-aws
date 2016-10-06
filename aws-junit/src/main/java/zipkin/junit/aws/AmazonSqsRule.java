@@ -11,14 +11,18 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package zipkin.reporter.awssqs;
+package zipkin.junit.aws;
 
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.amazonaws.services.sqs.model.DeleteMessageRequest;
+import com.amazonaws.services.sqs.model.MessageAttributeValue;
 import com.amazonaws.services.sqs.model.PurgeQueueRequest;
 import com.amazonaws.services.sqs.model.ReceiveMessageResult;
+import com.amazonaws.services.sqs.model.SendMessageRequest;
+import java.nio.ByteBuffer;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -31,13 +35,13 @@ import zipkin.Span;
 import static java.util.Collections.singletonList;
 
 
-class AmazonSqsRule extends ExternalResource {
+public class AmazonSqsRule extends ExternalResource {
 
   private SQSRestServer server;
   private AmazonSQSClient client;
   private String queueUrl;
 
-  AmazonSqsRule() {}
+  public AmazonSqsRule() {}
 
   public AmazonSqsRule start(int httpPort) {
     if (server == null) {
@@ -114,6 +118,30 @@ class AmazonSqsRule extends ExternalResource {
     return spans.collect(Collectors.toList());
   }
 
+  public void sendTraces(List<Span> traces) {
+    int count = 0;
+    List<Span> bucket = new LinkedList<>();
+
+    for (Span span : traces) {
+      bucket.add(span);
+      if (count++ > 9) {
+        sendTracesInternal(bucket);
+        bucket = new LinkedList<>();
+        count = 0;
+      }
+    }
+
+    sendTracesInternal(bucket);
+
+  }
+
+  private void sendTracesInternal(List<Span> traces) {
+    client.sendMessage(new SendMessageRequest(queueUrl, "zipkin")
+        .addMessageAttributesEntry("spans", new MessageAttributeValue()
+            .withDataType("Binary.THRIFT")
+            .withBinaryValue(ByteBuffer.wrap(Codec.THRIFT.writeSpans(traces)))));
+  }
+
   private static List<Span> fromBytes(byte[] bytes) {
     if (bytes[0] == '[') {
       return Codec.JSON.readSpans(bytes);
@@ -123,4 +151,6 @@ class AmazonSqsRule extends ExternalResource {
       return Collections.singletonList(Codec.THRIFT.readSpan(bytes));
     }
   }
+
+
 }
