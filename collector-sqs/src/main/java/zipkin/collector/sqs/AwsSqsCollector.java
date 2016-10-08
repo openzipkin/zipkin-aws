@@ -52,17 +52,17 @@ public final class AwsSqsCollector implements CollectorComponent, Closeable {
     AWSCredentialsProvider credentialsProvider = new DefaultAWSCredentialsProviderChain();
     int parallelism = 1;
 
-    @Override public CollectorComponent.Builder storage(StorageComponent storageComponent) {
+    @Override public Builder storage(StorageComponent storageComponent) {
       delegate.storage(storageComponent);
       return this;
     }
 
-    @Override public CollectorComponent.Builder metrics(CollectorMetrics metrics) {
+    @Override public Builder metrics(CollectorMetrics metrics) {
       delegate.metrics(Util.checkNotNull(metrics, "metrics").forTransport("sqs"));
       return this;
     }
 
-    @Override public CollectorComponent.Builder sampler(CollectorSampler sampler) {
+    @Override public Builder sampler(CollectorSampler sampler) {
       delegate.sampler(sampler);
       return this;
     }
@@ -93,7 +93,7 @@ public final class AwsSqsCollector implements CollectorComponent, Closeable {
       return this;
     }
 
-    @Override public CollectorComponent build() {
+    @Override public AwsSqsCollector build() {
       return new AwsSqsCollector(this);
     }
 
@@ -110,7 +110,7 @@ public final class AwsSqsCollector implements CollectorComponent, Closeable {
         builder.parallelism, builder.waitTimeSeconds);
   }
 
-  @Override public CollectorComponent start() {
+  @Override public AwsSqsCollector start() {
     processors.get();
     return this;
   }
