@@ -34,7 +34,7 @@ notify:
 deployment:
   trigger:
     owner: openzipkin
-    tag: /release-.*/
+    tag: /release-\d+\.\d+\.\d+/
     commands:
       - ./circleci/trigger-publish.sh
   publish-stable:
