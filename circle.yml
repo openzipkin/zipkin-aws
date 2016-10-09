@@ -41,7 +41,7 @@ deployment:
     owner: openzipkin
     tag: /\d+\.\d+\.\d+/
     commands:
-      - ./circleci/publish.sh
+      - ./circleci/publish-stable.sh
   publish-snapshot:
     owner: openzipkin
     branch: master
