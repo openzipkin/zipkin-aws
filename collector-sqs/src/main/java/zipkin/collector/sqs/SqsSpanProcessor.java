@@ -13,19 +13,21 @@
  */
 package zipkin.collector.sqs;
 
+import com.amazonaws.AmazonClientException;
 import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.sqs.AmazonSQSAsync;
 import com.amazonaws.services.sqs.model.DeleteMessageResult;
 import com.amazonaws.services.sqs.model.Message;
-import com.amazonaws.services.sqs.model.MessageAttributeValue;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.services.sqs.model.ReceiveMessageResult;
+import com.amazonaws.util.Base64;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import zipkin.Codec;
 import zipkin.Component;
@@ -34,9 +36,9 @@ import zipkin.internal.Nullable;
 import zipkin.storage.Callback;
 
 
-final class AwsSqsSpanProcessor implements Closeable, Component {
+final class SqsSpanProcessor implements Closeable, Component {
 
-  private static final Logger logger = Logger.getLogger(AwsSqsSpanProcessor.class.getName());
+  private static final Logger logger = Logger.getLogger(SqsSpanProcessor.class.getName());
 
   private final AmazonSQSAsync client;
   private final Collector collector;
@@ -45,7 +47,7 @@ final class AwsSqsSpanProcessor implements Closeable, Component {
   private final AtomicBoolean closed = new AtomicBoolean(false);
   private final AtomicReference<CheckResult> status = new AtomicReference<>(CheckResult.OK);
 
-  AwsSqsSpanProcessor(AmazonSQSAsync client, Collector collector, String queueUrl,
+  SqsSpanProcessor(AmazonSQSAsync client, Collector collector, String queueUrl,
       int waitTimeSeconds) {
     this.client = client;
     this.collector = collector;
@@ -62,20 +64,25 @@ final class AwsSqsSpanProcessor implements Closeable, Component {
     client.shutdown();
   }
 
-  AwsSqsSpanProcessor run() {
+  SqsSpanProcessor run() {
     // don't throw an exception here since this might be run from a receive callback.
     if (closed.get()) return null;
 
     ReceiveMessageRequest request = new ReceiveMessageRequest(queueUrl)
-        .withWaitTimeSeconds(waitTimeSeconds)
-        .withMessageAttributeNames("spans");
+        .withWaitTimeSeconds(waitTimeSeconds);
 
     client.receiveMessageAsync(request,
         new AsyncHandler<ReceiveMessageRequest, ReceiveMessageResult>() {
           @Override public void onError(Exception exception) {
-            // TODO when should this just give up?
-            status.set(CheckResult.failed(exception));
-            run();
+            if (exception instanceof AmazonClientException) {
+              // TODO should we ever give up if its retryable?
+              if (((AmazonClientException)exception).isRetryable()) {
+                run();
+              }
+            } else {
+              logger.log(Level.WARNING, "receive failed", exception);
+              status.set(CheckResult.failed(exception));
+            }
           }
 
           @Override
@@ -90,32 +97,18 @@ final class AwsSqsSpanProcessor implements Closeable, Component {
   }
 
   private void process(final List<Message> messages) {
-
     for (Message message : messages) {
-      MessageAttributeValue spanAttributes = message.getMessageAttributes().get("spans");
-      if (spanAttributes != null) {
-        byte[] bytes = spanAttributes.getBinaryValue().array();
-
-        String type = spanAttributes.getDataType();
-        Codec codec = null;
-        if ("Binary.JSON".equals(type)) { codec = Codec.JSON; }
-        else if ("Binary.THRIFT".equals(type)) { codec = Codec.THRIFT; }
-
-        if (codec == null) {
-          logger.warning(String.format("Unsupported codec %s", spanAttributes.getDataType()));
+      byte[] spans = Base64.decode(message.getBody());
+      collector.acceptSpans(spans, Codec.THRIFT, new Callback<Void>() {
+        @Override public void onSuccess(@Nullable Void value) {
           delete(message);
-        } else {
-          collector.acceptSpans(bytes, codec, new Callback<Void>() {
-            @Override public void onSuccess(@Nullable Void value) {
-              delete(message);
-            }
-            @Override public void onError(Throwable t) {
-              // don't delete messages. this will allow accept calls retry once the
-              // messages are marked visible by sqs.
-            }
-          });
         }
-      }
+        @Override public void onError(Throwable t) {
+          // don't delete messages. this will allow accept calls retry once the
+          // messages are marked visible by sqs.
+          logger.log(Level.WARNING, "collector accept failed", t);
+        }
+      });
     }
   }
 

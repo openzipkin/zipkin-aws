@@ -20,6 +20,7 @@ import com.amazonaws.services.sqs.AmazonSQSAsyncClient;
 import com.amazonaws.services.sqs.model.MessageAttributeValue;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageResult;
+import com.amazonaws.util.Base64;
 import com.google.auto.value.AutoValue;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -53,9 +54,8 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsyncClient> impl
 
   public static Builder builder() {
     return new AutoValue_SQSSender.Builder()
-        .encoding(Encoding.THRIFT)
         .credentialsProvider(new DefaultAWSCredentialsProviderChain())
-        .messageMaxBytes(256 * 1024 - 512); // 256KB SQS limit.  Leave some slack for attributes.
+        .messageMaxBytes(256 * 1024); // 256KB SQS limit.
   }
 
   @AutoValue.Builder
@@ -66,9 +66,6 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsyncClient> impl
 
     /** AWS credentials for authenticating calls to SQS. */
     Builder credentialsProvider(AWSCredentialsProvider credentialsProvider);
-
-    /** Controls the byte encoding when sending spans. */
-    Builder encoding(Encoding encoding);
 
     /** Maximum size of a message. SQS max message size is 256KB including attributes. */
     Builder messageMaxBytes(int messageMaxBytes);
@@ -96,9 +93,12 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsyncClient> impl
   }
 
   @Override public int messageSizeInBytes(List<byte[]> encodedSpans) {
-    // TODO: this is incorrect as each binary value is implicitly Base64 encoded, and we are also
-    // not counting the size of the message attribute
-    return encoding().listSizeInBytes(encodedSpans);
+    int listSize = encoding().listSizeInBytes(encodedSpans);
+    return (listSize + 2) * 4 / 3; // account for base64 encoding
+  }
+
+  @Override public Encoding encoding() {
+    return Encoding.THRIFT;
   }
 
   @Override public void sendSpans(List<byte[]> list, Callback callback) {
@@ -107,41 +107,20 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsyncClient> impl
     checkNotNull(list, "list of encoded spans must not be null");
 
     byte[] encodedSpans = BytesMessageEncoder.forEncoding(encoding()).encode(list);
+    String body = Base64.encodeAsString(encodedSpans);
 
-    SendMessageRequest request = new SendMessageRequest(queueUrl(), "zipkin");
-
-    request.addMessageAttributesEntry(
-        "spans",
-        new MessageAttributeValue()
-            .withDataType("Binary." + encoding().name())
-            .withBinaryValue(ByteBuffer.wrap(encodedSpans)));
-
-    get().sendMessageAsync(request, new AsyncHandlerAdapter(callback));
+    SendMessageRequest request = new SendMessageRequest(queueUrl(), body);
+    get().sendMessageAsync(request, new AsyncHandler<SendMessageRequest, SendMessageResult>() {
+      @Override public void onError(Exception e) { callback.onError(e); }
+      @Override public void onSuccess(SendMessageRequest request,
+          SendMessageResult sendMessageResult) { callback.onComplete(); }
+    });
   }
 
   @Override public void close() throws IOException {
     if (!closeCalled.getAndSet(true)) {
       AmazonSQSAsyncClient maybeNull = maybeNull();
       if (maybeNull != null) maybeNull.shutdown();
-    }
-  }
-
-  private static final class AsyncHandlerAdapter implements
-      AsyncHandler<SendMessageRequest, SendMessageResult> {
-
-    final Callback callback;
-
-    AsyncHandlerAdapter(Callback callback) {
-      this.callback = callback;
-    }
-
-    @Override public void onError(Exception e) {
-      callback.onError(e);
-    }
-
-    @Override
-    public void onSuccess(SendMessageRequest request, SendMessageResult sendMessageResult) {
-      callback.onComplete();
     }
   }
 

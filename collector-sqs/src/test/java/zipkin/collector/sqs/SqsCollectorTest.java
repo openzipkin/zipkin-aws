@@ -26,8 +26,8 @@ import org.junit.Test;
 import zipkin.Span;
 import zipkin.TestObjects;
 import zipkin.collector.CollectorComponent;
-import zipkin.collector.CollectorMetrics;
 import zipkin.collector.CollectorSampler;
+import zipkin.collector.InMemoryCollectorMetrics;
 import zipkin.junit.aws.AmazonSqsRule;
 import zipkin.storage.InMemoryStorage;
 import zipkin.storage.QueryRequest;
@@ -37,24 +37,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static zipkin.TestObjects.TRACE;
 
-public class AwsSqsCollectorTest {
+public class SqsCollectorTest {
 
   @Rule
   public AmazonSqsRule sqsRule = new AmazonSqsRule().start(9324);
 
   private StorageComponent store;
 
+  private InMemoryCollectorMetrics metrics;
+
   private CollectorComponent collector;
 
   @Before
   public void setup() {
     store = new InMemoryStorage();
+    metrics = new InMemoryCollectorMetrics();
 
-    collector = new AwsSqsCollector.Builder()
+    collector = new SqsCollector.Builder()
         .queueUrl(sqsRule.queueUrl())
         .parallelism(2)
+        .waitTimeSeconds(1) // using short wait time to make test teardown faster
         .credentialsProvider(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
-        .metrics(CollectorMetrics.NOOP_METRICS)
+        .metrics(metrics)
         .sampler(CollectorSampler.ALWAYS_SAMPLE)
         .storage(store)
         .build()
@@ -73,11 +77,12 @@ public class AwsSqsCollectorTest {
     sqsRule.sendTraces(TRACE);
 
     await()
-        .atMost(5, TimeUnit.SECONDS)
+        .atMost(15, TimeUnit.SECONDS)
         .until(() -> store.spanStore().getRawTrace(TRACE.get(0).traceId) != null);
 
     List<Span> fromStore = store.spanStore().getRawTrace(TRACE.get(0).traceId);
 
+    assertThat(metrics.messagesDropped()).isEqualTo(0).as("check dropped metrics.");
     assertThat(fromStore).isNotNull().as("recorded spans should not be null");
     assertThat(fromStore.size()).isEqualTo(TRACE.size()).as("all spans have been recorded");
     assertThat(sqsRule.queueCount()).isEqualTo(0).as("accepted spans are deleted.");
@@ -93,7 +98,7 @@ public class AwsSqsCollectorTest {
     QueryRequest query = QueryRequest.builder().serviceName("service").limit(LOTS.length).build();
 
     await()
-        .atMost(15, TimeUnit.SECONDS)
+        .atMost(60, TimeUnit.SECONDS)
         .until(() -> {
           List<List<Span>> spans = store.spanStore().getTraces(query);
           return (spans != null && spans.size() == LOTS.length);
@@ -101,6 +106,7 @@ public class AwsSqsCollectorTest {
 
     List<List<Span>> fromStore = store.spanStore().getTraces(query);
 
+    assertThat(metrics.messagesDropped()).isEqualTo(0).as("check dropped metrics.");
     assertThat(fromStore).isNotNull().as("recorded spans should not be null");
     assertThat(fromStore.size()).isEqualTo(LOTS.length).as("all spans have been accepted.");
     assertThat(sqsRule.queueCount()).isEqualTo(0).as("accepted spans as deleted.");

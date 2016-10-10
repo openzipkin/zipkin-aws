@@ -8,7 +8,7 @@ the [zipkin-reporters-java](https://github.com/openzipkin/zipkin-reporter-java) 
 
 ## Senders
 
-### AwsBufferedSqsSender
+### SqsSender
 
 Sends Spans to SQS using the AwsBufferedAsyncClient. This client maintains a queue and thread for
 buffering API requests to the SQS API. By default the queue will send buffered spans every 200ms or
@@ -22,37 +22,28 @@ reporter = AsyncReporter.builder(
   AwsBufferedSqsSender.create("https://sqs.us-east-1.amazonaws.com/123456789012/queue")).build();
 ```
 
-Span messages sent to SQS use several keywords to indicate that message is a Zipkin span and what
-type of encoding is being used. The message keywords are as follows:
-Message body: 'zipkin'
-Message attribute: 'span'
-Message attribute data type: 'Binary.JSON' or 'Binary.THRIFT'
-
-When the SQS collector requests messages it only requests messages with binary attributes of type
-'span'. The attribute data type is then used to determine which Zipkin codec to use for
-deserialization.
-
-The message body is not used but is required by SQS and must not be null or empty.
-
 #### Properties
 
-`queueUrl` | SQS queue URL to send spans.
-`credentialsProvider` | AwsCredentialsProvider to use for SQS API calls.
-Defaults to DefaultAwsCredentialsProviderChain
-`encoding` | Span encoding to use, either JSON or Thrift, defaults to Thrift
+`queueUrl`            | SQS queue URL to send spans.
+`credentialsProvider` | AwsCredentialsProvider to use for SQS API calls. Defaults to
+ DefaultAwsCredentialsProviderChain
 
-### AwsSnsSender
+#### Message Format
+
+This sender only sends Thrift encoded Spans as base64 strings in the SQS message body.
+
+### SnsSender
 TODO
 
 ## Collectors
 
-### AwsSqsCollector
+### SqsCollector
 
 Collects Spans from SQS using the AwsBufferedAsyncClient. This client maintains a queue and thread
 for buffering API requests and pre-fetching messages. By default this client will block a request
 for up to 20 seconds while waiting for messages. After messages are received or the wait time is
 reached the client will start a new request.  Messages that are accepted by the collector are
-deleted from SQS.
+deleted from SQS after successfully storing them.
 
 ```java
 new AwsSqsCollector.Builder()

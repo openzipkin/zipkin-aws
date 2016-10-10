@@ -16,16 +16,14 @@ package zipkin.junit.aws;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.amazonaws.services.sqs.model.DeleteMessageRequest;
-import com.amazonaws.services.sqs.model.MessageAttributeValue;
 import com.amazonaws.services.sqs.model.PurgeQueueRequest;
 import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
-import java.nio.ByteBuffer;
-import java.util.Collections;
-import java.util.LinkedList;
+import com.amazonaws.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.elasticmq.rest.sqs.SQSLimits;
 import org.elasticmq.rest.sqs.SQSRestServer;
 import org.elasticmq.rest.sqs.SQSRestServerBuilder;
 import org.junit.rules.ExternalResource;
@@ -45,7 +43,10 @@ public class AmazonSqsRule extends ExternalResource {
 
   public AmazonSqsRule start(int httpPort) {
     if (server == null) {
-      server = SQSRestServerBuilder.withPort(httpPort).start();
+      server = SQSRestServerBuilder
+          .withPort(httpPort)
+          .withSQSLimits(SQSLimits.Strict())
+          .start();
       server.waitUntilStarted();
     }
 
@@ -59,10 +60,6 @@ public class AmazonSqsRule extends ExternalResource {
 
   public String queueUrl() {
     return queueUrl;
-  }
-
-  public void shutdown() {
-    server.stopAndWait();
   }
 
   @Override protected void before() {
@@ -99,10 +96,7 @@ public class AmazonSqsRule extends ExternalResource {
 
       spans = Stream.concat(spans,
           result.getMessages().stream()
-          .filter(m -> m.getMessageAttributes().containsKey("spans"))
-          .flatMap(
-              m -> fromBytes(m.getMessageAttributes().get("spans").getBinaryValue().array()).stream()
-          )
+          .flatMap(m -> fromBase64(m.getBody()).stream())
       );
 
       result = client.receiveMessage(queueUrl);
@@ -119,38 +113,13 @@ public class AmazonSqsRule extends ExternalResource {
   }
 
   public void sendTraces(List<Span> traces) {
-    int count = 0;
-    List<Span> bucket = new LinkedList<>();
-
-    for (Span span : traces) {
-      bucket.add(span);
-      if (count++ > 9) {
-        sendTracesInternal(bucket);
-        bucket = new LinkedList<>();
-        count = 0;
-      }
-    }
-
-    sendTracesInternal(bucket);
-
+    String body = Base64.encodeAsString(Codec.THRIFT.writeSpans(traces));
+    client.sendMessage(new SendMessageRequest(queueUrl, body));
   }
 
-  private void sendTracesInternal(List<Span> traces) {
-    client.sendMessage(new SendMessageRequest(queueUrl, "zipkin")
-        .addMessageAttributesEntry("spans", new MessageAttributeValue()
-            .withDataType("Binary.THRIFT")
-            .withBinaryValue(ByteBuffer.wrap(Codec.THRIFT.writeSpans(traces)))));
+  private static List<Span> fromBase64(String base64) {
+    byte[] bytes = Base64.decode(base64);
+    return Codec.THRIFT.readSpans(bytes);
   }
-
-  private static List<Span> fromBytes(byte[] bytes) {
-    if (bytes[0] == '[') {
-      return Codec.JSON.readSpans(bytes);
-    } else if (bytes[0] == 12 /* TType.STRUCT */) {
-      return Codec.THRIFT.readSpans(bytes);
-    } else {
-      return Collections.singletonList(Codec.THRIFT.readSpan(bytes));
-    }
-  }
-
 
 }
