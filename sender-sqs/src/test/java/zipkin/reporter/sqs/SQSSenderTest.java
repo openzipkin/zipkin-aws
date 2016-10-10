@@ -30,14 +30,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import zipkin.junit.aws.AmazonSqsRule;
 
-public class AwsBufferedSqsSenderTest {
+public class SQSSenderTest {
 
   @Rule
   public AmazonSqsRule sqsRule = new AmazonSqsRule().start(9324);
   @Rule
   public ExpectedException thrown = ExpectedException.none();
 
-  AwsBufferedSqsSender sender = AwsBufferedSqsSender.builder()
+  SQSSender sender = SQSSender.builder()
       .queueUrl(sqsRule.queueUrl())
       .credentialsProvider(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
       .build();
