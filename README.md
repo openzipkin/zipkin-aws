@@ -1,3 +1,5 @@
+[![CircleCI](https://circleci.com/gh/openzipkin/zipkin-aws.svg?style=svg)](https://circleci.com/gh/openzipkin/zipkin-aws)
+
 # zipkin-aws
 Shared libraries that provide Zipkin integration with AWS SQS and SNS. Requires JRE 6 or later.
 
@@ -39,9 +41,8 @@ TODO
 
 ### SQSCollector
 
-Collects Spans from SQS using the AwsBufferedAsyncClient. This client maintains a queue and thread
-for buffering API requests and pre-fetching messages. By default this client will block a request
-for up to 20 seconds while waiting for messages. After messages are received or the wait time is
+Collects Spans from SQS using the AmazonSQSAsyncClient. By default this client uses long polling 
+and will wait on a response for up to 20 seconds. After messages are received or the wait time is
 reached the client will start a new request.  Messages that are accepted by the collector are
 deleted from SQS after successfully storing them.
 

@@ -14,6 +14,8 @@
 package zipkin.autoconfigure.collector.sqs;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -25,18 +27,21 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import zipkin.collector.CollectorMetrics;
 import zipkin.collector.CollectorSampler;
-import zipkin.collector.sqs.AwsSqsCollector;
+import zipkin.collector.sqs.SQSCollector;
+import zipkin.junit.aws.AmazonSQSRule;
 import zipkin.storage.InMemoryStorage;
 import zipkin.storage.StorageComponent;
 
 import static org.assertj.core.api.Assertions.assertThat;
-
 import static org.springframework.boot.test.util.EnvironmentTestUtils.addEnvironment;
 
-public class ZipkinSqsCollectorAutoConfigurationTest {
+public class ZipkinSQSCollectorAutoConfigurationTest {
 
   @Rule
   public ExpectedException thrown = ExpectedException.none();
+
+  @Rule
+  public AmazonSQSRule sqsRule = new AmazonSQSRule().start(9324);
 
   AnnotationConfigApplicationContext context;
 
@@ -49,40 +54,41 @@ public class ZipkinSqsCollectorAutoConfigurationTest {
   public void doesntProvideCollectorComponent_whenSqsQueueUrlUnset() {
     context = new AnnotationConfigApplicationContext();
     context.register(PropertyPlaceholderAutoConfiguration.class,
-        ZipkinSqsCollectorAutoConfiguration.class, InMemoryConfiguration.class);
+        ZipkinSQSCollectorAutoConfiguration.class, InMemoryConfiguration.class);
     context.refresh();
 
     thrown.expect(NoSuchBeanDefinitionException.class);
-    context.getBean(AwsSqsCollector.class);
+    context.getBean(SQSCollector.class);
   }
 
   @Test
   public void provideCollectorComponent_whenSqsQueueUrlIsSet() {
     context = new AnnotationConfigApplicationContext();
-    addEnvironment(context, "zipkin.collector.sqs.queueUrl:http://localhost:1234");
+    addEnvironment(context, "zipkin.collector.sqs.queueUrl:" + sqsRule.queueUrl());
+    addEnvironment(context, "zipkin.collector.sqs.waitTimeSeconds:1");
     context.register(PropertyPlaceholderAutoConfiguration.class,
-        ZipkinSqsCollectorAutoConfiguration.class, InMemoryConfiguration.class);
+        ZipkinSQSCollectorAutoConfiguration.class, InMemoryConfiguration.class);
     context.refresh();
 
-    assertThat(context.getBean(AwsSqsCollector.class)).isNotNull();
+    assertThat(context.getBean(SQSCollector.class)).isNotNull();
     assertThat(context.getBean(AWSCredentialsProvider.class)).isNotNull();
   }
 
   @Test
   public void provideCollectorComponent_setsZipkinSqsCollectorProperties() {
     context = new AnnotationConfigApplicationContext();
-    addEnvironment(context, "zipkin.collector.sqs.queueUrl:http://localhost:1234");
-    addEnvironment(context, "zipkin.collector.sqs.waitTimeSeconds:5");
+    addEnvironment(context, "zipkin.collector.sqs.queueUrl:" + sqsRule.queueUrl());
+    addEnvironment(context, "zipkin.collector.sqs.waitTimeSeconds:1");
     addEnvironment(context, "zipkin.collector.sqs.parallelism:3");
     context.register(PropertyPlaceholderAutoConfiguration.class,
-        ZipkinSqsCollectorAutoConfiguration.class, InMemoryConfiguration.class);
+        ZipkinSQSCollectorAutoConfiguration.class, InMemoryConfiguration.class);
     context.refresh();
 
-    ZipkinSqsCollectorProperties properties = context.getBean(ZipkinSqsCollectorProperties.class);
+    ZipkinSQSCollectorProperties properties = context.getBean(ZipkinSQSCollectorProperties.class);
 
 
-    assertThat(properties.getQueueUrl()).isEqualTo("http://localhost:1234");
-    assertThat(properties.getWaitTimeSeconds()).isEqualTo(5);
+    assertThat(properties.getQueueUrl()).isEqualTo(sqsRule.queueUrl());
+    assertThat(properties.getWaitTimeSeconds()).isEqualTo(1);
     assertThat(properties.getParallelism()).isEqualTo(3);
   }
 
@@ -100,5 +106,7 @@ public class ZipkinSqsCollectorAutoConfigurationTest {
     @Bean StorageComponent storage() {
       return new InMemoryStorage();
     }
+
+    @Bean AWSCredentialsProvider credentialsProvider() { return new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")); }
   }
 }

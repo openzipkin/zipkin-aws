@@ -113,7 +113,6 @@ final class SQSSpanProcessor implements Closeable, Component {
   }
 
   private Future<DeleteMessageResult> delete(Message message) {
-    // client will buffer deletes on its own to minimize API calls.
     return client.deleteMessageAsync(queueUrl, message.getReceiptHandle());
   }
 

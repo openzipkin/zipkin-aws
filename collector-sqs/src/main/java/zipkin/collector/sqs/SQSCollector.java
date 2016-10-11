@@ -18,8 +18,6 @@ import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSAsync;
 import com.amazonaws.services.sqs.AmazonSQSAsyncClient;
-import com.amazonaws.services.sqs.buffered.AmazonSQSBufferedAsyncClient;
-import com.amazonaws.services.sqs.buffered.QueueBufferConfig;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.LinkedList;
@@ -106,8 +104,7 @@ public final class SQSCollector implements CollectorComponent, Closeable {
   private final LazyProcessors processors;
 
   SQSCollector(Builder builder) {
-    client = new LazyAmazonSQSAsync(builder.credentialsProvider,
-        new QueueBufferConfig().withLongPollWaitTimeoutSeconds(builder.waitTimeSeconds));
+    client = new LazyAmazonSQSAsync(builder.credentialsProvider);
 
     processors = new LazyProcessors(client.get(), builder.delegate.build(), builder.queueUrl,
         builder.parallelism, builder.waitTimeSeconds);
@@ -187,16 +184,13 @@ public final class SQSCollector implements CollectorComponent, Closeable {
   private static final class LazyAmazonSQSAsync extends LazyCloseable<AmazonSQSAsync> {
 
     final AWSCredentialsProvider credentialsProvider;
-    final QueueBufferConfig config;
 
-    LazyAmazonSQSAsync(AWSCredentialsProvider credentialsProvider, QueueBufferConfig config) {
+    LazyAmazonSQSAsync(AWSCredentialsProvider credentialsProvider) {
       this.credentialsProvider = credentialsProvider;
-      this.config = config;
     }
 
     @Override protected AmazonSQSAsync compute() {
-      return new AmazonSQSBufferedAsyncClient(
-          new AmazonSQSAsyncClient(credentialsProvider), config);
+      return new AmazonSQSAsyncClient(credentialsProvider);
     }
 
     @Override public void close() {
