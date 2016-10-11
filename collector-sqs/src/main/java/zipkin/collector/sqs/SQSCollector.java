@@ -19,13 +19,13 @@ import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSAsync;
 import com.amazonaws.services.sqs.AmazonSQSAsyncClient;
 import com.amazonaws.services.sqs.buffered.AmazonSQSBufferedAsyncClient;
+import com.amazonaws.services.sqs.buffered.QueueBufferConfig;
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import zipkin.Component;
 import zipkin.collector.Collector;
 import zipkin.collector.CollectorComponent;
@@ -34,10 +34,11 @@ import zipkin.collector.CollectorSampler;
 import zipkin.internal.LazyCloseable;
 import zipkin.internal.Util;
 import zipkin.storage.StorageComponent;
-import static zipkin.internal.Util.*;
+
+import static zipkin.internal.Util.checkArgument;
 
 
-public final class AwsSqsCollector implements CollectorComponent, Closeable {
+public final class SQSCollector implements CollectorComponent, Closeable {
 
   public static Builder builder() {
     return new Builder();
@@ -45,7 +46,7 @@ public final class AwsSqsCollector implements CollectorComponent, Closeable {
 
   public static final class Builder implements CollectorComponent.Builder {
 
-    Collector.Builder delegate = Collector.builder(AwsSqsCollector.class);
+    Collector.Builder delegate = Collector.builder(SQSCollector.class);
 
     String queueUrl;
     int waitTimeSeconds = 20; // aws sqs max wait time is 20 seconds
@@ -81,7 +82,7 @@ public final class AwsSqsCollector implements CollectorComponent, Closeable {
 
     /** Amount of time to wait for messages from SQS */
     public Builder waitTimeSeconds(int seconds) {
-      checkArgument(parallelism > 0 && parallelism < 21, "parallelism");
+      checkArgument(parallelism > 0 && parallelism < 21, "waitTimeSeconds");
       this.waitTimeSeconds = seconds;
       return this;
     }
@@ -93,8 +94,8 @@ public final class AwsSqsCollector implements CollectorComponent, Closeable {
       return this;
     }
 
-    @Override public AwsSqsCollector build() {
-      return new AwsSqsCollector(this);
+    @Override public SQSCollector build() {
+      return new SQSCollector(this);
     }
 
     Builder() {
@@ -104,13 +105,15 @@ public final class AwsSqsCollector implements CollectorComponent, Closeable {
   private final LazyAmazonSQSAsync client;
   private final LazyProcessors processors;
 
-  AwsSqsCollector(Builder builder) {
-    client = new LazyAmazonSQSAsync(builder.credentialsProvider);
+  SQSCollector(Builder builder) {
+    client = new LazyAmazonSQSAsync(builder.credentialsProvider,
+        new QueueBufferConfig().withLongPollWaitTimeoutSeconds(builder.waitTimeSeconds));
+
     processors = new LazyProcessors(client.get(), builder.delegate.build(), builder.queueUrl,
         builder.parallelism, builder.waitTimeSeconds);
   }
 
-  @Override public AwsSqsCollector start() {
+  @Override public SQSCollector start() {
     processors.get();
     return this;
   }
@@ -129,7 +132,7 @@ public final class AwsSqsCollector implements CollectorComponent, Closeable {
     processors.close();
   }
 
-  private static final class LazyProcessors extends LazyCloseable<List<AwsSqsSpanProcessor>>
+  private static final class LazyProcessors extends LazyCloseable<List<SQSSpanProcessor>>
       implements Component {
 
     private static final Logger logger = Logger.getLogger(LazyProcessors.class.getName());
@@ -148,16 +151,18 @@ public final class AwsSqsCollector implements CollectorComponent, Closeable {
       this.waitTimeSeconds = waitTimeSeconds;
     }
 
-    @Override protected List<AwsSqsSpanProcessor> compute() {
-      return IntStream.range(0, parallelism - 1)
-          .mapToObj(i -> new AwsSqsSpanProcessor(client, collector, queueUrl, waitTimeSeconds).run())
-          .collect(Collectors.toList());
+    @Override protected List<SQSSpanProcessor> compute() {
+      List<SQSSpanProcessor> processors = new LinkedList<>();
+      for (int i=0; i<parallelism; i++) {
+        processors.add(new SQSSpanProcessor(client, collector, queueUrl, waitTimeSeconds).run());
+      }
+      return processors;
     }
 
     @Override public CheckResult check() {
-      List<AwsSqsSpanProcessor> processors = maybeNull();
+      List<SQSSpanProcessor> processors = maybeNull();
       if (processors != null) {
-        for (AwsSqsSpanProcessor processor : processors) {
+        for (SQSSpanProcessor processor : processors) {
           CheckResult result = processor.check();
           if (result != CheckResult.OK) return result;
         }
@@ -166,10 +171,10 @@ public final class AwsSqsCollector implements CollectorComponent, Closeable {
     }
 
     @Override public void close() {
-      List<AwsSqsSpanProcessor> processors = maybeNull();
+      List<SQSSpanProcessor> processors = maybeNull();
       if (processors == null) return;
 
-      for (AwsSqsSpanProcessor processor : processors) {
+      for (SQSSpanProcessor processor : processors) {
         try {
           processor.close();
         } catch (IOException ioe) {
@@ -182,13 +187,16 @@ public final class AwsSqsCollector implements CollectorComponent, Closeable {
   private static final class LazyAmazonSQSAsync extends LazyCloseable<AmazonSQSAsync> {
 
     final AWSCredentialsProvider credentialsProvider;
+    final QueueBufferConfig config;
 
-    LazyAmazonSQSAsync(AWSCredentialsProvider credentialsProvider) {
+    LazyAmazonSQSAsync(AWSCredentialsProvider credentialsProvider, QueueBufferConfig config) {
       this.credentialsProvider = credentialsProvider;
+      this.config = config;
     }
 
     @Override protected AmazonSQSAsync compute() {
-      return new AmazonSQSBufferedAsyncClient(new AmazonSQSAsyncClient(credentialsProvider));
+      return new AmazonSQSBufferedAsyncClient(
+          new AmazonSQSAsyncClient(credentialsProvider), config);
     }
 
     @Override public void close() {

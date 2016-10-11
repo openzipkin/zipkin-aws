@@ -28,12 +28,12 @@ import zipkin.reporter.internal.AwaitableCallback;
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import zipkin.junit.aws.AmazonSqsRule;
+import zipkin.junit.aws.AmazonSQSRule;
 
 public class SQSSenderTest {
 
   @Rule
-  public AmazonSqsRule sqsRule = new AmazonSqsRule().start(9324);
+  public AmazonSQSRule sqsRule = new AmazonSQSRule().start(9324);
   @Rule
   public ExpectedException thrown = ExpectedException.none();
 
@@ -48,7 +48,7 @@ public class SQSSenderTest {
 
     assertThat(sqsRule.queueCount()).isEqualTo(1);
 
-    List<Span> traces = sqsRule.getTraces();
+    List<Span> traces = sqsRule.getSpans();
     List<Span> expected = TestObjects.TRACE;
 
     assertThat(traces.size()).isEqualTo(expected.size());
