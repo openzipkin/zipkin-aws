@@ -26,22 +26,22 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 import zipkin.collector.CollectorMetrics;
 import zipkin.collector.CollectorSampler;
-import zipkin.collector.sqs.AwsSqsCollector;
+import zipkin.collector.sqs.SQSCollector;
 import zipkin.storage.StorageComponent;
 
 @Configuration
-@EnableConfigurationProperties(ZipkinSqsCollectorProperties.class)
-@Conditional(ZipkinSqsCollectorAutoConfiguration.SqsSetCondition.class)
-public class ZipkinSqsCollectorAutoConfiguration {
+@EnableConfigurationProperties(ZipkinSQSCollectorProperties.class)
+@Conditional(ZipkinSQSCollectorAutoConfiguration.SQSSetCondition.class)
+public class ZipkinSQSCollectorAutoConfiguration {
 
   /** By default, get credentials from the {@link DefaultAWSCredentialsProviderChain */
   @Bean
   @ConditionalOnMissingBean
-  AWSCredentialsProvider credentials() {
+  AWSCredentialsProvider credentialsProvider() {
     return new DefaultAWSCredentialsProviderChain();
   }
 
-  @Bean AwsSqsCollector sqs(ZipkinSqsCollectorProperties sqs, AWSCredentialsProvider provider,
+  @Bean SQSCollector sqs(ZipkinSQSCollectorProperties sqs, AWSCredentialsProvider provider,
       CollectorSampler sampler, CollectorMetrics metrics, StorageComponent storage) {
     return sqs.toBuilder()
         .queueUrl(sqs.getQueueUrl())
@@ -56,7 +56,7 @@ public class ZipkinSqsCollectorAutoConfiguration {
   }
 
   /**
-   * This condition passes when {@link ZipkinSqsCollectorProperties#getQueueUrl()} is set to
+   * This condition passes when {@link ZipkinSQSCollectorProperties#getQueueUrl()} is set to
    * non-empty.
    *
    * <p>This is here because the yaml defaults this property to empty like this, and spring-boot
@@ -66,7 +66,7 @@ public class ZipkinSqsCollectorAutoConfiguration {
    * queueUrl: ${SQS_QUEUE_URL:}
    * }</pre>
    */
-  static final class SqsSetCondition extends SpringBootCondition {
+  static final class SQSSetCondition extends SpringBootCondition {
 
     private static final String PROPERTY_NAME = "zipkin.collector.sqs.queueUrl";
 

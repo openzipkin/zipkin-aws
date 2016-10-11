@@ -1,2 +1,2 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-zipkin.autoconfigure.collector.sqs.ZipkinSqsCollectorAutoConfiguration
+zipkin.autoconfigure.collector.sqs.ZipkinSQSCollectorAutoConfiguration

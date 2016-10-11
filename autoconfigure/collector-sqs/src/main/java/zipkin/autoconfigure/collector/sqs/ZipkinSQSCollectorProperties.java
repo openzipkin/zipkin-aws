@@ -14,10 +14,10 @@
 package zipkin.autoconfigure.collector.sqs;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import zipkin.collector.sqs.AwsSqsCollector;
+import zipkin.collector.sqs.SQSCollector;
 
 @ConfigurationProperties("zipkin.collector.sqs")
-final public class ZipkinSqsCollectorProperties {
+final public class ZipkinSQSCollectorProperties {
   String queueUrl;
   int waitTimeSeconds = 20;
   int parallelism = 1;
@@ -46,8 +46,8 @@ final public class ZipkinSqsCollectorProperties {
     return parallelism;
   }
 
-  public AwsSqsCollector.Builder toBuilder() {
-    return AwsSqsCollector.builder()
+  public SQSCollector.Builder toBuilder() {
+    return SQSCollector.builder()
         .queueUrl(queueUrl)
         .parallelism(parallelism)
         .waitTimeSeconds(waitTimeSeconds);
