@@ -38,7 +38,7 @@ import zipkin.storage.StorageComponent;
 import static zipkin.internal.Util.checkArgument;
 
 
-public final class SqsCollector implements CollectorComponent, Closeable {
+public final class SQSCollector implements CollectorComponent, Closeable {
 
   public static Builder builder() {
     return new Builder();
@@ -46,7 +46,7 @@ public final class SqsCollector implements CollectorComponent, Closeable {
 
   public static final class Builder implements CollectorComponent.Builder {
 
-    Collector.Builder delegate = Collector.builder(SqsCollector.class);
+    Collector.Builder delegate = Collector.builder(SQSCollector.class);
 
     String queueUrl;
     int waitTimeSeconds = 20; // aws sqs max wait time is 20 seconds
@@ -94,8 +94,8 @@ public final class SqsCollector implements CollectorComponent, Closeable {
       return this;
     }
 
-    @Override public SqsCollector build() {
-      return new SqsCollector(this);
+    @Override public SQSCollector build() {
+      return new SQSCollector(this);
     }
 
     Builder() {
@@ -105,7 +105,7 @@ public final class SqsCollector implements CollectorComponent, Closeable {
   private final LazyAmazonSQSAsync client;
   private final LazyProcessors processors;
 
-  SqsCollector(Builder builder) {
+  SQSCollector(Builder builder) {
     client = new LazyAmazonSQSAsync(builder.credentialsProvider,
         new QueueBufferConfig().withLongPollWaitTimeoutSeconds(builder.waitTimeSeconds));
 
@@ -113,7 +113,7 @@ public final class SqsCollector implements CollectorComponent, Closeable {
         builder.parallelism, builder.waitTimeSeconds);
   }
 
-  @Override public SqsCollector start() {
+  @Override public SQSCollector start() {
     processors.get();
     return this;
   }
@@ -132,7 +132,7 @@ public final class SqsCollector implements CollectorComponent, Closeable {
     processors.close();
   }
 
-  private static final class LazyProcessors extends LazyCloseable<List<SqsSpanProcessor>>
+  private static final class LazyProcessors extends LazyCloseable<List<SQSSpanProcessor>>
       implements Component {
 
     private static final Logger logger = Logger.getLogger(LazyProcessors.class.getName());
@@ -151,18 +151,18 @@ public final class SqsCollector implements CollectorComponent, Closeable {
       this.waitTimeSeconds = waitTimeSeconds;
     }
 
-    @Override protected List<SqsSpanProcessor> compute() {
-      List<SqsSpanProcessor> processors = new LinkedList<>();
+    @Override protected List<SQSSpanProcessor> compute() {
+      List<SQSSpanProcessor> processors = new LinkedList<>();
       for (int i=0; i<parallelism; i++) {
-        processors.add(new SqsSpanProcessor(client, collector, queueUrl, waitTimeSeconds).run());
+        processors.add(new SQSSpanProcessor(client, collector, queueUrl, waitTimeSeconds).run());
       }
       return processors;
     }
 
     @Override public CheckResult check() {
-      List<SqsSpanProcessor> processors = maybeNull();
+      List<SQSSpanProcessor> processors = maybeNull();
       if (processors != null) {
-        for (SqsSpanProcessor processor : processors) {
+        for (SQSSpanProcessor processor : processors) {
           CheckResult result = processor.check();
           if (result != CheckResult.OK) return result;
         }
@@ -171,10 +171,10 @@ public final class SqsCollector implements CollectorComponent, Closeable {
     }
 
     @Override public void close() {
-      List<SqsSpanProcessor> processors = maybeNull();
+      List<SQSSpanProcessor> processors = maybeNull();
       if (processors == null) return;
 
-      for (SqsSpanProcessor processor : processors) {
+      for (SQSSpanProcessor processor : processors) {
         try {
           processor.close();
         } catch (IOException ioe) {

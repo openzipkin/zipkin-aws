@@ -20,6 +20,7 @@ import com.amazonaws.services.sqs.model.PurgeQueueRequest;
 import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.util.Base64;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -33,15 +34,15 @@ import zipkin.Span;
 import static java.util.Collections.singletonList;
 
 
-public class AmazonSqsRule extends ExternalResource {
+public class AmazonSQSRule extends ExternalResource {
 
   private SQSRestServer server;
   private AmazonSQSClient client;
   private String queueUrl;
 
-  public AmazonSqsRule() {}
+  public AmazonSQSRule() {}
 
-  public AmazonSqsRule start(int httpPort) {
+  public AmazonSQSRule start(int httpPort) {
     if (server == null) {
       server = SQSRestServerBuilder
           .withPort(httpPort)
@@ -82,11 +83,11 @@ public class AmazonSqsRule extends ExternalResource {
     return Integer.valueOf(count);
   }
 
-  public List<Span> getTraces() {
-    return getTraces(false);
+  public List<Span> getSpans() {
+    return getSpans(false);
   }
 
-  public List<Span> getTraces(boolean delete) {
+  public List<Span> getSpans(boolean delete) {
 
     Stream<Span> spans = Stream.empty();
 
@@ -112,8 +113,24 @@ public class AmazonSqsRule extends ExternalResource {
     return spans.collect(Collectors.toList());
   }
 
-  public void sendTraces(List<Span> traces) {
-    String body = Base64.encodeAsString(Codec.THRIFT.writeSpans(traces));
+  public void sendSpans(List<Span> spans) {
+    int count = 0;
+    List<Span> bucket = new LinkedList<>();
+
+    for (Span span : spans) {
+      bucket.add(span);
+      if (count++ > 9) {
+        sendSpansInternal(bucket);
+        bucket = new LinkedList<>();
+        count = 0;
+      }
+    }
+
+    sendSpansInternal(bucket);
+  }
+
+  private void sendSpansInternal(List<Span> spans) {
+    String body = Base64.encodeAsString(Codec.THRIFT.writeSpans(spans));
     client.sendMessage(new SendMessageRequest(queueUrl, body));
   }
 

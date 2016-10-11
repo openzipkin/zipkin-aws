@@ -36,9 +36,9 @@ import zipkin.internal.Nullable;
 import zipkin.storage.Callback;
 
 
-final class SqsSpanProcessor implements Closeable, Component {
+final class SQSSpanProcessor implements Closeable, Component {
 
-  private static final Logger logger = Logger.getLogger(SqsSpanProcessor.class.getName());
+  private static final Logger logger = Logger.getLogger(SQSSpanProcessor.class.getName());
 
   private final AmazonSQSAsync client;
   private final Collector collector;
@@ -47,7 +47,7 @@ final class SqsSpanProcessor implements Closeable, Component {
   private final AtomicBoolean closed = new AtomicBoolean(false);
   private final AtomicReference<CheckResult> status = new AtomicReference<>(CheckResult.OK);
 
-  SqsSpanProcessor(AmazonSQSAsync client, Collector collector, String queueUrl,
+  SQSSpanProcessor(AmazonSQSAsync client, Collector collector, String queueUrl,
       int waitTimeSeconds) {
     this.client = client;
     this.collector = collector;
@@ -64,7 +64,7 @@ final class SqsSpanProcessor implements Closeable, Component {
     client.shutdown();
   }
 
-  SqsSpanProcessor run() {
+  SQSSpanProcessor run() {
     // don't throw an exception here since this might be run from a receive callback.
     if (closed.get()) return null;
 

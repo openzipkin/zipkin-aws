@@ -28,7 +28,7 @@ import zipkin.TestObjects;
 import zipkin.collector.CollectorComponent;
 import zipkin.collector.CollectorSampler;
 import zipkin.collector.InMemoryCollectorMetrics;
-import zipkin.junit.aws.AmazonSqsRule;
+import zipkin.junit.aws.AmazonSQSRule;
 import zipkin.storage.InMemoryStorage;
 import zipkin.storage.QueryRequest;
 import zipkin.storage.StorageComponent;
@@ -37,10 +37,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 import static zipkin.TestObjects.TRACE;
 
-public class SqsCollectorTest {
+public class SQSCollectorTest {
 
   @Rule
-  public AmazonSqsRule sqsRule = new AmazonSqsRule().start(9324);
+  public AmazonSQSRule sqsRule = new AmazonSQSRule().start(9324);
 
   private StorageComponent store;
 
@@ -53,7 +53,7 @@ public class SqsCollectorTest {
     store = new InMemoryStorage();
     metrics = new InMemoryCollectorMetrics();
 
-    collector = new SqsCollector.Builder()
+    collector = new SQSCollector.Builder()
         .queueUrl(sqsRule.queueUrl())
         .parallelism(2)
         .waitTimeSeconds(1) // using short wait time to make test teardown faster
@@ -74,7 +74,7 @@ public class SqsCollectorTest {
   @Test
   public void collectSpans() throws Exception {
 
-    sqsRule.sendTraces(TRACE);
+    sqsRule.sendSpans(TRACE);
 
     await()
         .atMost(15, TimeUnit.SECONDS)
@@ -93,7 +93,7 @@ public class SqsCollectorTest {
 
     Span[] LOTS = new Random().longs(10000L).mapToObj(TestObjects::span).toArray(Span[]::new);
 
-    sqsRule.sendTraces(Arrays.asList(LOTS));
+    sqsRule.sendSpans(Arrays.asList(LOTS));
 
     QueryRequest query = QueryRequest.builder().serviceName("service").limit(LOTS.length).build();
 

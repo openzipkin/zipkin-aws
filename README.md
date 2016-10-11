@@ -8,7 +8,7 @@ the [zipkin-reporters-java](https://github.com/openzipkin/zipkin-reporter-java) 
 
 ## Senders
 
-### SqsSender
+### SQSSender
 
 Sends Spans to SQS using the AwsBufferedAsyncClient. This client maintains a queue and thread for
 buffering API requests to the SQS API. By default the queue will send buffered spans every 200ms or
@@ -19,7 +19,7 @@ Credentials are provided using the DefaultAwsCredentialsProviderChain by default
 
 ```java
 reporter = AsyncReporter.builder(
-  AwsBufferedSqsSender.create("https://sqs.us-east-1.amazonaws.com/123456789012/queue")).build();
+  SQSSender.create("https://sqs.us-east-1.amazonaws.com/123456789012/queue")).build();
 ```
 
 #### Properties
@@ -32,12 +32,12 @@ reporter = AsyncReporter.builder(
 
 This sender only sends Thrift encoded Spans as base64 strings in the SQS message body.
 
-### SnsSender
+### SNSSender
 TODO
 
 ## Collectors
 
-### SqsCollector
+### SQSCollector
 
 Collects Spans from SQS using the AwsBufferedAsyncClient. This client maintains a queue and thread
 for buffering API requests and pre-fetching messages. By default this client will block a request
@@ -46,7 +46,7 @@ reached the client will start a new request.  Messages that are accepted by the 
 deleted from SQS after successfully storing them.
 
 ```java
-new AwsSqsCollector.Builder()
+new SQSCollector.Builder()
   .queueUrl("https://sqs.us-east-1.amazonaws.com/123456789012/queue")
   .metrics(CollectorMetrics.NOOP_METRICS)
   .sampler(CollectorSampler.ALWAY_SAMPLE)
