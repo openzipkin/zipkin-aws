@@ -25,3 +25,25 @@ test:
   post:
     - mkdir -p $CIRCLE_TEST_REPORTS/junit/
     - find . -type f -regex ".*/target/surefire-reports/.*xml" -exec cp {} $CIRCLE_TEST_REPORTS/junit/ \;
+
+# Send notifications to Gitter
+notify:
+  webhooks:
+    - url: https://webhooks.gitter.im/e/22adbb9973299092e6ae
+
+deployment:
+  trigger:
+    owner: openzipkin
+    tag: /release-\d+\.\d+\.\d+/
+    commands:
+      - ./circleci/trigger-publish.sh
+  publish-stable:
+    owner: openzipkin
+    tag: /\d+\.\d+\.\d+/
+    commands:
+      - ./circleci/publish-stable.sh
+  publish-snapshot:
+    owner: openzipkin
+    branch: master
+    commands:
+      - ./circleci/publish-snapshot.sh
