@@ -16,4 +16,4 @@
 set -euo pipefail
 set -x
 
-./mvnw --batch-mode -s ./.settings.xml -Prelease -nsu -pl -:benchmarks -DskipTests deploy
+./mvnw --batch-mode -s ./.settings.xml -Prelease -nsu -DskipTests deploy
