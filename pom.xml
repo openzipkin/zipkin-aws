@@ -19,7 +19,7 @@
 
   <groupId>io.zipkin.aws</groupId>
   <artifactId>zipkin-aws-parent</artifactId>
-  <version>0.0.1</version>
+  <version>0.0.2-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
