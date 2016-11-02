@@ -63,12 +63,12 @@ public class ZipkinSQSCollectorAutoConfiguration {
    * doesn't have an option to treat empty properties as unset.
    *
    * <pre>{@code
-   * queueUrl: ${SQS_QUEUE_URL:}
+   * queue-url: ${SQS_QUEUE_URL:}
    * }</pre>
    */
   static final class SQSSetCondition extends SpringBootCondition {
 
-    private static final String PROPERTY_NAME = "zipkin.collector.sqs.queueUrl";
+    private static final String PROPERTY_NAME = "zipkin.collector.sqs.queue-url";
 
     @Override public ConditionOutcome getMatchOutcome(ConditionContext context,
         AnnotatedTypeMetadata a) {

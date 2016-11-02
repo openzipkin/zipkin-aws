@@ -64,8 +64,8 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
   @Test
   public void provideCollectorComponent_whenSqsQueueUrlIsSet() {
     context = new AnnotationConfigApplicationContext();
-    addEnvironment(context, "zipkin.collector.sqs.queueUrl:" + sqsRule.queueUrl());
-    addEnvironment(context, "zipkin.collector.sqs.waitTimeSeconds:1");
+    addEnvironment(context, "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl());
+    addEnvironment(context, "zipkin.collector.sqs.wait-time-seconds:1");
     context.register(PropertyPlaceholderAutoConfiguration.class,
         ZipkinSQSCollectorAutoConfiguration.class, InMemoryConfiguration.class);
     context.refresh();
@@ -77,8 +77,8 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
   @Test
   public void provideCollectorComponent_setsZipkinSqsCollectorProperties() {
     context = new AnnotationConfigApplicationContext();
-    addEnvironment(context, "zipkin.collector.sqs.queueUrl:" + sqsRule.queueUrl());
-    addEnvironment(context, "zipkin.collector.sqs.waitTimeSeconds:1");
+    addEnvironment(context, "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl());
+    addEnvironment(context, "zipkin.collector.sqs.wait-time-seconds:1");
     addEnvironment(context, "zipkin.collector.sqs.parallelism:3");
     context.register(PropertyPlaceholderAutoConfiguration.class,
         ZipkinSQSCollectorAutoConfiguration.class, InMemoryConfiguration.class);
