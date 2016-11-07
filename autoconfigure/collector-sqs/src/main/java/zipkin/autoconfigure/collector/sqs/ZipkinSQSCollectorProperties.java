@@ -21,6 +21,10 @@ final public class ZipkinSQSCollectorProperties {
   String queueUrl;
   int waitTimeSeconds = 20;
   int parallelism = 1;
+  String awsAccessKeyId;
+  String awsSecretAccessKey;
+  String awsStsRoleArn;
+  String awsStsRegion = "us-east-1";
 
   public void setQueueUrl(String queueUrl) {
     this.queueUrl = queueUrl;
@@ -44,6 +48,30 @@ final public class ZipkinSQSCollectorProperties {
 
   public int getParallelism() {
     return parallelism;
+  }
+
+  public void setAwsAccessKeyId(String awsAccessKeyId) {
+    this.awsAccessKeyId = awsAccessKeyId;
+  }
+
+  public String getAwsAccessKeyId() {
+    return this.awsAccessKeyId;
+  }
+
+  public void setAwsSecretAccessKey(String awsSecretAccessKey) {
+    this.awsSecretAccessKey = awsSecretAccessKey;
+  }
+
+  public String getAwsSecretAccessKey() {
+    return this.awsSecretAccessKey;
+  }
+
+  public void setAwsStsRoleArn(String awsStsRoleArn) {
+    this.awsStsRoleArn = awsStsRoleArn;
+  }
+
+  public String getAwsStsRoleArn() {
+    return this.awsStsRoleArn;
   }
 
   public SQSCollector.Builder toBuilder() {
