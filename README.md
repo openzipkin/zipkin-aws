@@ -1,4 +1,6 @@
-[![CircleCI](https://circleci.com/gh/openzipkin/zipkin-aws.svg?style=svg)](https://circleci.com/gh/openzipkin/zipkin-aws)
+[![Gitter chat](http://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg)](https://gitter.im/openzipkin/zipkin)
+[![Build Status](https://circleci.com/gh/openzipkin/zipkin-aws.svg?style=svg)](https://circleci.com/gh/openzipkin/zipkin-aws)
+[![Download](https://api.bintray.com/packages/openzipkin/maven/zipkin-aws/images/download.svg)](https://bintray.com/openzipkin/maven/zipkin-aws/_latestVersion)
 
 # zipkin-aws
 Shared libraries that provide Zipkin integration with AWS SQS and SNS. Requires JRE 6 or later.

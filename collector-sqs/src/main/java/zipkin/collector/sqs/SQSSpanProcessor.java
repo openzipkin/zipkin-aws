@@ -1,5 +1,5 @@
 /**
- * Copyright 2016 The OpenZipkin Authors
+ * Copyright 2016-2017 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,18 +13,16 @@
  */
 package zipkin.collector.sqs;
 
-import com.amazonaws.AmazonClientException;
-import com.amazonaws.handlers.AsyncHandler;
-import com.amazonaws.services.sqs.AmazonSQSAsync;
-import com.amazonaws.services.sqs.model.DeleteMessageResult;
+import com.amazonaws.AbortedException;
+import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.model.DeleteMessageBatchRequestEntry;
+import com.amazonaws.services.sqs.model.DeleteMessageBatchResult;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
-import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.amazonaws.util.Base64;
-import java.io.Closeable;
 import java.io.IOException;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
@@ -36,23 +34,31 @@ import zipkin.internal.Nullable;
 import zipkin.storage.Callback;
 
 
-final class SQSSpanProcessor implements Closeable, Component {
+final class SQSSpanProcessor implements Runnable, Component {
 
   private static final Logger logger = Logger.getLogger(SQSSpanProcessor.class.getName());
 
-  private final AmazonSQSAsync client;
+  private static final long DEFAULT_BACKOFF = 100;
+  private static final long MAX_BACKOFF = 30000;
+
+  private final AmazonSQS client;
   private final Collector collector;
   private final String queueUrl;
-  private final int waitTimeSeconds;
-  private final AtomicBoolean closed = new AtomicBoolean(false);
-  private final AtomicReference<CheckResult> status = new AtomicReference<>(CheckResult.OK);
+  private AtomicReference<CheckResult> status = new AtomicReference<>(CheckResult.OK);
+  private final AtomicBoolean closed;
+  private final ReceiveMessageRequest request;
+  private long failureBackoff = DEFAULT_BACKOFF;
 
-  SQSSpanProcessor(AmazonSQSAsync client, Collector collector, String queueUrl,
-      int waitTimeSeconds) {
+  SQSSpanProcessor(AmazonSQS client, Collector collector, String queueUrl,
+      int waitTimeSeconds, int maxNumberOfMessages, AtomicBoolean closed) {
     this.client = client;
     this.collector = collector;
     this.queueUrl = queueUrl;
-    this.waitTimeSeconds = waitTimeSeconds;
+    this.closed = closed;
+
+    request = new ReceiveMessageRequest(queueUrl)
+        .withWaitTimeSeconds(waitTimeSeconds)
+        .withMaxNumberOfMessages(maxNumberOfMessages);
   }
 
   @Override public CheckResult check() {
@@ -60,60 +66,64 @@ final class SQSSpanProcessor implements Closeable, Component {
   }
 
   @Override public void close() throws IOException {
-    if (closed.getAndSet(true)) throw new IllegalStateException("SQS processor is already closed.");
-    client.shutdown();
+    // the collector owns closing of its resources so noop here
   }
 
-  SQSSpanProcessor run() {
-    // don't throw an exception here since this might be run from a receive callback.
-    if (closed.get()) return null;
+  @Override public void run() {
+    while(!closed.get()) {
+      try {
+        process(client.receiveMessage(request).getMessages());
+        status.lazySet(CheckResult.OK);
+        failureBackoff = DEFAULT_BACKOFF;
+      } catch (AbortedException ae) {
+        status.lazySet(CheckResult.failed(ae));
+      } catch (Exception e) {
+        logger.log(Level.WARNING, "sqs receive failed", e);
+        status.lazySet(CheckResult.failed(e));
 
-    ReceiveMessageRequest request = new ReceiveMessageRequest(queueUrl)
-        .withWaitTimeSeconds(waitTimeSeconds);
-
-    client.receiveMessageAsync(request,
-        new AsyncHandler<ReceiveMessageRequest, ReceiveMessageResult>() {
-          @Override public void onError(Exception exception) {
-            if (exception instanceof AmazonClientException) {
-              // TODO should we ever give up if its retryable?
-              if (((AmazonClientException)exception).isRetryable()) {
-                run();
-              }
-            } else {
-              logger.log(Level.WARNING, "receive failed", exception);
-              status.set(CheckResult.failed(exception));
-            }
-          }
-
-          @Override
-          public void onSuccess(ReceiveMessageRequest request, ReceiveMessageResult result) {
-            process(result.getMessages());
-            status.lazySet(CheckResult.OK);
-            run();
-          }
-        });
-
-    return this;
-  }
-
-  private void process(final List<Message> messages) {
-    for (Message message : messages) {
-      byte[] spans = Base64.decode(message.getBody());
-      collector.acceptSpans(spans, Codec.THRIFT, new Callback<Void>() {
-        @Override public void onSuccess(@Nullable Void value) {
-          delete(message);
+        // backoff on failures to avoid pinging SQS in a tight loop if there are failures.
+        try {
+          Thread.sleep(failureBackoff);
+        } catch (InterruptedException ie) {}
+        finally {
+          failureBackoff = Math.max (failureBackoff * 2, MAX_BACKOFF);
         }
-        @Override public void onError(Throwable t) {
-          // don't delete messages. this will allow accept calls retry once the
-          // messages are marked visible by sqs.
-          logger.log(Level.WARNING, "collector accept failed", t);
-        }
-      });
+      }
     }
   }
 
-  private Future<DeleteMessageResult> delete(Message message) {
-    return client.deleteMessageAsync(queueUrl, message.getReceiptHandle());
+  private void process(final List<Message> messages) {
+    if (messages.size() == 0) return;
+
+    final List<DeleteMessageBatchRequestEntry> toDelete = new LinkedList<>();
+    int count = 0;
+    for (Message message : messages) {
+      final String deleteId = String.valueOf(count++);
+      try {
+        byte[] spans = Base64.decode(message.getBody());
+        collector.acceptSpans(spans, Codec.THRIFT, new Callback<Void>() {
+          @Override public void onSuccess(@Nullable Void value) {
+            toDelete.add(new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
+          }
+
+          @Override public void onError(Throwable t) {
+            // don't delete messages. this will allow accept calls retry once the
+            // messages are marked visible by sqs.
+            logger.log(Level.WARNING, "collector accept failed", t);
+          }
+        });
+      } catch (IllegalArgumentException e) {
+        logger.log(Level.WARNING, "message decoding failed", e);
+        toDelete.add(new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
+      }
+    }
+
+    delete(toDelete);
   }
+
+  private DeleteMessageBatchResult delete(List<DeleteMessageBatchRequestEntry> entries) {
+    return client.deleteMessageBatch(queueUrl, entries);
+  }
+
 
 }
