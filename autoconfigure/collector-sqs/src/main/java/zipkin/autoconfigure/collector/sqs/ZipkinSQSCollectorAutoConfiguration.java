@@ -14,7 +14,14 @@
 package zipkin.autoconfigure.collector.sqs;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.auth.AWSCredentialsProviderChain;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient;
+import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.SpringBootCondition;
@@ -34,11 +41,36 @@ import zipkin.storage.StorageComponent;
 @Conditional(ZipkinSQSCollectorAutoConfiguration.SQSSetCondition.class)
 public class ZipkinSQSCollectorAutoConfiguration {
 
-  /** By default, get credentials from the {@link DefaultAWSCredentialsProviderChain */
+  /** By default, uses credentials from the {@link DefaultAWSCredentialsProviderChain}. If
+   * AWS Access Key ID and AWS Secret Access Key are provided then credentials are created from
+   * {@link AWSStaticCredentialsProvider}.  When an STS role ARN is provided then
+   * {@link STSAssumeRoleSessionCredentialsProvider} is used as the credentials store.
+   * */
   @Bean
   @ConditionalOnMissingBean
-  AWSCredentialsProvider credentialsProvider() {
-    return new DefaultAWSCredentialsProviderChain();
+  AWSCredentialsProvider credentialsProvider(ZipkinSQSCollectorProperties sqs) {
+
+    // Create credentials provider from ID and secret if given otherwise use the default provider
+    AWSCredentialsProvider provider;
+    if (!isNullOrEmpty(sqs.awsAccessKeyId) && !isNullOrEmpty(sqs.awsSecretAccessKey)) {
+      provider = new AWSStaticCredentialsProvider(
+          new BasicAWSCredentials(sqs.awsAccessKeyId, sqs.awsSecretAccessKey));
+    } else {
+      provider = new DefaultAWSCredentialsProviderChain();
+    }
+
+    // Create STS provider if a role is specified
+    if (!isNullOrEmpty(sqs.awsStsRoleArn)) {
+      AWSSecurityTokenService stsClient = AWSSecurityTokenServiceClientBuilder.standard()
+          .withCredentials(provider)
+          .withRegion(sqs.awsStsRegion)
+          .build();
+      provider = new STSAssumeRoleSessionCredentialsProvider.Builder(sqs.awsStsRoleArn, "zipkin-server")
+          .withStsClient(stsClient)
+          .build();
+    }
+
+    return provider;
   }
 
   @Bean SQSCollector sqs(ZipkinSQSCollectorProperties sqs, AWSCredentialsProvider provider,
@@ -83,6 +115,10 @@ public class ZipkinSQSCollectorAutoConfiguration {
     private static boolean isEmpty(String s) {
       return s == null || s.isEmpty();
     }
+  }
+
+  private static boolean isNullOrEmpty(String value) {
+    return (value == null || value.equals(""));
   }
 
 }
