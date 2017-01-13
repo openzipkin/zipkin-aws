@@ -1,5 +1,5 @@
 /**
- * Copyright 2016 The OpenZipkin Authors
+ * Copyright 2016-2017 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -16,15 +16,15 @@ package zipkin.collector.sqs;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.services.sqs.AmazonSQS;
-import com.amazonaws.services.sqs.AmazonSQSAsync;
-import com.amazonaws.services.sqs.AmazonSQSAsyncClient;
+import com.amazonaws.services.sqs.AmazonSQSClient;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import zipkin.Component;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import zipkin.collector.Collector;
 import zipkin.collector.CollectorComponent;
 import zipkin.collector.CollectorMetrics;
@@ -48,6 +48,7 @@ public final class SQSCollector implements CollectorComponent, Closeable {
 
     String queueUrl;
     int waitTimeSeconds = 20; // aws sqs max wait time is 20 seconds
+    int maxNumberOfMessages = 10; // aws sqs max messages for a receive call is 10
     AWSCredentialsProvider credentialsProvider = new DefaultAWSCredentialsProviderChain();
     int parallelism = 1;
 
@@ -80,8 +81,15 @@ public final class SQSCollector implements CollectorComponent, Closeable {
 
     /** Amount of time to wait for messages from SQS */
     public Builder waitTimeSeconds(int seconds) {
-      checkArgument(parallelism > 0 && parallelism < 21, "waitTimeSeconds");
+      checkArgument(seconds > 0 && seconds < 21, "waitTimeSeconds");
       this.waitTimeSeconds = seconds;
+      return this;
+    }
+
+    /** Maximum number of messages to retrieve per API call to SQS */
+    public Builder maxNumberOfMessages(int maxNumberOfMessages) {
+      checkArgument(maxNumberOfMessages > 0 && maxNumberOfMessages < 11, "maxNumberOfMessages");
+      this.maxNumberOfMessages = maxNumberOfMessages;
       return this;
     }
 
@@ -100,97 +108,79 @@ public final class SQSCollector implements CollectorComponent, Closeable {
     }
   }
 
-  private final LazyAmazonSQSAsync client;
-  private final LazyProcessors processors;
+  private final AtomicBoolean closed = new AtomicBoolean(false);
+  private final LazyAmazonSQSClient client;
+  private final List<SQSSpanProcessor> processors = new LinkedList<>();
+  private final ExecutorService pool;
+  private final int parallelism;
+  private final int waitTimeSeconds;
+  private final int maxNumberOfMessages;
+  private final String queueUrl;
+  private final Collector collector;
 
   SQSCollector(Builder builder) {
-    client = new LazyAmazonSQSAsync(builder.credentialsProvider);
+    client = new LazyAmazonSQSClient(builder);
+    collector = builder.delegate.build();
+    parallelism = builder.parallelism;
+    waitTimeSeconds = builder.waitTimeSeconds;
+    maxNumberOfMessages = builder.maxNumberOfMessages;
+    queueUrl = builder.queueUrl;
 
-    processors = new LazyProcessors(client.get(), builder.delegate.build(), builder.queueUrl,
-        builder.parallelism, builder.waitTimeSeconds);
+    pool = (builder.parallelism == 1)
+        ? Executors.newSingleThreadExecutor()
+        : Executors.newFixedThreadPool(builder.parallelism);
   }
 
   @Override public SQSCollector start() {
-    processors.get();
+    if (!closed.get()) {
+      for (int i=0; i<parallelism; i++) {
+        SQSSpanProcessor processor = new SQSSpanProcessor(
+            client.get(), collector, queueUrl,
+            waitTimeSeconds, maxNumberOfMessages, closed);
+
+        pool.submit(processor);
+        processors.add(processor);
+      }
+    }
     return this;
   }
 
   @Override public CheckResult check() {
     try {
       client.get(); // make sure compute doesn't throw an exception
-      return processors.check(); // check if any processor has failed
+      for (SQSSpanProcessor processor : processors) { // check if any processor have failed
+        if (!processor.check().equals(CheckResult.OK)) {
+          return processor.check();
+        }
+      }
+      return CheckResult.OK;
     } catch (RuntimeException e) {
       return CheckResult.failed(e);
     }
   }
 
   @Override public void close() throws IOException {
-    client.close();
-    processors.close();
-  }
-
-  private static final class LazyProcessors extends LazyCloseable<List<SQSSpanProcessor>>
-      implements Component {
-
-    private static final Logger logger = Logger.getLogger(LazyProcessors.class.getName());
-
-    final String queueUrl;
-    final int parallelism;
-    final AmazonSQSAsync client;
-    final Collector collector;
-    final int waitTimeSeconds;
-
-    LazyProcessors(AmazonSQSAsync client, Collector collector, String queueUrl, int parallelism, int waitTimeSeconds) {
-      this.queueUrl = queueUrl;
-      this.parallelism = parallelism;
-      this.client = client;
-      this.collector = collector;
-      this.waitTimeSeconds = waitTimeSeconds;
-    }
-
-    @Override protected List<SQSSpanProcessor> compute() {
-      List<SQSSpanProcessor> processors = new LinkedList<>();
-      for (int i=0; i<parallelism; i++) {
-        processors.add(new SQSSpanProcessor(client, collector, queueUrl, waitTimeSeconds).run());
+    try {
+      if (!pool.awaitTermination(1, TimeUnit.SECONDS)) {
+        pool.shutdownNow();
       }
-      return processors;
-    }
-
-    @Override public CheckResult check() {
-      List<SQSSpanProcessor> processors = maybeNull();
-      if (processors != null) {
-        for (SQSSpanProcessor processor : processors) {
-          CheckResult result = processor.check();
-          if (result != CheckResult.OK) return result;
-        }
-      }
-      return CheckResult.OK;
-    }
-
-    @Override public void close() {
-      List<SQSSpanProcessor> processors = maybeNull();
-      if (processors == null) return;
-
-      for (SQSSpanProcessor processor : processors) {
-        try {
-          processor.close();
-        } catch (IOException ioe) {
-          logger.log(Level.WARNING, "Processor failed to close cleanly", ioe);
-        }
-      }
+    } catch (InterruptedException e) {}
+    finally {
+      pool.shutdownNow();
+      client.close();
     }
   }
 
-  private static final class LazyAmazonSQSAsync extends LazyCloseable<AmazonSQSAsync> {
+  private static final class LazyAmazonSQSClient extends LazyCloseable<AmazonSQS> {
 
     final AWSCredentialsProvider credentialsProvider;
 
-    LazyAmazonSQSAsync(AWSCredentialsProvider credentialsProvider) {
-      this.credentialsProvider = credentialsProvider;
+    LazyAmazonSQSClient(Builder builder) {
+      this.credentialsProvider = builder.credentialsProvider;
     }
 
-    @Override protected AmazonSQSAsync compute() {
-      return new AmazonSQSAsyncClient(credentialsProvider);
+    @Override protected AmazonSQS compute() {
+      return new AmazonSQSClient(credentialsProvider);
     }
 
     @Override public void close() {

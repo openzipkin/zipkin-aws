@@ -1,5 +1,5 @@
 /**
- * Copyright 2016 The OpenZipkin Authors
+ * Copyright 2016-2017 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -14,9 +14,7 @@
 package zipkin.autoconfigure.collector.sqs;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.SpringBootCondition;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -34,20 +32,14 @@ import zipkin.storage.StorageComponent;
 @Conditional(ZipkinSQSCollectorAutoConfiguration.SQSSetCondition.class)
 public class ZipkinSQSCollectorAutoConfiguration {
 
-  /** By default, get credentials from the {@link DefaultAWSCredentialsProviderChain */
   @Bean
-  @ConditionalOnMissingBean
-  AWSCredentialsProvider credentialsProvider() {
-    return new DefaultAWSCredentialsProviderChain();
-  }
-
-  @Bean SQSCollector sqs(ZipkinSQSCollectorProperties sqs, AWSCredentialsProvider provider,
+  SQSCollector sqsCollector(ZipkinSQSCollectorProperties properties, AWSCredentialsProvider credentialsProvider,
       CollectorSampler sampler, CollectorMetrics metrics, StorageComponent storage) {
-    return sqs.toBuilder()
-        .queueUrl(sqs.getQueueUrl())
-        .waitTimeSeconds(sqs.getWaitTimeSeconds())
-        .parallelism(sqs.getParallelism())
-        .credentialsProvider(provider)
+    return properties.toBuilder()
+        .queueUrl(properties.getQueueUrl())
+        .waitTimeSeconds(properties.getWaitTimeSeconds())
+        .parallelism(properties.getParallelism())
+        .credentialsProvider(credentialsProvider)
         .sampler(sampler)
         .metrics(metrics)
         .storage(storage)
@@ -84,5 +76,7 @@ public class ZipkinSQSCollectorAutoConfiguration {
       return s == null || s.isEmpty();
     }
   }
+
+
 
 }

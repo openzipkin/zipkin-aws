@@ -1,5 +1,5 @@
 /**
- * Copyright 2016 The OpenZipkin Authors
+ * Copyright 2016-2017 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -21,6 +21,11 @@ final public class ZipkinSQSCollectorProperties {
   String queueUrl;
   int waitTimeSeconds = 20;
   int parallelism = 1;
+  int maxNumberOfMessages = 10;
+  String awsAccessKeyId;
+  String awsSecretAccessKey;
+  String awsStsRoleArn;
+  String awsStsRegion = "us-east-1";
 
   public void setQueueUrl(String queueUrl) {
     this.queueUrl = queueUrl;
@@ -38,6 +43,14 @@ final public class ZipkinSQSCollectorProperties {
     return waitTimeSeconds;
   }
 
+  public void setMaxNumberOfMessages(int maxNumberOfMessages) {
+    this.maxNumberOfMessages = maxNumberOfMessages;
+  }
+
+  public int getMaxNumberOfMessages() {
+    return this.maxNumberOfMessages;
+  }
+
   public void setParallelism(int parallelism) {
     this.parallelism = parallelism;
   }
@@ -46,10 +59,35 @@ final public class ZipkinSQSCollectorProperties {
     return parallelism;
   }
 
+  public void setAwsAccessKeyId(String awsAccessKeyId) {
+    this.awsAccessKeyId = awsAccessKeyId;
+  }
+
+  public String getAwsAccessKeyId() {
+    return this.awsAccessKeyId;
+  }
+
+  public void setAwsSecretAccessKey(String awsSecretAccessKey) {
+    this.awsSecretAccessKey = awsSecretAccessKey;
+  }
+
+  public String getAwsSecretAccessKey() {
+    return this.awsSecretAccessKey;
+  }
+
+  public void setAwsStsRoleArn(String awsStsRoleArn) {
+    this.awsStsRoleArn = awsStsRoleArn;
+  }
+
+  public String getAwsStsRoleArn() {
+    return this.awsStsRoleArn;
+  }
+
   public SQSCollector.Builder toBuilder() {
     return SQSCollector.builder()
         .queueUrl(queueUrl)
         .parallelism(parallelism)
-        .waitTimeSeconds(waitTimeSeconds);
+        .waitTimeSeconds(waitTimeSeconds)
+        .maxNumberOfMessages(maxNumberOfMessages);
   }
 }
