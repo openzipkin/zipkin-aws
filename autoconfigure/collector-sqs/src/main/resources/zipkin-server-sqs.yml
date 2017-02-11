@@ -1,0 +1,20 @@
+# When enabled, this allows shorter env properties (ex -Dspring.profiles.active=sqs)
+zipkin:
+  collector:
+    sqs:
+      # AWS SQS queue URL.
+      queue-url: ${SQS_QUEUE_URL:}
+      # Number of parallel requests to run
+      parallelism: ${SQS_PARALLELISM:1}
+      # Seconds to long poll SQS for messages
+      wait-time-seconds: ${SQS_WAIT_TIME_SECONDS:20}
+      # Maximum number of messages per receive call
+      max-number-of-messages: ${SQS_MAX_NUMBER_OF_MESSAGES:10}
+      # Optional AWS Access Key
+      aws-access-key-id: ${SQS_AWS_ACCESS_KEY_ID:}
+      # Optional AWS Secret Access Key
+      aws-secret-access-key: ${SQS_AWS_SECRET_ACCESS_KEY:}
+      # Optional AWS STS assume role ARN
+      aws-sts-role-arn: ${SQS_AWS_STS_ROLE_ARN:}
+      # Optional AWS STS region endpoint to use
+      aws-sts-region: ${SQS_AWS_STS_REGION:us-east-1}
