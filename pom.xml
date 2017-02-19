@@ -28,6 +28,7 @@
     <module>aws-junit</module>
     <module>autoconfigure</module>
     <module>sparkstreaming-stream-kinesis</module>
+    <module>collector-kinesis</module>
   </modules>
 
   <properties>
