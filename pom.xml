@@ -27,6 +27,7 @@
     <module>collector-sqs</module>
     <module>aws-junit</module>
     <module>autoconfigure</module>
+    <module>spark-stream-kinesis</module>
   </modules>
 
   <properties>
