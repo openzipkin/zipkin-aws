@@ -31,18 +31,18 @@ public class KinesisStreamFactory implements StreamFactory {
     }
 
     public static final class Builder {
-        String streamName = "zipkin";
-        String kinesisAppName = "zipkin-sparkstreaming";
+        String stream = "zipkin";
+        String app = "zipkin-sparkstreaming";
         String awsRegion;
         String awsEndpoint;
 
-        public Builder streamName(String streamName) {
-            this.streamName = streamName;
+        public Builder stream(String stream) {
+            this.stream = stream;
             return this;
         }
 
-        public Builder kinesisAppName(String kinesisAppName) {
-            this.kinesisAppName = kinesisAppName;
+        public Builder app(String app) {
+            this.app = app;
             return this;
         }
 
@@ -61,14 +61,14 @@ public class KinesisStreamFactory implements StreamFactory {
         }
     }
 
-    private final String streamName;
-    private final String kinesisAppName;
+    private final String stream;
+    private final String app;
     private final String regionName;
     private final String endpoint;
 
     KinesisStreamFactory(Builder builder) {
-        this.streamName = builder.streamName;
-        this.kinesisAppName = builder.kinesisAppName;
+        this.stream = builder.stream;
+        this.app = builder.app;
         this.regionName = builder.awsRegion;
         this.endpoint = builder.awsEndpoint != null ?
                 builder.awsEndpoint :
@@ -79,8 +79,8 @@ public class KinesisStreamFactory implements StreamFactory {
     public JavaDStream<byte[]> create(JavaStreamingContext jsc) {
         return KinesisUtils.createStream(
                 jsc,
-                kinesisAppName,
-                streamName,
+                stream,
+                app,
                 endpoint,
                 regionName,
                 InitialPositionInStream.TRIM_HORIZON, // TODO configurable?
