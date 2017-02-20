@@ -62,7 +62,7 @@ public class KinesisStreamFactory implements StreamFactory {
 
         public Builder credentials(String awsAccessKeyId, String awsSecretKey) {
             checkNotNull(awsAccessKeyId, "Access Key/Secret Key pair");
-            checkNotNull(awsSecretKey, "Access Key/Secret Key pair")
+            checkNotNull(awsSecretKey, "Access Key/Secret Key pair");
             this.awsAccessKeyId = awsAccessKeyId;
             this.awsSecretKey = awsSecretKey;
             return this;
