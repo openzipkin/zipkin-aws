@@ -28,7 +28,7 @@ import static zipkin.internal.Util.checkNotNull;
 
 public class KinesisStreamFactory implements StreamFactory {
 
-    public static Builder newBuilder() {
+    public static Builder builder() {
         return new Builder();
     }
 
