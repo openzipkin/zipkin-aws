@@ -26,6 +26,10 @@
 
     <artifactId>spark-stream-kinesis</artifactId>
 
+    <properties>
+        <main.basedir>${project.basedir}/..</main.basedir>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>io.zipkin.sparkstreaming</groupId>
