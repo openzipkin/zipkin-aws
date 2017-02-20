@@ -24,6 +24,8 @@ import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kinesis.KinesisUtils;
 import zipkin.sparkstreaming.StreamFactory;
 
+import static zipkin.internal.Util.checkNotNull;
+
 public class KinesisStreamFactory implements StreamFactory {
 
     public static Builder newBuilder() {
@@ -35,6 +37,8 @@ public class KinesisStreamFactory implements StreamFactory {
         String app = "zipkin-sparkstreaming";
         String awsRegion;
         String awsEndpoint;
+        String awsAccessKeyId;
+        String awsSecretKey;
 
         public Builder stream(String stream) {
             this.stream = stream;
@@ -56,6 +60,14 @@ public class KinesisStreamFactory implements StreamFactory {
             return this;
         }
 
+        public Builder credentials(String awsAccessKeyId, String awsSecretKey) {
+            checkNotNull(awsAccessKeyId, "Access Key/Secret Key pair");
+            checkNotNull(awsSecretKey, "Access Key/Secret Key pair")
+            this.awsAccessKeyId = awsAccessKeyId;
+            this.awsSecretKey = awsSecretKey;
+            return this;
+        }
+
         public KinesisStreamFactory build() {
             return new KinesisStreamFactory(this);
         }
@@ -65,6 +77,8 @@ public class KinesisStreamFactory implements StreamFactory {
     private final String app;
     private final String regionName;
     private final String endpoint;
+    private String awsAccessKeyId;
+    private String awsSecretKey;
 
     KinesisStreamFactory(Builder builder) {
         this.stream = builder.stream;
@@ -73,10 +87,27 @@ public class KinesisStreamFactory implements StreamFactory {
         this.endpoint = builder.awsEndpoint != null ?
                 builder.awsEndpoint :
                 Region.getRegion(Regions.valueOf(regionName)).getServiceEndpoint(AmazonKinesis.ENDPOINT_PREFIX);
+
+        this.awsAccessKeyId = builder.awsAccessKeyId;
+        this.awsSecretKey = builder.awsSecretKey;
     }
 
     @Override
     public JavaDStream<byte[]> create(JavaStreamingContext jsc) {
+        if (awsAccessKeyId != null) {
+            return KinesisUtils.createStream(
+                    jsc,
+                    stream,
+                    app,
+                    endpoint,
+                    regionName,
+                    InitialPositionInStream.TRIM_HORIZON, // TODO configurable?
+                    new Duration(2000), // TODO configurable?
+                    StorageLevel.MEMORY_AND_DISK_2(), // TODO configurable?
+                    awsAccessKeyId,
+                    awsSecretKey
+            );
+        }
         return KinesisUtils.createStream(
                 jsc,
                 stream,
