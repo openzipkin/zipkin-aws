@@ -33,6 +33,16 @@ public class KinesisStreamFactory implements StreamFactory {
             return this;
         }
 
+        public Builder awsRegion(String awsRegion) {
+            this.awsRegion = awsRegion;
+            return this;
+        }
+
+        public Builder awsEndpoint(String awsEndpoint) {
+            this.awsEndpoint = awsEndpoint;
+            return this;
+        }
+
         public KinesisStreamFactory build() {
             return new KinesisStreamFactory(this);
         }
@@ -60,9 +70,9 @@ public class KinesisStreamFactory implements StreamFactory {
                 streamName,
                 endpoint,
                 regionName,
-                InitialPositionInStream.TRIM_HORIZON,
-                new Duration(2000),
-                StorageLevel.MEMORY_AND_DISK_2()
+                InitialPositionInStream.TRIM_HORIZON, // TODO configurable?
+                new Duration(2000), // TODO configurable?
+                StorageLevel.MEMORY_AND_DISK_2() // TODO configurable?
         );
     }
 }
