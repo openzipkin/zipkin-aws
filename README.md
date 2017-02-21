@@ -36,9 +36,6 @@ reporter = AsyncReporter.builder(
 
 This sender only sends Thrift encoded Spans as base64 strings in the SQS message body.
 
-### SNSSender
-TODO
-
 ## Collectors
 
 ### SQSCollector
