@@ -29,7 +29,10 @@ import static zipkin.internal.Util.checkNotNull;
 public class KinesisStreamFactory implements StreamFactory {
 
     public static Builder builder() {
-        return new Builder();
+        return new Builder()
+                .checkpointIntervalMillis(2000)
+                .initialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
+                .storageLevel(StorageLevel.MEMORY_AND_DISK_2());
     }
 
     public static final class Builder {
@@ -37,6 +40,9 @@ public class KinesisStreamFactory implements StreamFactory {
         String app = "zipkin-sparkstreaming";
         String awsRegion;
         String awsEndpoint;
+        Duration checkpointInterval;
+        InitialPositionInStream initialPositionInStream;
+        StorageLevel storageLevel;
         String awsAccessKeyId;
         String awsSecretKey;
 
@@ -60,6 +66,26 @@ public class KinesisStreamFactory implements StreamFactory {
             return this;
         }
 
+        public Builder checkpointInterval(Duration checkpointInterval) {
+            this.checkpointInterval = checkpointInterval;
+            return this;
+        }
+
+        public Builder checkpointIntervalMillis(int checkpointIntervalMillis) {
+            this.checkpointInterval = new Duration(checkpointIntervalMillis);
+            return this;
+        }
+
+        public Builder initialPositionInStream(InitialPositionInStream initialPositionInStream) {
+            this.initialPositionInStream = initialPositionInStream;
+            return this;
+        }
+
+        public Builder storageLevel(StorageLevel storageLevel) {
+            this.storageLevel = storageLevel;
+            return this;
+        }
+
         public Builder credentials(String awsAccessKeyId, String awsSecretKey) {
             checkNotNull(awsAccessKeyId, "Access Key/Secret Key pair");
             checkNotNull(awsSecretKey, "Access Key/Secret Key pair");
@@ -77,6 +103,9 @@ public class KinesisStreamFactory implements StreamFactory {
     private final String app;
     private final String regionName;
     private final String endpoint;
+    private final Duration checkpointInterval;
+    private final InitialPositionInStream initialPositionInStream;
+    private final StorageLevel storageLevel;
     private String awsAccessKeyId;
     private String awsSecretKey;
 
@@ -87,6 +116,10 @@ public class KinesisStreamFactory implements StreamFactory {
         this.endpoint = builder.awsEndpoint != null ?
                 builder.awsEndpoint :
                 Region.getRegion(Regions.valueOf(regionName)).getServiceEndpoint(AmazonKinesis.ENDPOINT_PREFIX);
+
+        this.checkpointInterval = builder.checkpointInterval;
+        this.initialPositionInStream = builder.initialPositionInStream;
+        this.storageLevel = builder.storageLevel;
 
         this.awsAccessKeyId = builder.awsAccessKeyId;
         this.awsSecretKey = builder.awsSecretKey;
@@ -101,9 +134,9 @@ public class KinesisStreamFactory implements StreamFactory {
                     app,
                     endpoint,
                     regionName,
-                    InitialPositionInStream.TRIM_HORIZON, // TODO configurable?
-                    new Duration(2000), // TODO configurable?
-                    StorageLevel.MEMORY_AND_DISK_2(), // TODO configurable?
+                    initialPositionInStream,
+                    checkpointInterval,
+                    storageLevel,
                     awsAccessKeyId,
                     awsSecretKey
             );
@@ -114,9 +147,9 @@ public class KinesisStreamFactory implements StreamFactory {
                 app,
                 endpoint,
                 regionName,
-                InitialPositionInStream.TRIM_HORIZON, // TODO configurable?
-                new Duration(2000), // TODO configurable?
-                StorageLevel.MEMORY_AND_DISK_2() // TODO configurable?
+                initialPositionInStream,
+                checkpointInterval,
+                storageLevel
         );
     }
 }
