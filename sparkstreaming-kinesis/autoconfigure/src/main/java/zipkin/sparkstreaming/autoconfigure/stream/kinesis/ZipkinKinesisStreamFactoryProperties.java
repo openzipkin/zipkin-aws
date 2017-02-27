@@ -85,7 +85,7 @@ public class ZipkinKinesisStreamFactoryProperties {
     }
 
     KinesisStreamFactory.Builder toBuilder() {
-        KinesisStreamFactory.Builder builder = KinesisStreamFactory.builder()
+        KinesisStreamFactory.Builder builder = KinesisStreamFactory.newBuilder()
                 .awsRegion(region);
 
         if (kinesisStream != null) builder.stream(kinesisStream);

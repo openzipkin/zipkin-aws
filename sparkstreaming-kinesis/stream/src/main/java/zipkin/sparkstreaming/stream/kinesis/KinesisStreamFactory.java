@@ -28,7 +28,7 @@ import static zipkin.internal.Util.checkNotNull;
 
 public class KinesisStreamFactory implements StreamFactory {
 
-    public static Builder builder() {
+    public static Builder newBuilder() {
         return new Builder()
                 .checkpointIntervalMillis(2000)
                 .initialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
