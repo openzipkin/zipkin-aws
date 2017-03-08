@@ -115,7 +115,7 @@ public class KinesisStreamFactory implements StreamFactory {
         this.regionName = builder.awsRegion;
         this.endpoint = builder.awsEndpoint != null ?
                 builder.awsEndpoint :
-                Region.getRegion(Regions.valueOf(regionName)).getServiceEndpoint(AmazonKinesis.ENDPOINT_PREFIX);
+                Region.getRegion(Regions.fromName(regionName)).getServiceEndpoint(AmazonKinesis.ENDPOINT_PREFIX);
 
         this.checkpointInterval = builder.checkpointInterval;
         this.initialPositionInStream = builder.initialPositionInStream;

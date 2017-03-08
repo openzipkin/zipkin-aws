@@ -47,7 +47,7 @@ public class ZipkinKinesisStreamFactoryPropertiesTest {
         return Arrays.asList(new Object[][] {
                 parameters("kinesis-stream", "zapkin", p -> p.getKinesisStream()),
                 parameters("app", "zapkin", p -> p.getApp()),
-                parameters("region", "127.0.0.1:9092", p -> p.getRegion()),
+                parameters("region", "us-east-4", p -> p.getRegion()),
                 parameters("kinesis-endpoint", "127.0.0.1:3001", p -> p.getKinesisEndpoint()),
                 parameters("checkpoint-interval-millis", 9999, p -> p.getCheckpointIntervalMillis()),
                 parameters("awsAccessKeyId", "notmykey", p -> p.getAwsAccessKeyId()),
