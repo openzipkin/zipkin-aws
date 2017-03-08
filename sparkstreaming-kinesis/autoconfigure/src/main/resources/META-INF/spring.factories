@@ -1,2 +1,2 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-zipkin.sparkstreaming.autoconfigure.kinesisStream.kinesis.ZipkinKinesisStreamFactoryAutoConfiguration
+zipkin.sparkstreaming.autoconfigure.stream.kinesis.ZipkinKinesisStreamFactoryAutoConfiguration
