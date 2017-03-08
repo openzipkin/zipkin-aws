@@ -18,36 +18,47 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>sparkstreaming-kinesis-parent</artifactId>
+        <artifactId>zipkin-autoconfigure</artifactId>
         <groupId>io.zipkin.aws</groupId>
         <version>0.1.1-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
-    <artifactId>sparkstreaming-kinesis</artifactId>
+    <artifactId>zipkin-sparkstreaming-autoconfigure-stream-kinesis</artifactId>
 
     <properties>
         <main.basedir>${project.basedir}/../..</main.basedir>
     </properties>
 
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <!-- Import dependency management from Spring Boot -->
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <dependency>
-            <groupId>io.zipkin.sparkstreaming</groupId>
-            <artifactId>zipkin-sparkstreaming</artifactId>
-            <version>0.1.0</version>
+            <groupId>io.zipkin.aws</groupId>
+            <artifactId>zipkin-sparkstreaming-stream-kinesis</artifactId>
+            <version>0.1.1-SNAPSHOT</version>
         </dependency>
 
         <dependency>
-            <groupId>org.apache.spark</groupId>
-            <artifactId>spark-streaming-kinesis-asl_2.10</artifactId>
-            <version>2.1.0</version>
-        </dependency>
-        <dependency>
-            <groupId>com.amazonaws</groupId>
-            <artifactId>aws-java-sdk-kinesis</artifactId>
-            <version>1.11.93</version>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-autoconfigure</artifactId>
         </dependency>
 
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-test</artifactId>
+        </dependency>
     </dependencies>
 
 </project>

@@ -33,6 +33,7 @@
 
   <modules>
     <module>collector-sqs</module>
+    <module>sparkstreaming-stream-kinesis</module>
   </modules>
 
   <dependencies>
