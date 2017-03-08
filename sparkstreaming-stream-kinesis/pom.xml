@@ -25,6 +25,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>zipkin-sparkstreaming-stream-kinesis</artifactId>
+    <name>Zipkin Sparkstreaming Stream: Kinesis</name>
 
     <properties>
         <main.basedir>${project.basedir}/..</main.basedir>

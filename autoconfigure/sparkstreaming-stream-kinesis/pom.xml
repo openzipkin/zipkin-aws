@@ -25,6 +25,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <artifactId>zipkin-sparkstreaming-autoconfigure-stream-kinesis</artifactId>
+    <name>Auto Configuration: Sparkstreaming Stream Kinesis</name>
 
     <properties>
         <main.basedir>${project.basedir}/../..</main.basedir>
