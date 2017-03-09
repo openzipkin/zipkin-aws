@@ -23,10 +23,8 @@ import zipkin.collector.Collector;
 import zipkin.internal.Nullable;
 import zipkin.storage.Callback;
 
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class KinesisSpanProcessor implements IRecordProcessor {
 
