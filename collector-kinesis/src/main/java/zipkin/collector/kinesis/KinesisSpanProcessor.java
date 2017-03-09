@@ -24,6 +24,7 @@ import zipkin.internal.Nullable;
 import zipkin.storage.Callback;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -41,10 +42,11 @@ public class KinesisSpanProcessor implements IRecordProcessor {
 
     @Override
     public void processRecords(ProcessRecordsInput processRecordsInput) {
-        List<byte[]> spans = processRecordsInput.getRecords().stream()
-                .map(Record::getData)
-                .map(ByteBuffer::array)
-                .collect(Collectors.toList());
+        List<byte[]> spans =  new ArrayList<>();
+        for (Record record : processRecordsInput.getRecords()) {
+            spans.add(record.getData().array());
+        }
+
         collector.acceptSpans(spans, Codec.THRIFT, new Callback<Void>() {
             @Override
             public void onSuccess(@Nullable Void aVoid) {
