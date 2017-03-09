@@ -16,7 +16,7 @@
 set -euo pipefail
 set -x
 
-if printf 'VERSION=${project.version}\n0\n' | ./mvnw org.apache.maven.plugins:maven-help-plugin:2.1.1:evaluate | grep '^VERSION'  | grep -q SNAPSHOT; then
+if ./mvnw help:evaluate -N -Dexpression=project.version | grep -v '\['  | grep -q SNAPSHOT; then
     ./mvnw --batch-mode -s ./.settings.xml -Prelease -nsu -DskipTests deploy
 else
     echo "Not building release versions, those are built by the tag builder"
