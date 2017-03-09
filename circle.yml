@@ -49,7 +49,7 @@ deployment:
     owner: openzipkin
     tag: /\d+\.\d+\.\d+/
     commands:
-      - ./build-support/publish-stable.sh
+      - echo "Don't build release tags. This avoids publish conflicts because the version commit exists both on master and the release tag." 
   publish-snapshot:
     owner: openzipkin
     branch: master
