@@ -33,7 +33,7 @@
         <dependency>
             <groupId>io.zipkin.sparkstreaming</groupId>
             <artifactId>zipkin-sparkstreaming</artifactId>
-            <version>0.1.0</version>
+            <version>0.3.0</version>
         </dependency>
 
         <dependency>
@@ -44,7 +44,6 @@
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk-kinesis</artifactId>
-            <version>1.11.93</version>
         </dependency>
 
     </dependencies>
