@@ -42,14 +42,14 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
-    <zipkin.version>1.23.0</zipkin.version>
-    <zipkin-reporter.version>0.6.13</zipkin-reporter.version>
+    <zipkin.version>1.23.1</zipkin.version>
+    <zipkin-reporter.version>0.6.14</zipkin-reporter.version>
 
     <slf4j.version>1.7.22</slf4j.version>
 
     <aws-java-sdk.version>1.11.117</aws-java-sdk.version>
 
-    <spring-boot.version>1.4.3.RELEASE</spring-boot.version>
+    <spring-boot.version>1.4.6.RELEASE</spring-boot.version>
   </properties>
 
   <name>Zipkin AWS (Parent)</name>
