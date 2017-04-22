@@ -26,7 +26,7 @@ import java.util.Arrays;
 import java.util.function.Function;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.boot.test.EnvironmentTestUtils.addEnvironment;
+import static org.springframework.boot.test.util.EnvironmentTestUtils.addEnvironment;
 
 @RunWith(Parameterized.class)
 public class ZipkinKinesisStreamFactoryPropertiesTest {
