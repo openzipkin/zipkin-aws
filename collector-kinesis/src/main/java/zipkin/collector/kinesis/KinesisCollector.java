@@ -92,6 +92,7 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
     private Collector collector;
     private String appName;
     private String streamName;
+    private AWSCredentialsProvider credentialsProvider;
 
     private Executor executor = Executors.newSingleThreadExecutor();
     private Worker worker;
@@ -102,6 +103,7 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
 
         this.appName = builder.appName;
         this.streamName = builder.streamName;
+        this.credentialsProvider = builder.credentialsProvider;
     }
 
     @Override
@@ -112,7 +114,7 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
         } catch (UnknownHostException e) {
             workerId = UUID.randomUUID().toString();
         }
-        KinesisClientLibConfiguration config = new KinesisClientLibConfiguration(appName, streamName, new DefaultAWSCredentialsProviderChain(), workerId);
+        KinesisClientLibConfiguration config = new KinesisClientLibConfiguration(appName, streamName, credentialsProvider, workerId);
         processor = new KinesisRecordProcessorFactory(collector);
         worker = new Worker.Builder()
                 .recordProcessorFactory(processor)
