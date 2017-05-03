@@ -29,6 +29,7 @@
     <module>autoconfigure</module>
     <module>sparkstreaming-stream-kinesis</module>
     <module>collector-kinesis</module>
+    <module>sender-kinesis</module>
   </modules>
 
   <properties>
