@@ -20,7 +20,7 @@
   <parent>
     <groupId>io.zipkin.aws</groupId>
     <artifactId>zipkin-autoconfigure</artifactId>
-    <version>0.2.2-SNAPSHOT</version>
+    <version>0.2.6-SNAPSHOT</version>
   </parent>
 
   <artifactId>zipkin-autoconfigure-collector-sqs</artifactId>
@@ -54,6 +54,7 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>${spring-boot.version}</version>
         <executions>
           <execution>
             <goals>
