@@ -11,6 +11,10 @@
 
     <artifactId>zipkin-autoconfigure-collector-kinesis</artifactId>
 
+    <properties>
+        <main.basedir>${project.basedir}/../..</main.basedir>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>${project.groupId}</groupId>
