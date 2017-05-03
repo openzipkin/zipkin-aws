@@ -46,22 +46,21 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
         AWSCredentialsProvider credentialsProvider;
         String appName;
         String streamName;
-        Executor executor = Executors.newSingleThreadExecutor();
 
         @Override
-        public CollectorComponent.Builder storage(StorageComponent storageComponent) {
+        public Builder storage(StorageComponent storageComponent) {
             delegate.storage(storageComponent);
             return this;
         }
 
         @Override
-        public CollectorComponent.Builder metrics(CollectorMetrics collectorMetrics) {
+        public Builder metrics(CollectorMetrics collectorMetrics) {
             delegate.metrics(Util.checkNotNull(collectorMetrics, "metrics").forTransport("kinesis"));
             return this;
         }
 
         @Override
-        public CollectorComponent.Builder sampler(CollectorSampler collectorSampler) {
+        public Builder sampler(CollectorSampler collectorSampler) {
             delegate.sampler(collectorSampler);
             return this;
         }
@@ -81,13 +80,8 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
             return this;
         }
 
-        public Builder executor(Executor executor) {
-            this.executor = executor;
-            return this;
-        }
-
         @Override
-        public CollectorComponent build() {
+        public KinesisCollector build() {
             return new KinesisCollector(this);
         }
 
@@ -99,7 +93,7 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
     private String appName;
     private String streamName;
 
-    private Executor executor;
+    private Executor executor = Executors.newSingleThreadExecutor();
     private Worker worker;
     private IRecordProcessorFactory processor;
 
@@ -108,17 +102,15 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
 
         this.appName = builder.appName;
         this.streamName = builder.streamName;
-
-        this.executor = builder.executor;
     }
 
     @Override
-    public CollectorComponent start() {
+    public KinesisCollector start() {
         String workerId = null;
         try {
             workerId = InetAddress.getLocalHost().getCanonicalHostName() + ":" + UUID.randomUUID();
         } catch (UnknownHostException e) {
-            workerId = "unknown";
+            workerId = UUID.randomUUID().toString();
         }
         KinesisClientLibConfiguration config = new KinesisClientLibConfiguration(appName, streamName, new DefaultAWSCredentialsProviderChain(), workerId);
         processor = new KinesisRecordProcessorFactory(collector);
@@ -133,6 +125,7 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
 
     @Override
     public CheckResult check() {
+        // TODO find a way to health check it
         return CheckResult.OK;
     }
 
