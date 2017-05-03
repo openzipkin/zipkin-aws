@@ -48,12 +48,10 @@ public class KinesisSpanProcessor implements IRecordProcessor {
         collector.acceptSpans(spans, Codec.THRIFT, new Callback<Void>() {
             @Override
             public void onSuccess(@Nullable Void aVoid) {
-
             }
 
             @Override
             public void onError(Throwable throwable) {
-
             }
         });
     }

@@ -46,6 +46,7 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
         AWSCredentialsProvider credentialsProvider;
         String appName;
         String streamName;
+        Executor executor = Executors.newSingleThreadExecutor();
 
         @Override
         public CollectorComponent.Builder storage(StorageComponent storageComponent) {
@@ -80,6 +81,11 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
             return this;
         }
 
+        public Builder executor(Executor executor) {
+            this.executor = executor;
+            return this;
+        }
+
         @Override
         public CollectorComponent build() {
             return new KinesisCollector(this);
@@ -103,7 +109,7 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
         this.appName = builder.appName;
         this.streamName = builder.streamName;
 
-        this.executor = Executors.newSingleThreadExecutor();
+        this.executor = builder.executor;
     }
 
     @Override
@@ -132,6 +138,6 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
 
     @Override
     public void close() throws IOException {
-
+        worker.shutdown();
     }
 }
