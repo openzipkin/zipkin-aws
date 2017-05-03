@@ -20,7 +20,7 @@
     <parent>
         <artifactId>zipkin-aws-parent</artifactId>
         <groupId>io.zipkin.aws</groupId>
-        <version>0.2.2-SNAPSHOT</version>
+        <version>0.2.6-SNAPSHOT</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -55,15 +55,6 @@
             <version>${project.version}</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>io.zipkin.java</groupId>
-            <artifactId>zipkin</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.zipkin.java</groupId>
-            <artifactId>zipkin</artifactId>
-        </dependency>
-
     </dependencies>
 
 </project>
