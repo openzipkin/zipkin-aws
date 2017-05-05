@@ -21,6 +21,9 @@ import com.amazonaws.services.kinesis.AmazonKinesisAsyncClientBuilder;
 import com.amazonaws.services.kinesis.model.PutRecordRequest;
 import com.amazonaws.services.kinesis.model.PutRecordResult;
 import com.google.auto.value.AutoValue;
+import java.nio.ByteBuffer;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 import zipkin.internal.LazyCloseable;
 import zipkin.internal.Nullable;
 import zipkin.reporter.BytesMessageEncoder;
@@ -28,101 +31,97 @@ import zipkin.reporter.Callback;
 import zipkin.reporter.Encoding;
 import zipkin.reporter.Sender;
 
-import java.nio.ByteBuffer;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
-
 @AutoValue
 public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> implements Sender {
 
-    public static KinesisSender create(String streamName) {
-        return builder().streamName(streamName).build();
+  public static KinesisSender create(String streamName) {
+    return builder().streamName(streamName).build();
+  }
+
+  public static Builder builder() {
+    return new AutoValue_KinesisSender.Builder()
+        .credentialsProvider(new DefaultAWSCredentialsProviderChain())
+        .messageMaxBytes(1024 * 1024); // 1MB Kinesis limit.
+  }
+
+  @AutoValue.Builder
+  public interface Builder {
+
+    /** Kinesis stream to send spans. */
+    Builder streamName(String streamName);
+
+    /** AWS credentials for authenticating calls to Kinesis. */
+    Builder credentialsProvider(AWSCredentialsProvider credentialsProvider);
+
+    /** Maximum size of a message. Kinesis max message size is 1MB */
+    Builder messageMaxBytes(int messageMaxBytes);
+
+    KinesisSender build();
+  }
+
+  abstract String streamName();
+
+  @Nullable
+  abstract AWSCredentialsProvider credentialsProvider();
+
+  private final AtomicBoolean closeCalled = new AtomicBoolean(false);
+
+  @Override
+  public CheckResult check() {
+    try {
+      if (get().describeStream(streamName()).getStreamDescription().getStreamStatus().equalsIgnoreCase("DELETING")) {
+        return CheckResult.failed(new IllegalStateException("Stream is being deleted"));
+      }
+    } catch (Exception e) {
+      return CheckResult.failed(e);
     }
+    return CheckResult.OK;
+  }
 
-    public static Builder builder() {
-        return new AutoValue_KinesisSender.Builder()
-                .credentialsProvider(new DefaultAWSCredentialsProviderChain())
-                .messageMaxBytes(1024 * 1024); // 1MB Kinesis limit.
+  @Override
+  protected AmazonKinesisAsync compute() {
+    return AmazonKinesisAsyncClientBuilder.standard().withCredentials(credentialsProvider()).build();
+  }
+
+  @Override
+  public Encoding encoding() {
+    return Encoding.THRIFT;
+  }
+
+  @Override
+  public int messageSizeInBytes(List<byte[]> list) {
+    return Encoding.THRIFT.listSizeInBytes(list);
+  }
+
+  @Override
+  public void sendSpans(List<byte[]> list, Callback callback) {
+    ByteBuffer message = ByteBuffer.wrap(BytesMessageEncoder.forEncoding(encoding()).encode(list));
+
+    PutRecordRequest request = new PutRecordRequest();
+    request.setStreamName(streamName());
+    request.setData(message);
+
+    get().putRecordAsync(request, new AsyncHandler<PutRecordRequest, PutRecordResult>() {
+      @Override
+      public void onError(Exception e) {
+        callback.onError(e);
+      }
+
+      @Override
+      public void onSuccess(PutRecordRequest request, PutRecordResult putRecordResult) {
+        callback.onComplete();
+      }
+    });
+  }
+
+  @Override
+  public void close() {
+    if (!closeCalled.getAndSet(true)) {
+      AmazonKinesisAsync maybeNull = maybeNull();
+      if (maybeNull != null) maybeNull.shutdown();
     }
+  }
 
-    @AutoValue.Builder
-    public interface Builder {
-
-        /** Kinesis stream to send spans. */
-        Builder streamName(String streamName);
-
-        /** AWS credentials for authenticating calls to Kinesis. */
-        Builder credentialsProvider(AWSCredentialsProvider credentialsProvider);
-
-        /** Maximum size of a message. Kinesis max message size is 1MB */
-        Builder messageMaxBytes(int messageMaxBytes);
-
-        KinesisSender build();
-    }
-
-    abstract String streamName();
-
-    @Nullable
-    abstract AWSCredentialsProvider credentialsProvider();
-
-    private final AtomicBoolean closeCalled = new AtomicBoolean(false);
-
-    @Override
-    public CheckResult check() {
-        try {
-            if (get().describeStream(streamName()).getStreamDescription().getStreamStatus().equalsIgnoreCase("DELETING")) {
-                return CheckResult.failed(new IllegalStateException("Stream is being deleted"));
-            }
-        } catch (Exception e) {
-            return CheckResult.failed(e);
-        }
-        return CheckResult.OK;
-    }
-
-    @Override
-    protected AmazonKinesisAsync compute() {
-        return AmazonKinesisAsyncClientBuilder.standard().withCredentials(credentialsProvider()).build();
-    }
-
-    @Override
-    public Encoding encoding() {
-        return Encoding.THRIFT;
-    }
-
-    @Override
-    public int messageSizeInBytes(List<byte[]> list) {
-        return Encoding.THRIFT.listSizeInBytes(list);
-    }
-
-    @Override
-    public void sendSpans(List<byte[]> list, Callback callback) {
-        ByteBuffer message = ByteBuffer.wrap(BytesMessageEncoder.forEncoding(encoding()).encode(list));
-
-        PutRecordRequest request = new PutRecordRequest();
-        request.setStreamName(streamName());
-        request.setData(message);
-
-        get().putRecordAsync(request, new AsyncHandler<PutRecordRequest, PutRecordResult>() {
-            @Override
-            public void onError(Exception e) {
-                callback.onError(e);
-            }
-
-            @Override
-            public void onSuccess(PutRecordRequest request, PutRecordResult putRecordResult) {
-                callback.onComplete();
-            }
-        });
-    }
-
-    @Override
-    public void close() {
-        if (!closeCalled.getAndSet(true)) {
-            AmazonKinesisAsync maybeNull = maybeNull();
-            if (maybeNull != null) maybeNull.shutdown();
-        }
-    }
-
-    KinesisSender() {
-    }
+  KinesisSender() {
+  }
 }
