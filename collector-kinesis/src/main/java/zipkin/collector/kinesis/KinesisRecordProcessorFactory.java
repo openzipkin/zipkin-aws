@@ -19,14 +19,14 @@ import zipkin.collector.Collector;
 
 public class KinesisRecordProcessorFactory implements IRecordProcessorFactory {
 
-    private final Collector collector;
+  private final Collector collector;
 
-    KinesisRecordProcessorFactory(Collector collector){
-        this.collector = collector;
-    }
+  KinesisRecordProcessorFactory(Collector collector){
+    this.collector = collector;
+  }
 
-    @Override
-    public IRecordProcessor createProcessor() {
-        return new KinesisSpanProcessor(collector);
-    }
+  @Override
+  public IRecordProcessor createProcessor() {
+    return new KinesisSpanProcessor(collector);
+  }
 }

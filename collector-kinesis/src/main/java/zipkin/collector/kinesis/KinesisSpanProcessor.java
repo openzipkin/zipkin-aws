@@ -18,45 +18,44 @@ import com.amazonaws.services.kinesis.clientlibrary.types.InitializationInput;
 import com.amazonaws.services.kinesis.clientlibrary.types.ProcessRecordsInput;
 import com.amazonaws.services.kinesis.clientlibrary.types.ShutdownInput;
 import com.amazonaws.services.kinesis.model.Record;
+import java.util.ArrayList;
+import java.util.List;
 import zipkin.Codec;
 import zipkin.collector.Collector;
 import zipkin.internal.Nullable;
 import zipkin.storage.Callback;
 
-import java.util.ArrayList;
-import java.util.List;
-
 public class KinesisSpanProcessor implements IRecordProcessor {
 
-    private final Collector collector;
+  private final Collector collector;
 
-    KinesisSpanProcessor(Collector collector) {
-        this.collector = collector;
+  KinesisSpanProcessor(Collector collector) {
+    this.collector = collector;
+  }
+
+  @Override
+  public void initialize(InitializationInput initializationInput) {
+  }
+
+  @Override
+  public void processRecords(ProcessRecordsInput processRecordsInput) {
+    List<byte[]> spans =  new ArrayList<>();
+    for (Record record : processRecordsInput.getRecords()) {
+      spans.add(record.getData().array());
     }
 
-    @Override
-    public void initialize(InitializationInput initializationInput) {
-    }
+    collector.acceptSpans(spans, Codec.THRIFT, new Callback<Void>() {
+      @Override
+      public void onSuccess(@Nullable Void aVoid) {
+      }
 
-    @Override
-    public void processRecords(ProcessRecordsInput processRecordsInput) {
-        List<byte[]> spans =  new ArrayList<>();
-        for (Record record : processRecordsInput.getRecords()) {
-            spans.add(record.getData().array());
-        }
+      @Override
+      public void onError(Throwable throwable) {
+      }
+    });
+  }
 
-        collector.acceptSpans(spans, Codec.THRIFT, new Callback<Void>() {
-            @Override
-            public void onSuccess(@Nullable Void aVoid) {
-            }
-
-            @Override
-            public void onError(Throwable throwable) {
-            }
-        });
-    }
-
-    @Override
-    public void shutdown(ShutdownInput shutdownInput) {
-    }
+  @Override
+  public void shutdown(ShutdownInput shutdownInput) {
+  }
 }
