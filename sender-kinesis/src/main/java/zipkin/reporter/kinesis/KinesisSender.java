@@ -69,6 +69,8 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
   @Override
   public CheckResult check() {
     try {
+      // TODO are we OK requiring DescribeStream be available to us as a publisher?
+      // Maybe add a flag for this on the builder?
       if (get().describeStream(streamName()).getStreamDescription().getStreamStatus().equalsIgnoreCase("DELETING")) {
         return CheckResult.failed(new IllegalStateException("Stream is being deleted"));
       }
