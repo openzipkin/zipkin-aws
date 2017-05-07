@@ -42,7 +42,7 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
-    <zipkin.version>1.23.3</zipkin.version>
+    <zipkin.version>1.24.0</zipkin.version>
     <zipkin-reporter.version>0.7.0</zipkin-reporter.version>
 
     <slf4j.version>1.7.22</slf4j.version>
