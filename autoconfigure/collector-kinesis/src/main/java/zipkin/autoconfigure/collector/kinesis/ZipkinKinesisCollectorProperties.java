@@ -17,59 +17,59 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 
 @ConfigurationProperties("zipkin.collector.kinesis")
 public class ZipkinKinesisCollectorProperties {
-    String streamName;
-    String appName;
+  String streamName;
+  String appName;
 
-    String awsAccessKeyId;
-    String awsSecretAccessKey;
-    String awsStsRoleArn;
-    String awsStsRegion = "us-east-1";
+  String awsAccessKeyId;
+  String awsSecretAccessKey;
+  String awsStsRoleArn;
+  String awsStsRegion = "us-east-1";
 
-    public String getStreamName() {
-        return streamName;
-    }
+  public String getStreamName() {
+    return streamName;
+  }
 
-    public void setStreamName(String streamName) {
-        this.streamName = streamName;
-    }
+  public void setStreamName(String streamName) {
+    this.streamName = streamName;
+  }
 
-    public String getAppName() {
-        return appName;
-    }
+  public String getAppName() {
+    return appName;
+  }
 
-    public void setAppName(String appName) {
-        this.appName = appName;
-    }
+  public void setAppName(String appName) {
+    this.appName = appName;
+  }
 
-    public String getAwsAccessKeyId() {
-        return awsAccessKeyId;
-    }
+  public String getAwsAccessKeyId() {
+    return awsAccessKeyId;
+  }
 
-    public void setAwsAccessKeyId(String awsAccessKeyId) {
-        this.awsAccessKeyId = awsAccessKeyId;
-    }
+  public void setAwsAccessKeyId(String awsAccessKeyId) {
+    this.awsAccessKeyId = awsAccessKeyId;
+  }
 
-    public String getAwsSecretAccessKey() {
-        return awsSecretAccessKey;
-    }
+  public String getAwsSecretAccessKey() {
+    return awsSecretAccessKey;
+  }
 
-    public void setAwsSecretAccessKey(String awsSecretAccessKey) {
-        this.awsSecretAccessKey = awsSecretAccessKey;
-    }
+  public void setAwsSecretAccessKey(String awsSecretAccessKey) {
+    this.awsSecretAccessKey = awsSecretAccessKey;
+  }
 
-    public String getAwsStsRoleArn() {
-        return awsStsRoleArn;
-    }
+  public String getAwsStsRoleArn() {
+    return awsStsRoleArn;
+  }
 
-    public void setAwsStsRoleArn(String awsStsRoleArn) {
-        this.awsStsRoleArn = awsStsRoleArn;
-    }
+  public void setAwsStsRoleArn(String awsStsRoleArn) {
+    this.awsStsRoleArn = awsStsRoleArn;
+  }
 
-    public String getAwsStsRegion() {
-        return awsStsRegion;
-    }
+  public String getAwsStsRegion() {
+    return awsStsRegion;
+  }
 
-    public void setAwsStsRegion(String awsStsRegion) {
-        this.awsStsRegion = awsStsRegion;
-    }
+  public void setAwsStsRegion(String awsStsRegion) {
+    this.awsStsRegion = awsStsRegion;
+  }
 }

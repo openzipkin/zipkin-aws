@@ -32,36 +32,37 @@ import zipkin.storage.StorageComponent;
 @Conditional(ZipkinKinesisCollectorAutoConfiguration.KinesisSetCondition.class)
 public class ZipkinKinesisCollectorAutoConfiguration {
 
-    @Bean
-    KinesisCollector kinesisCollector(ZipkinKinesisCollectorProperties properties, AWSCredentialsProvider credentialsProvider,
-                                      CollectorSampler sampler, CollectorMetrics metrics, StorageComponent storage) {
-        return KinesisCollector.builder()
-                .credentialsProvider(credentialsProvider)
-                .sampler(sampler)
-                .metrics(metrics)
-                .storage(storage)
-                .streamName(properties.getStreamName())
-                .appName(properties.getAppName())
-                .build()
-                .start();
+  @Bean
+  KinesisCollector kinesisCollector(ZipkinKinesisCollectorProperties properties,
+      AWSCredentialsProvider credentialsProvider,
+      CollectorSampler sampler, CollectorMetrics metrics, StorageComponent storage) {
+    return KinesisCollector.builder()
+        .credentialsProvider(credentialsProvider)
+        .sampler(sampler)
+        .metrics(metrics)
+        .storage(storage)
+        .streamName(properties.getStreamName())
+        .appName(properties.getAppName())
+        .build()
+        .start();
+  }
+
+  static final class KinesisSetCondition extends SpringBootCondition {
+
+    private static final String PROPERTY_NAME = "zipkin.collector.kinesis.stream-name";
+
+    @Override
+    public ConditionOutcome getMatchOutcome(ConditionContext context,
+        AnnotatedTypeMetadata annotatedTypeMetadata) {
+      String streamName = context.getEnvironment().getProperty(PROPERTY_NAME);
+
+      return isEmpty(streamName) ?
+          ConditionOutcome.noMatch(PROPERTY_NAME + " isn't set") :
+          ConditionOutcome.match();
     }
 
-    static final class KinesisSetCondition extends SpringBootCondition {
-
-        private static final String PROPERTY_NAME = "zipkin.collector.kinesis.stream-name";
-
-        @Override
-        public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata annotatedTypeMetadata) {
-            String streamName = context.getEnvironment().getProperty(PROPERTY_NAME);
-
-            return isEmpty(streamName) ?
-                    ConditionOutcome.noMatch(PROPERTY_NAME + " isn't set") :
-                    ConditionOutcome.match();
-        }
-
-        private static boolean isEmpty(String s) {
-            return s == null || s.isEmpty();
-        }
+    private static boolean isEmpty(String s) {
+      return s == null || s.isEmpty();
     }
-
+  }
 }
