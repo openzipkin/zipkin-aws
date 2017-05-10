@@ -8,7 +8,7 @@ service that is effective at decoupling components of cloud applications.  Using
 in place of Kafka removes the need to stand up and manage a distributed Kafka 
 deployment.
 
-The Kinesis collector is based on the Java Kinesis Client Library (KCL). This library works much the
+The Kinesis collector is based on the Java Kinesis Client Library ([KCL](https://github.com/awslabs/amazon-kinesis-client)). This library works much the
 same way that Kafka does when there are multiple consumers of the same stream. In the place of
 zookeeper for kafka, the KCL uses DynamoDB to do its coordination.
 
