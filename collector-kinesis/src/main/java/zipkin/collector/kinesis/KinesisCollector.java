@@ -14,6 +14,7 @@
 package zipkin.collector.kinesis;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessor;
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessorFactory;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.KinesisClientLibConfiguration;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.Worker;
@@ -136,5 +137,19 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
   @Override
   public void close() throws IOException {
     worker.shutdown();
+  }
+
+  private final class KinesisRecordProcessorFactory implements IRecordProcessorFactory {
+
+    private final Collector collector;
+
+    KinesisRecordProcessorFactory(Collector collector){
+      this.collector = collector;
+    }
+
+    @Override
+    public IRecordProcessor createProcessor() {
+      return new KinesisSpanProcessor(collector);
+    }
   }
 }

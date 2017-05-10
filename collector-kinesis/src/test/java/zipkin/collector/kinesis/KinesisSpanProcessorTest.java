@@ -31,7 +31,9 @@ import zipkin.storage.InMemoryStorage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-
+/**
+ * We do not integration test the KinesisCollector because there is not a
+ */
 public class KinesisSpanProcessorTest {
 
   private InMemoryStorage storage;
@@ -67,10 +69,10 @@ public class KinesisSpanProcessorTest {
     assertThat(storage.spanStore().getRawTraces().size()).isEqualTo(10000);
   }
 
-  private ProcessRecordsInput createTestData(long count) {
+  private ProcessRecordsInput createTestData(int count) {
     List<Record> records = new ArrayList<>();
 
-    Span[] spans = new Random().longs(count).mapToObj(TestObjects::span).toArray(Span[]::new);
+    Span[] spans = Arrays.copyOfRange(TestObjects.LOTS_OF_SPANS, 0, count);
 
     Arrays.stream(spans)
         .map(s -> ByteBuffer.wrap(Codec.THRIFT.writeSpan(s)))
