@@ -8,6 +8,10 @@ service that is effective at decoupling components of cloud applications.  Using
 in place of Kafka removes the need to stand up and manage a distributed Kafka 
 deployment.
 
+The Kinesis collector is based on the Java Kinesis Client Library (KCL). This library works much the
+same way that Kafka does when there are multiple consumers of the same stream. In the place of
+zookeeper for kafka, the KCL uses DynamoDB to do its coordination.
+
 To fully take advantage of the KinesisCollector users will send Thrift encoded Zipkin Spans
 directly to a Kinesis stream from each service. 
 
@@ -17,3 +21,7 @@ While the KinesisCollector can be used directly through the provided builder int
 most users will likely find more value in the Spring Boot autoconfiguraton module. 
 Additional information for using the module can be found 
 [here](https://github.com/openzipkin/zipkin-aws/tree/master/autoconfigure/collector-kinesis).
+
+## Permissions
+
+The permissions required for the KCL are covered in the AWS documentation [here](http://docs.aws.amazon.com/streams/latest/dev/learning-kinesis-module-one-iam.html).
