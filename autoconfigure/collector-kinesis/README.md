@@ -34,8 +34,8 @@ for users that prefer a file based approach.
 ```bash
 KINESIS_STREAM_NAME="zipkin-spans"
 KINESIS_APP_NAME="zipkin-server"
-SQS_AWS_ACCESS_KEY_ID="XqgzeGF3tC7u"
-SQS_AWS_SECRET_ACCESS_KEY="F75uEjHM7ykLzXDJMTHrQ5Jr"
+KINESIS_AWS_ACCESS_KEY_ID="XqgzeGF3tC7u"
+KINESIS_AWS_SECRET_ACCESS_KEY="F75uEjHM7ykLzXDJMTHrQ5Jr"
 java -Dloader.path=kinesis -Dspring.profiles.active=kinesis -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
 ```
 
