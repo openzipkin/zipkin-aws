@@ -1,4 +1,4 @@
-# When enabled, this allows shorter env properties (ex -Dspring.profiles.active=sqs)
+# When enabled, this allows shorter env properties (ex -Dspring.profiles.active=kinesis)
 zipkin:
   collector:
     kinesis:

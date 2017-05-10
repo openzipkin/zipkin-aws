@@ -36,73 +36,74 @@ import static org.springframework.boot.test.util.EnvironmentTestUtils.addEnviron
 
 public class ZipkinKinesisCollectorAutoConfigurationTest {
 
-    AnnotationConfigApplicationContext context;
+  AnnotationConfigApplicationContext context;
 
-    @Before
-    public void init() {
-        context = new AnnotationConfigApplicationContext();
+  @Before
+  public void init() {
+    context = new AnnotationConfigApplicationContext();
+  }
+
+  @After
+  public void close() {
+    if (context != null) context.close();
+  }
+
+  @Test
+  public void kinesisCollectorNotCreatedWhenMissingRequiredConfigValue() {
+    context.register(PropertyPlaceholderAutoConfiguration.class, ZipkinKinesisCollectorAutoConfiguration.class);
+    context.refresh();
+
+    assertThatExceptionOfType(NoSuchBeanDefinitionException.class).isThrownBy(() -> context.getBean(KinesisCollector.class));
+  }
+
+  @Test
+  public void kinesisCollectorCreatedWhenAllRequiredValuesAreProvided() {
+    addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
+    // The yaml file has a default for this
+    addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin");
+    context.register(PropertyPlaceholderAutoConfiguration.class,
+        ZipkinKinesisCollectorAutoConfiguration.class,
+        ZipkinKinesisCredentialsAutoConfiguration.class,
+        InMemoryConfiguration.class);
+    context.refresh();
+
+    assertThat(context.getBean(KinesisCollector.class)).isNotNull();
+    assertThat(context.getBean(ZipkinKinesisCollectorProperties.class)).isNotNull();
+  }
+
+  @Test
+  public void kinesisCollectorConfiguredForAWSWithGivenCredentials() {
+    addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
+    addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-access-key-id: x");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-secret-access-key: x");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-sts-role-arn: test");
+    context.register(PropertyPlaceholderAutoConfiguration.class,
+        ZipkinKinesisCollectorAutoConfiguration.class,
+        ZipkinKinesisCredentialsAutoConfiguration.class,
+        InMemoryConfiguration.class);
+    context.refresh();
+
+    assertThat(context.getBean(KinesisCollector.class)).isNotNull();
+    assertThat(context.getBean(AWSSecurityTokenService.class)).isNotNull();
+    assertThat(context.getBean(AWSCredentialsProvider.class)).isInstanceOf(STSAssumeRoleSessionCredentialsProvider.class);
+  }
+
+  @Configuration
+  static class InMemoryConfiguration {
+    @Bean
+    CollectorSampler sampler() {
+      return CollectorSampler.ALWAYS_SAMPLE;
     }
 
-    @After
-    public void close() {
-        if (context != null) context.close();
+    @Bean
+    CollectorMetrics metrics() {
+      return CollectorMetrics.NOOP_METRICS;
     }
 
-    @Test
-    public void kinesisCollectorNotCreatedWhenMissingRequiredConfigValue() {
-        context.register(PropertyPlaceholderAutoConfiguration.class, ZipkinKinesisCollectorAutoConfiguration.class);
-        context.refresh();
-
-        assertThatExceptionOfType(NoSuchBeanDefinitionException.class).isThrownBy(() -> context.getBean(KinesisCollector.class));
+    @Bean
+    StorageComponent storage() {
+      return new InMemoryStorage();
     }
-
-    @Test
-    public void kinesisCollectorCreatedWhenAllRequiredValuesAreProvided() {
-        addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
-        addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin"); // Not required from the user but required by the collector
-        context.register(PropertyPlaceholderAutoConfiguration.class,
-                ZipkinKinesisCollectorAutoConfiguration.class,
-                ZipkinKinesisCredentialsAutoConfiguration.class,
-                InMemoryConfiguration.class);
-        context.refresh();
-
-        assertThat(context.getBean(KinesisCollector.class)).isNotNull();
-        assertThat(context.getBean(ZipkinKinesisCollectorProperties.class)).isNotNull();
-    }
-
-    @Test
-    public void kinesisCollectorConfiguredForAWSWithGivenCredentials() {
-        addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
-        addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin");
-        addEnvironment(context, "zipkin.collector.kinesis.aws-access-key-id: x");
-        addEnvironment(context, "zipkin.collector.kinesis.aws-secret-access-key: x");
-        addEnvironment(context, "zipkin.collector.kinesis.aws-sts-role-arn: test");
-        context.register(PropertyPlaceholderAutoConfiguration.class,
-                ZipkinKinesisCollectorAutoConfiguration.class,
-                ZipkinKinesisCredentialsAutoConfiguration.class,
-                InMemoryConfiguration.class);
-        context.refresh();
-
-        assertThat(context.getBean(KinesisCollector.class)).isNotNull();
-        assertThat(context.getBean(AWSSecurityTokenService.class)).isNotNull();
-        assertThat(context.getBean(AWSCredentialsProvider.class)).isInstanceOf(STSAssumeRoleSessionCredentialsProvider.class);
-    }
-
-    @Configuration
-    static class InMemoryConfiguration {
-        @Bean
-        CollectorSampler sampler() {
-            return CollectorSampler.ALWAYS_SAMPLE;
-        }
-
-        @Bean
-        CollectorMetrics metrics() {
-            return CollectorMetrics.NOOP_METRICS;
-        }
-
-        @Bean
-        StorageComponent storage() {
-            return new InMemoryStorage();
-        }
-    }
+  }
 }

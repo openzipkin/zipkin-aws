@@ -17,6 +17,7 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessorFactory;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.KinesisClientLibConfiguration;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.Worker;
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -87,12 +88,12 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
     }
   }
 
-  private Collector collector;
-  private String appName;
-  private String streamName;
-  private AWSCredentialsProvider credentialsProvider;
+  private final Collector collector;
+  private final String appName;
+  private final String streamName;
+  private final AWSCredentialsProvider credentialsProvider;
 
-  private Executor executor = Executors.newSingleThreadExecutor();
+  private final Executor executor;
   private Worker worker;
   private IRecordProcessorFactory processor;
 
@@ -102,6 +103,9 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
     this.appName = builder.appName;
     this.streamName = builder.streamName;
     this.credentialsProvider = builder.credentialsProvider;
+
+    executor = Executors.newSingleThreadExecutor(
+        new ThreadFactoryBuilder().setNameFormat("KinesisCollector-" + streamName + "-%d").build());
   }
 
   @Override
