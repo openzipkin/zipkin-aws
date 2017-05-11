@@ -1,0 +1,17 @@
+# When enabled, this allows shorter env properties (ex -Dspring.profiles.active=kinesis)
+zipkin:
+  collector:
+    kinesis:
+      # Kinesis stream name
+      stream-name: ${KINESIS_STREAM_NAME:}
+      # Kinesis client app-name
+      app-name: ${KINESIS_APP_NAME:zipkin}
+
+      # Optional AWS Access Key
+      aws-access-key-id: ${KINESIS_AWS_ACCESS_KEY_ID:}
+      # Optional AWS Secret Access Key
+      aws-secret-access-key: ${KINESIS_AWS_SECRET_ACCESS_KEY:}
+      # Optional AWS STS assume role ARN
+      aws-sts-role-arn: ${KINESIS_AWS_STS_ROLE_ARN:}
+      # Optional AWS STS region endpoint to use
+      aws-sts-region: ${KINESIS_AWS_STS_REGION:us-east-1}
