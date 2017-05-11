@@ -15,15 +15,20 @@ package zipkin.reporter.kinesis;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.kinesis.AmazonKinesisAsync;
 import com.amazonaws.services.kinesis.AmazonKinesisAsyncClientBuilder;
 import com.amazonaws.services.kinesis.model.PutRecordRequest;
 import com.amazonaws.services.kinesis.model.PutRecordResult;
 import com.google.auto.value.AutoValue;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import zipkin.internal.LazyCloseable;
 import zipkin.internal.Nullable;
 import zipkin.reporter.BytesMessageEncoder;
@@ -53,6 +58,8 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
     /** AWS credentials for authenticating calls to Kinesis. */
     Builder credentialsProvider(AWSCredentialsProvider credentialsProvider);
 
+    Builder endpointConfiguration(AwsClientBuilder.EndpointConfiguration endpointConfiguration);
+
     /** Maximum size of a message. Kinesis max message size is 1MB */
     Builder messageMaxBytes(int messageMaxBytes);
 
@@ -63,6 +70,10 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
 
   @Nullable
   abstract AWSCredentialsProvider credentialsProvider();
+
+  // Needed to be able to overwrite for tests
+  @Nullable
+  abstract AwsClientBuilder.EndpointConfiguration endpointConfiguration();
 
   private final AtomicBoolean closeCalled = new AtomicBoolean(false);
 
@@ -80,9 +91,26 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
     return CheckResult.OK;
   }
 
+  private AtomicReference<String> partitionKey = new AtomicReference<>("");
+
+  String getPartitionKey() {
+    if (partitionKey.get().isEmpty()) {
+      try {
+        partitionKey.set(InetAddress.getLocalHost().getHostName());
+      } catch (UnknownHostException e) {
+        // Shouldn't be possible, but you know
+        partitionKey.set(UUID.randomUUID().toString());
+      }
+    }
+    return partitionKey.get();
+  }
+
   @Override
   protected AmazonKinesisAsync compute() {
-    return AmazonKinesisAsyncClientBuilder.standard().withCredentials(credentialsProvider()).build();
+    return AmazonKinesisAsyncClientBuilder.standard()
+        .withCredentials(credentialsProvider())
+        .withEndpointConfiguration(endpointConfiguration())
+        .build();
   }
 
   @Override
@@ -102,6 +130,7 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
     PutRecordRequest request = new PutRecordRequest();
     request.setStreamName(streamName());
     request.setData(message);
+    request.setPartitionKey(getPartitionKey());
 
     get().putRecordAsync(request, new AsyncHandler<PutRecordRequest, PutRecordResult>() {
       @Override
