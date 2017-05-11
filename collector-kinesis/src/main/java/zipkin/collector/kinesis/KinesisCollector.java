@@ -136,6 +136,8 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
 
   @Override
   public void close() throws IOException {
+    // The executor is a single thread that is tied to this worker. Once the worker shuts down
+    // the executor will stop.
     worker.shutdown();
   }
 
