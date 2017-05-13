@@ -13,6 +13,8 @@
  */
 package zipkin.reporter.kinesis;
 
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import io.undertow.Undertow;
 import io.undertow.io.Receiver;
@@ -62,6 +64,7 @@ public class KinesisSenderTest {
     sender = KinesisSender.builder()
         .streamName("test")
         .endpointConfiguration(new AwsClientBuilder.EndpointConfiguration(endpoint, "us-east-1"))
+        .credentialsProvider(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
         .build();
   }
 
@@ -85,7 +88,7 @@ public class KinesisSenderTest {
     callback.await();
   }
 
-  class KinesisHandler implements HttpHandler {
+  static class KinesisHandler implements HttpHandler {
 
     int requestCount = 0;
     InMemoryStorage storage = new InMemoryStorage();
