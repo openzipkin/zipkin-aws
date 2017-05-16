@@ -82,9 +82,8 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
   @Override
   public CheckResult check() {
     try {
-      if (get().describeStream(streamName())
-          .getStreamDescription()
-          .getStreamStatus().equalsIgnoreCase("ACTIVE")) {
+      String status = get().describeStream(streamName()).getStreamDescription().getStreamStatus();
+      if (status.equalsIgnoreCase("ACTIVE")) {
         return CheckResult.OK;
       } else {
         return CheckResult.failed(new IllegalStateException("Stream is not active"));
