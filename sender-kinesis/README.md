@@ -4,6 +4,9 @@ This component leverages [zipkin-reporter-java](https://github.com/openzipkin/zi
 interfaces to send spans to Amazon Kinesis for collection and processing. Kinesis is an alternative
 to kafka that is fully managed in the AWS cloud.
 
+Spans are put on the queue as a Thrift encoded blob. The associated collector expects this and will
+decode appropriately.
+
 ## Configuration
 
 A minimal configuration of this sender would be:
