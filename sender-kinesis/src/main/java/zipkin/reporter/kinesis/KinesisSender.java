@@ -55,6 +55,8 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
     /** Kinesis stream to send spans. */
     Builder streamName(String streamName);
 
+    Builder region(String region);
+
     /** AWS credentials for authenticating calls to Kinesis. */
     Builder credentialsProvider(AWSCredentialsProvider credentialsProvider);
 
@@ -67,6 +69,9 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
   }
 
   abstract String streamName();
+
+  @Nullable
+  abstract String region();
 
   @Nullable
   abstract AWSCredentialsProvider credentialsProvider();
@@ -107,10 +112,17 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
 
   @Override
   protected AmazonKinesisAsync compute() {
-    return AmazonKinesisAsyncClientBuilder.standard()
-        .withCredentials(credentialsProvider())
-        .withEndpointConfiguration(endpointConfiguration())
-        .build();
+    AmazonKinesisAsyncClientBuilder builder = AmazonKinesisAsyncClientBuilder.standard();
+    if (credentialsProvider() != null) {
+      builder.withCredentials(credentialsProvider());
+    }
+    if (endpointConfiguration() != null) {
+      builder.withEndpointConfiguration(endpointConfiguration());
+    }
+    if (region() != null) {
+      builder.withRegion(region());
+    }
+    return builder.build();
   }
 
   @Override
