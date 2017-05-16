@@ -16,9 +16,20 @@ package zipkin.reporter.kinesis;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.services.kinesis.model.DescribeStreamResult;
+import com.amazonaws.services.kinesis.model.EnhancedMetrics;
+import com.amazonaws.services.kinesis.model.HashKeyRange;
+import com.amazonaws.services.kinesis.model.SequenceNumberRange;
+import com.amazonaws.services.kinesis.model.Shard;
+import com.amazonaws.services.kinesis.model.StreamDescription;
+import com.amazonaws.services.kinesis.model.StreamStatus;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Date;
 import java.util.List;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -66,12 +77,29 @@ public class KinesisSenderTest {
   }
 
   @Test
-  public void checkPasses() throws InterruptedException {
+  public void checkPasses() throws InterruptedException, JsonProcessingException {
+    StreamDescription streamDescription = new StreamDescription()
+        .withStreamStatus(StreamStatus.ACTIVE)
+        .withEnhancedMonitoring(new EnhancedMetrics()
+            .withShardLevelMetrics("ALL")
+        )
+        .withHasMoreShards(false)
+        .withRetentionPeriodHours(24)
+        .withShards(new Shard()
+            .withHashKeyRange(new HashKeyRange().withStartingHashKey("0").withEndingHashKey("0"))
+            .withSequenceNumberRange(new SequenceNumberRange().withStartingSequenceNumber("0"))
+            .withShardId("shard")
+        )
+        .withStreamARN("arn:aws:kinesis:us-east-1:111122223333:test")
+        .withStreamCreationTimestamp(new Date())
+        .withStreamName("test");
+
+    DescribeStreamResult describeStreamResult = new DescribeStreamResult();
+    describeStreamResult.setStreamDescription(streamDescription);
     server.enqueue(new MockResponse()
-        .addHeader("Content-Type", "application/x-amz-json-1.1")
+        .addHeader("Content-Type", "application/x-amz-cbor-1.1")
         .addHeader("x-amzn-RequestId", "1234")
-        .setBody("{\"StreamDescription\":{\"EnhancedMonitoring\":[{\"ShardLevelMetrics\":[]}],\"HasMoreShards\":false,\"RetentionPeriodHours\":24,\"Shards\":[{\"HashKeyRange\":{\"EndingHashKey\":\"340282366920938463463374607431768211455\",\"StartingHashKey\":\"0\"},\"SequenceNumberRange\":{\"StartingSequenceNumber\":\"49573122618435842026682462638596372868559861341178822658\"},\"ShardId\":\"shardId-000000000000\"}],\"StreamARN\":\"arn:aws:kinesis:us-east-1:1122334455:stream/test\",\"StreamCreationTimestamp\":1.494527725E9,\"StreamName\":\"test\",\"StreamStatus\":\"ACTIVE\"}}"));
-    server.enqueue(new MockResponse());
+        .setBody(new Buffer().write(mapper.writeValueAsBytes(describeStreamResult))));
 
     Component.CheckResult result = sender.check();
     server.takeRequest();
