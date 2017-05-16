@@ -77,10 +77,14 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
 
   private final AtomicBoolean closeCalled = new AtomicBoolean(false);
 
+  private final AtomicReference<String> partitionKey = new AtomicReference<>("");
+
   @Override
   public CheckResult check() {
     try {
-      if (get().describeStream(streamName()).getStreamDescription().getStreamStatus().equalsIgnoreCase("ACTIVE")) {
+      if (get().describeStream(streamName())
+          .getStreamDescription()
+          .getStreamStatus().equalsIgnoreCase("ACTIVE")) {
         return CheckResult.OK;
       } else {
         return CheckResult.failed(new IllegalStateException("Stream is not active"));
@@ -89,8 +93,6 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
       return CheckResult.failed(e);
     }
   }
-
-  private AtomicReference<String> partitionKey = new AtomicReference<>("");
 
   private String getPartitionKey() {
     if (partitionKey.get().isEmpty()) {

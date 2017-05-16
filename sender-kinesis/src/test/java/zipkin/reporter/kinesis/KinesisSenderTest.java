@@ -28,6 +28,7 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import zipkin.Codec;
+import zipkin.Component;
 import zipkin.Span;
 import zipkin.TestObjects;
 import zipkin.reporter.Encoder;
@@ -62,6 +63,39 @@ public class KinesisSenderTest {
     RecordedRequest request = server.takeRequest();
     assertThat(extractSpans(request.getBody()))
         .isEqualTo(TestObjects.TRACE);
+  }
+
+  @Test
+  public void checkPasses() throws InterruptedException {
+    server.enqueue(new MockResponse()
+        .addHeader("Content-Type", "application/x-amz-json-1.1")
+        .addHeader("x-amzn-RequestId", "1234")
+        .setBody("{\"StreamDescription\":{\"EnhancedMonitoring\":[{\"ShardLevelMetrics\":[]}],\"HasMoreShards\":false,\"RetentionPeriodHours\":24,\"Shards\":[{\"HashKeyRange\":{\"EndingHashKey\":\"340282366920938463463374607431768211455\",\"StartingHashKey\":\"0\"},\"SequenceNumberRange\":{\"StartingSequenceNumber\":\"49573122618435842026682462638596372868559861341178822658\"},\"ShardId\":\"shardId-000000000000\"}],\"StreamARN\":\"arn:aws:kinesis:us-east-1:1122334455:stream/test\",\"StreamCreationTimestamp\":1.494527725E9,\"StreamName\":\"test\",\"StreamStatus\":\"ACTIVE\"}}"));
+    server.enqueue(new MockResponse());
+
+    Component.CheckResult result = sender.check();
+    server.takeRequest();
+    assertThat(result.ok).isTrue();
+  }
+
+  //@Test
+  //public void checkFailsWithStreamNotActive() throws IOException {
+  //  server.enqueue(new MockResponse()
+  //      .addHeader("Content-Type", "application/x-amz-json-1.1")
+  //      .setBody("{\"StreamDescription\": {\"StreamStatus\": \"DELETING\"}}"));
+  //
+  //  Component.CheckResult result = sender.check();
+  //  assertThat(result.ok).isFalse();
+  //  assertThat(result.exception).isInstanceOf(IllegalStateException.class);
+  //}
+
+  @Test
+  public void checkFailsWithException() {
+    server.enqueue(new MockResponse());
+
+    Component.CheckResult result = sender.check();
+    assertThat(result.ok).isFalse();
+    assertThat(result.exception).isInstanceOf(NullPointerException.class);
   }
 
   List<Span> extractSpans(Buffer body) throws IOException {
