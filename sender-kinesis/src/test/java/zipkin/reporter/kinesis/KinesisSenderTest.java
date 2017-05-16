@@ -13,6 +13,7 @@
  */
 package zipkin.reporter.kinesis;
 
+import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
@@ -25,6 +26,7 @@ import java.util.List;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import okhttp3.mockwebserver.SocketPolicy;
 import okio.Buffer;
 import org.junit.Before;
 import org.junit.Rule;
@@ -88,11 +90,19 @@ public class KinesisSenderTest {
 
   @Test
   public void checkFailsWithException() {
-    server.enqueue(new MockResponse());
+    server.enqueue(new MockResponse()
+        .setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
+    // 3 retries after initial failure
+    server.enqueue(new MockResponse()
+        .setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
+    server.enqueue(new MockResponse()
+        .setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
+    server.enqueue(new MockResponse()
+        .setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
 
     Component.CheckResult result = sender.check();
     assertThat(result.ok).isFalse();
-    assertThat(result.exception).isInstanceOf(NullPointerException.class);
+    assertThat(result.exception).isInstanceOf(SdkClientException.class);
   }
 
   void enqueueCborResponse(JsonNode document) throws JsonProcessingException {
