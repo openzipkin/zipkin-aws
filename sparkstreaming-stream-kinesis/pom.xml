@@ -18,7 +18,7 @@
     <parent>
         <artifactId>zipkin-aws-parent</artifactId>
         <groupId>io.zipkin.aws</groupId>
-        <version>0.2.6-SNAPSHOT</version>
+        <version>0.3.0</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
