@@ -1,2 +1,3 @@
 org.springframework.boot.autoconfigure.EnableAutoConfiguration=\
-zipkin.autoconfigure.collector.kinesis.ZipkinKinesisCollectorAutoConfiguration
+zipkin.autoconfigure.collector.kinesis.ZipkinKinesisCollectorAutoConfiguration,\
+zipkin.autoconfigure.collector.kinesis.ZipkinKinesisCredentialsAutoConfiguration
