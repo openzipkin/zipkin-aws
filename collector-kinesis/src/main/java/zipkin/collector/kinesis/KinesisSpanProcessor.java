@@ -39,12 +39,9 @@ public class KinesisSpanProcessor implements IRecordProcessor {
 
   @Override
   public void processRecords(ProcessRecordsInput processRecordsInput) {
-    List<byte[]> spans =  new ArrayList<>();
     for (Record record : processRecordsInput.getRecords()) {
-      spans.add(record.getData().array());
+      collector.acceptSpans(record.getData().array(), Codec.THRIFT, Callback.NOOP);
     }
-
-    collector.acceptSpans(spans, Codec.THRIFT, Callback.NOOP);
   }
 
   @Override

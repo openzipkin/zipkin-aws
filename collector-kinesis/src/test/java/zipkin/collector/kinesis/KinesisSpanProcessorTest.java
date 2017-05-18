@@ -18,6 +18,7 @@ import com.amazonaws.services.kinesis.model.Record;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import org.junit.After;
@@ -27,9 +28,11 @@ import zipkin.Codec;
 import zipkin.Span;
 import zipkin.TestObjects;
 import zipkin.collector.Collector;
+import zipkin.collector.InMemoryCollectorMetrics;
 import zipkin.storage.InMemoryStorage;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 /**
  * We do not integration test the KinesisCollector because there is not a
@@ -37,13 +40,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class KinesisSpanProcessorTest {
 
   private InMemoryStorage storage;
+  private InMemoryCollectorMetrics metrics = new InMemoryCollectorMetrics();
+
   private Collector collector;
   private KinesisSpanProcessor kinesisSpanProcessor;
 
   @Before
   public void setup() {
     storage = new InMemoryStorage();
-    collector = Collector.builder(KinesisSpanProcessorTest.class).storage(storage).build();
+    collector = Collector.builder(KinesisSpanProcessorTest.class)
+        .storage(storage)
+        .metrics(metrics)
+        .build();
 
     kinesisSpanProcessor = new KinesisSpanProcessor(collector);
   }
@@ -69,13 +77,28 @@ public class KinesisSpanProcessorTest {
     assertThat(storage.spanStore().getRawTraces().size()).isEqualTo(10000);
   }
 
+  @Test
+  public void collectorFailsWhenRecordEncodedAsSingleSpan() {
+    Span span = TestObjects.LOTS_OF_SPANS[0];
+    byte[] encodedSpan = Codec.THRIFT.writeSpan(span);
+    Record kinesisRecord = new Record().withData(ByteBuffer.wrap(encodedSpan));
+    ProcessRecordsInput kinesisInput = new ProcessRecordsInput().withRecords(Collections.singletonList(kinesisRecord));
+
+    kinesisSpanProcessor.processRecords(kinesisInput);
+
+    assertThat(storage.spanStore().getRawTraces().size()).isEqualTo(0);
+
+    assertThat(metrics.messagesDropped()).isEqualTo(1);
+    assertThat(metrics.bytes()).isEqualTo(encodedSpan.length);
+  }
+
   private ProcessRecordsInput createTestData(int count) {
     List<Record> records = new ArrayList<>();
 
     Span[] spans = Arrays.copyOfRange(TestObjects.LOTS_OF_SPANS, 0, count);
 
     Arrays.stream(spans)
-        .map(s -> ByteBuffer.wrap(Codec.THRIFT.writeSpan(s)))
+        .map(s -> ByteBuffer.wrap(Codec.THRIFT.writeSpans(Collections.singletonList(s))))
         .map(b -> new Record().withData(b))
         .forEach(records::add);
 
