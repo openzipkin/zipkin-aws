@@ -141,9 +141,9 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
     worker.shutdown();
   }
 
-  private final class KinesisRecordProcessorFactory implements IRecordProcessorFactory {
+  private static final class KinesisRecordProcessorFactory implements IRecordProcessorFactory {
 
-    private final Collector collector;
+    final Collector collector;
 
     KinesisRecordProcessorFactory(Collector collector){
       this.collector = collector;

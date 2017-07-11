@@ -46,7 +46,7 @@
         <dependency>
             <groupId>io.zipkin.aws</groupId>
             <artifactId>zipkin-sparkstreaming-stream-kinesis</artifactId>
-            <version>0.3.3-SNAPSHOT</version>
+            <version>${project.version}</version>
         </dependency>
 
         <dependency>

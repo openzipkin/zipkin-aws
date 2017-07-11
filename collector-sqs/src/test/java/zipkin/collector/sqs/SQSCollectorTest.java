@@ -1,5 +1,5 @@
 /**
- * Copyright 2016 The OpenZipkin Authors
+ * Copyright 2016-2017 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -15,6 +15,7 @@ package zipkin.collector.sqs;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Random;
@@ -57,6 +58,7 @@ public class SQSCollectorTest {
         .queueUrl(sqsRule.queueUrl())
         .parallelism(2)
         .waitTimeSeconds(1) // using short wait time to make test teardown faster
+        .endpointConfiguration(new EndpointConfiguration(sqsRule.queueUrl(), "us-east-1"))
         .credentialsProvider(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
         .metrics(metrics)
         .sampler(CollectorSampler.ALWAYS_SAMPLE)
@@ -82,10 +84,10 @@ public class SQSCollectorTest {
 
     List<Span> fromStore = store.spanStore().getRawTrace(TRACE.get(0).traceId);
 
-    assertThat(metrics.messagesDropped()).isEqualTo(0).as("check dropped metrics.");
-    assertThat(fromStore).isNotNull().as("recorded spans should not be null");
-    assertThat(fromStore.size()).isEqualTo(TRACE.size()).as("all spans have been recorded");
-    assertThat(sqsRule.queueCount()).isEqualTo(0).as("accepted spans are deleted.");
+    assertThat(metrics.messagesDropped()).as("check dropped metrics.").isEqualTo(0);
+    assertThat(fromStore).as("recorded spans should not be null").isNotNull();
+    assertThat(fromStore.size()).as("all spans have been recorded").isEqualTo(TRACE.size());
+    assertThat(sqsRule.queueCount()).as("accepted spans are deleted.").isEqualTo(0);
   }
 
   @Test
@@ -106,10 +108,10 @@ public class SQSCollectorTest {
 
     List<List<Span>> fromStore = store.spanStore().getTraces(query);
 
-    assertThat(metrics.messagesDropped()).isEqualTo(0).as("check dropped metrics.");
-    assertThat(fromStore).isNotNull().as("recorded spans should not be null");
-    assertThat(fromStore.size()).isEqualTo(LOTS.length).as("all spans have been accepted.");
-    assertThat(sqsRule.queueCount()).isEqualTo(0).as("accepted spans as deleted.");
+    assertThat(metrics.messagesDropped()).as("check dropped metrics.").isEqualTo(0);
+    assertThat(fromStore).as("recorded spans should not be null").isNotNull();
+    assertThat(fromStore.size()).as("all spans have been accepted.").isEqualTo(LOTS.length);
+    assertThat(sqsRule.queueCount()).as("accepted spans as deleted.").isEqualTo(0);
   }
 
 }

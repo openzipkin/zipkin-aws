@@ -15,7 +15,7 @@ package zipkin.reporter.kinesis;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.kinesis.AmazonKinesisAsync;
 import com.amazonaws.services.kinesis.AmazonKinesisAsyncClientBuilder;
@@ -27,6 +27,7 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import zipkin.internal.LazyCloseable;
@@ -35,6 +36,8 @@ import zipkin.reporter.BytesMessageEncoder;
 import zipkin.reporter.Callback;
 import zipkin.reporter.Encoding;
 import zipkin.reporter.Sender;
+
+import static zipkin.internal.Util.checkArgument;
 
 @AutoValue
 public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> implements Sender {
@@ -60,7 +63,7 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
     /** AWS credentials for authenticating calls to Kinesis. */
     Builder credentialsProvider(AWSCredentialsProvider credentialsProvider);
 
-    Builder endpointConfiguration(AwsClientBuilder.EndpointConfiguration endpointConfiguration);
+    Builder endpointConfiguration(EndpointConfiguration endpointConfiguration);
 
     /** Maximum size of a message. Kinesis max message size is 1MB */
     Builder messageMaxBytes(int messageMaxBytes);
@@ -78,7 +81,7 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
 
   // Needed to be able to overwrite for tests
   @Nullable
-  abstract AwsClientBuilder.EndpointConfiguration endpointConfiguration();
+  abstract EndpointConfiguration endpointConfiguration();
 
   private final AtomicBoolean closeCalled = new AtomicBoolean(false);
 
@@ -144,17 +147,19 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
     request.setData(message);
     request.setPartitionKey(getPartitionKey());
 
-    get().putRecordAsync(request, new AsyncHandler<PutRecordRequest, PutRecordResult>() {
-      @Override
-      public void onError(Exception e) {
-        callback.onError(e);
-      }
+    Future<PutRecordResult> future = get().putRecordAsync(request,
+        new AsyncHandler<PutRecordRequest, PutRecordResult>() {
+          @Override
+          public void onError(Exception e) {
+            callback.onError(e);
+          }
 
-      @Override
-      public void onSuccess(PutRecordRequest request, PutRecordResult putRecordResult) {
-        callback.onComplete();
-      }
-    });
+          @Override
+          public void onSuccess(PutRecordRequest request, PutRecordResult putRecordResult) {
+            callback.onComplete();
+          }
+        });
+    checkArgument(!future.isCancelled(), "cancelled sending spans");
   }
 
   @Override

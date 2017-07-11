@@ -21,7 +21,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
-import org.springframework.boot.autoconfigure.PropertyPlaceholderAutoConfiguration;
+import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,11 +32,18 @@ import zipkin.junit.aws.AmazonSQSRule;
 import zipkin.storage.InMemoryStorage;
 import zipkin.storage.StorageComponent;
 
+import static com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 import static org.springframework.boot.test.util.EnvironmentTestUtils.addEnvironment;
 
 public class ZipkinSQSCollectorAutoConfigurationTest {
+  /** Don't crash if CI box doesn't have .aws directory defined */
+  @Configuration static class Region {
+    @Bean EndpointConfiguration endpointConfiguration(){
+      return new EndpointConfiguration("sqs.us-east-1.amazonaws.com", "us-east-1");
+    }
+  }
 
   @Rule
   public ExpectedException thrown = ExpectedException.none();
@@ -54,7 +61,7 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
   @Test
   public void doesntProvideCollectorComponent_whenSqsQueueUrlUnset() {
     context = new AnnotationConfigApplicationContext();
-    context.register(PropertyPlaceholderAutoConfiguration.class,
+    context.register(PropertyPlaceholderAutoConfiguration.class, Region.class,
         ZipkinSQSCollectorAutoConfiguration.class, ZipkinSQSCredentialsAutoConfiguration.class, InMemoryConfiguration.class);
     context.refresh();
 
@@ -69,7 +76,7 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
     addEnvironment(context, "zipkin.collector.sqs.wait-time-seconds:1");
     addEnvironment(context, "zipkin.collector.sqs.aws-access-key-id: x");
     addEnvironment(context, "zipkin.collector.sqs.aws-secret-access-key: x");
-    context.register(PropertyPlaceholderAutoConfiguration.class,
+    context.register(PropertyPlaceholderAutoConfiguration.class, Region.class,
         ZipkinSQSCollectorAutoConfiguration.class, ZipkinSQSCredentialsAutoConfiguration.class, InMemoryConfiguration.class);
     context.refresh();
 
@@ -86,7 +93,7 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
     addEnvironment(context, "zipkin.collector.sqs.parallelism:3");
     addEnvironment(context, "zipkin.collector.sqs.aws-access-key-id: x");
     addEnvironment(context, "zipkin.collector.sqs.aws-secret-access-key: x");
-    context.register(PropertyPlaceholderAutoConfiguration.class,
+    context.register(PropertyPlaceholderAutoConfiguration.class, Region.class,
         ZipkinSQSCollectorAutoConfiguration.class, ZipkinSQSCredentialsAutoConfiguration.class, InMemoryConfiguration.class);
     context.refresh();
 
@@ -105,7 +112,7 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
     addEnvironment(context, "zipkin.collector.sqs.aws-access-key-id: x");
     addEnvironment(context, "zipkin.collector.sqs.aws-secret-access-key: x");
     addEnvironment(context, "zipkin.collector.sqs.aws-sts-role-arn: test");
-    context.register(PropertyPlaceholderAutoConfiguration.class,
+    context.register(PropertyPlaceholderAutoConfiguration.class, Region.class,
         ZipkinSQSCollectorAutoConfiguration.class, ZipkinSQSCredentialsAutoConfiguration.class, InMemoryConfiguration.class);
     context.refresh();
 
