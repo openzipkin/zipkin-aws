@@ -14,6 +14,8 @@
 package zipkin.autoconfigure.collector.sqs;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.SpringBootCondition;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -32,6 +34,9 @@ import zipkin.storage.StorageComponent;
 @Conditional(ZipkinSQSCollectorAutoConfiguration.SQSSetCondition.class)
 public class ZipkinSQSCollectorAutoConfiguration {
 
+  @Autowired(required = false)
+  EndpointConfiguration endpointConfiguration;
+
   @Bean
   SQSCollector sqsCollector(ZipkinSQSCollectorProperties properties, AWSCredentialsProvider credentialsProvider,
       CollectorSampler sampler, CollectorMetrics metrics, StorageComponent storage) {
@@ -39,6 +44,7 @@ public class ZipkinSQSCollectorAutoConfiguration {
         .queueUrl(properties.getQueueUrl())
         .waitTimeSeconds(properties.getWaitTimeSeconds())
         .parallelism(properties.getParallelism())
+        .endpointConfiguration(endpointConfiguration)
         .credentialsProvider(credentialsProvider)
         .sampler(sampler)
         .metrics(metrics)

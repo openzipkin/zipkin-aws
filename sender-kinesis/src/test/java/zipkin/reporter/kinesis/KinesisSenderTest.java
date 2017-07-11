@@ -16,7 +16,7 @@ package zipkin.reporter.kinesis;
 import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -52,8 +52,7 @@ public class KinesisSenderTest {
   public void setup() throws Exception {
     sender = KinesisSender.builder()
         .streamName("test")
-        .endpointConfiguration(
-            new AwsClientBuilder.EndpointConfiguration(server.url("/").toString(), "us-east-1"))
+        .endpointConfiguration(new EndpointConfiguration(server.url("/").toString(), "us-east-1"))
         .credentialsProvider(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
         .build();
   }

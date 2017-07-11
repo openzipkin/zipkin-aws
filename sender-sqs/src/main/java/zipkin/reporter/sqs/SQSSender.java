@@ -15,16 +15,17 @@ package zipkin.reporter.sqs;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.handlers.AsyncHandler;
-import com.amazonaws.services.sqs.AmazonSQSAsyncClient;
-import com.amazonaws.services.sqs.model.MessageAttributeValue;
+import com.amazonaws.services.sqs.AmazonSQSAsync;
+import com.amazonaws.services.sqs.AmazonSQSAsyncClientBuilder;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageResult;
 import com.amazonaws.util.Base64;
 import com.google.auto.value.AutoValue;
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import zipkin.internal.LazyCloseable;
 import zipkin.internal.Nullable;
@@ -34,6 +35,7 @@ import zipkin.reporter.Callback;
 import zipkin.reporter.Encoding;
 import zipkin.reporter.Sender;
 
+import static zipkin.internal.Util.checkArgument;
 import static zipkin.internal.Util.checkNotNull;
 
 /**
@@ -46,7 +48,7 @@ import static zipkin.internal.Util.checkNotNull;
  * <p>This sends (usually TBinaryProtocol big-endian) encoded spans to an SQS queue.
  */
 @AutoValue
-public abstract class SQSSender extends LazyCloseable<AmazonSQSAsyncClient> implements Sender {
+public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements Sender {
 
   public static SQSSender create(String url) {
     return builder().queueUrl(url).build();
@@ -64,6 +66,9 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsyncClient> impl
     /** SQS queue URL to send spans. */
     Builder queueUrl(String queueUrl);
 
+    /** Endpoint and signing configuration for SQS. */
+    Builder endpointConfiguration(EndpointConfiguration endpointConfiguration);
+
     /** AWS credentials for authenticating calls to SQS. */
     Builder credentialsProvider(AWSCredentialsProvider credentialsProvider);
 
@@ -79,6 +84,9 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsyncClient> impl
 
   @Nullable abstract AWSCredentialsProvider credentialsProvider();
 
+  // Needed to be able to overwrite for tests
+  @Nullable abstract EndpointConfiguration endpointConfiguration();
+
   private final AtomicBoolean closeCalled = new AtomicBoolean(false);
 
   @Override public CheckResult check() {
@@ -86,8 +94,10 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsyncClient> impl
     return CheckResult.OK;
   }
 
-  @Override protected AmazonSQSAsyncClient compute() {
-    return new AmazonSQSAsyncClient(credentialsProvider());
+  @Override protected AmazonSQSAsync compute() {
+    return AmazonSQSAsyncClientBuilder.standard()
+        .withCredentials(credentialsProvider())
+        .withEndpointConfiguration(endpointConfiguration()).build();
   }
 
   @Override public int messageSizeInBytes(List<byte[]> encodedSpans) {
@@ -108,16 +118,23 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsyncClient> impl
     String body = Base64.encodeAsString(encodedSpans);
 
     SendMessageRequest request = new SendMessageRequest(queueUrl(), body);
-    get().sendMessageAsync(request, new AsyncHandler<SendMessageRequest, SendMessageResult>() {
-      @Override public void onError(Exception e) { callback.onError(e); }
-      @Override public void onSuccess(SendMessageRequest request,
-          SendMessageResult sendMessageResult) { callback.onComplete(); }
-    });
+    Future<SendMessageResult> future = get().sendMessageAsync(request,
+        new AsyncHandler<SendMessageRequest, SendMessageResult>() {
+          @Override public void onError(Exception e) {
+            callback.onError(e);
+          }
+
+          @Override public void onSuccess(SendMessageRequest request,
+              SendMessageResult sendMessageResult) {
+            callback.onComplete();
+          }
+        });
+    checkArgument(!future.isCancelled(), "cancelled sending spans");
   }
 
   @Override public void close() throws IOException {
     if (!closeCalled.getAndSet(true)) {
-      AmazonSQSAsyncClient maybeNull = maybeNull();
+      AmazonSQSAsync maybeNull = maybeNull();
       if (maybeNull != null) maybeNull.shutdown();
     }
   }

@@ -1,5 +1,5 @@
 /**
- * Copyright 2016 The OpenZipkin Authors
+ * Copyright 2016-2017 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -15,6 +15,7 @@ package zipkin.reporter.sqs;
 
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import java.util.List;
 import org.junit.Rule;
 import org.junit.Test;
@@ -22,13 +23,12 @@ import org.junit.rules.ExpectedException;
 import zipkin.Component;
 import zipkin.Span;
 import zipkin.TestObjects;
+import zipkin.junit.aws.AmazonSQSRule;
 import zipkin.reporter.Encoder;
 import zipkin.reporter.internal.AwaitableCallback;
 
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
-
-import zipkin.junit.aws.AmazonSQSRule;
 
 public class SQSSenderTest {
 
@@ -39,6 +39,7 @@ public class SQSSenderTest {
 
   SQSSender sender = SQSSender.builder()
       .queueUrl(sqsRule.queueUrl())
+      .endpointConfiguration(new EndpointConfiguration(sqsRule.queueUrl(), "us-east-1"))
       .credentialsProvider(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
       .build();
 

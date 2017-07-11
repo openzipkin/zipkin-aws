@@ -15,14 +15,16 @@ package zipkin.collector.sqs;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.services.sqs.AmazonSQS;
-import com.amazonaws.services.sqs.AmazonSQSClient;
+import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import zipkin.collector.Collector;
@@ -49,6 +51,7 @@ public final class SQSCollector implements CollectorComponent, Closeable {
     String queueUrl;
     int waitTimeSeconds = 20; // aws sqs max wait time is 20 seconds
     int maxNumberOfMessages = 10; // aws sqs max messages for a receive call is 10
+    EndpointConfiguration endpointConfiguration;
     AWSCredentialsProvider credentialsProvider = new DefaultAWSCredentialsProviderChain();
     int parallelism = 1;
 
@@ -70,6 +73,12 @@ public final class SQSCollector implements CollectorComponent, Closeable {
     /** SQS queue URL to consume from */
     public Builder queueUrl(String queueUrl) {
       this.queueUrl = queueUrl;
+      return this;
+    }
+
+    /** Endpoint and signing configuration for SQS. */
+    public Builder endpointConfiguration(EndpointConfiguration endpointConfiguration){
+      this.endpointConfiguration = endpointConfiguration;
       return this;
     }
 
@@ -138,7 +147,8 @@ public final class SQSCollector implements CollectorComponent, Closeable {
             client.get(), collector, queueUrl,
             waitTimeSeconds, maxNumberOfMessages, closed);
 
-        pool.submit(processor);
+        Future<?> task = pool.submit(processor);
+        checkArgument(!task.isDone(), "unable to start processor %s", processor);
         processors.add(processor);
       }
     }
@@ -173,14 +183,16 @@ public final class SQSCollector implements CollectorComponent, Closeable {
 
   private static final class LazyAmazonSQSClient extends LazyCloseable<AmazonSQS> {
 
-    final AWSCredentialsProvider credentialsProvider;
+    final AmazonSQSClientBuilder builder;
 
     LazyAmazonSQSClient(Builder builder) {
-      this.credentialsProvider = builder.credentialsProvider;
+      this.builder = AmazonSQSClientBuilder.standard()
+          .withEndpointConfiguration(builder.endpointConfiguration)
+          .withCredentials(builder.credentialsProvider);
     }
 
     @Override protected AmazonSQS compute() {
-      return new AmazonSQSClient(credentialsProvider);
+      return builder.build();
     }
 
     @Override public void close() {
