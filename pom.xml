@@ -44,14 +44,14 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
-    <zipkin.version>1.29.3</zipkin.version>
-    <zipkin-reporter.version>1.0.0</zipkin-reporter.version>
+    <zipkin.version>1.29.4</zipkin.version>
+    <zipkin-reporter.version>1.0.1</zipkin-reporter.version>
 
     <slf4j.version>1.7.25</slf4j.version>
 
-    <aws-java-sdk.version>1.11.160</aws-java-sdk.version>
+    <aws-java-sdk.version>1.11.176</aws-java-sdk.version>
 
-    <spring-boot.version>1.5.4.RELEASE</spring-boot.version>
+    <spring-boot.version>1.5.6.RELEASE</spring-boot.version>
   </properties>
 
   <name>Zipkin AWS (Parent)</name>
@@ -124,7 +124,7 @@
       <dependency>
         <groupId>org.awaitility</groupId>
         <artifactId>awaitility</artifactId>
-        <version>2.0.0</version>
+        <version>3.0.0</version>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>
@@ -212,7 +212,7 @@
           <dependency>
             <groupId>com.google.errorprone</groupId>
             <artifactId>error_prone_core</artifactId>
-            <version>2.0.19</version>
+            <version>2.0.21</version>
           </dependency>
         </dependencies>
       </plugin>

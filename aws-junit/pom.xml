@@ -50,7 +50,7 @@
 
     <dependency>
       <groupId>org.elasticmq</groupId>
-      <artifactId>elasticmq-server_2.11</artifactId>
+      <artifactId>elasticmq-server_2.12</artifactId>
       <version>0.13.8</version>
     </dependency>
 
