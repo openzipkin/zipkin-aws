@@ -1,5 +1,5 @@
 /**
- * Copyright 2016 The OpenZipkin Authors
+ * Copyright 2016-2017 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -30,6 +30,7 @@ import org.elasticmq.rest.sqs.SQSRestServerBuilder;
 import org.junit.rules.ExternalResource;
 import zipkin.Codec;
 import zipkin.Span;
+import zipkin.SpanDecoder;
 
 import static java.util.Collections.singletonList;
 
@@ -136,7 +137,6 @@ public class AmazonSQSRule extends ExternalResource {
 
   private static List<Span> fromBase64(String base64) {
     byte[] bytes = Base64.decode(base64);
-    return Codec.THRIFT.readSpans(bytes);
+    return SpanDecoder.DETECTING_DECODER.readSpans(bytes);
   }
-
 }

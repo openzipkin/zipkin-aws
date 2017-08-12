@@ -31,13 +31,18 @@ import okio.Buffer;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import zipkin.Codec;
 import zipkin.Component;
 import zipkin.Span;
+import zipkin.SpanDecoder;
 import zipkin.TestObjects;
+import zipkin.internal.ApplyTimestampAndDuration;
+import zipkin.internal.Span2Codec;
+import zipkin.internal.Span2Converter;
 import zipkin.reporter.Encoder;
+import zipkin.reporter.Encoding;
 import zipkin.reporter.internal.AwaitableCallback;
 
+import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -58,14 +63,46 @@ public class KinesisSenderTest {
   }
 
   @Test
-  public void sendsSpans() throws Exception {
-    server.enqueue(new MockResponse());
+  public void sendsSpans_thrift() throws Exception {
+    sendsSpans(Encoder.THRIFT);
+  }
 
-    send(TestObjects.TRACE);
+  @Test
+  public void sendsSpans_json() throws Exception {
+    sender.close();
+    sender = sender.toBuilder().encoding(Encoding.JSON).build();
+    sendsSpans(Encoder.JSON);
+  }
+
+  @Test
+  public void sendsSpans_json2() throws Exception {
+    sender.close();
+    sender = sender.toBuilder().encoding(Encoding.JSON).build();
+
+    // temporary span2 encoder until the type is made public
+    sendsSpans(new Encoder<Span>() {
+      @Override public Encoding encoding() {
+        return Encoding.JSON;
+      }
+
+      @Override public byte[] encode(Span span) {
+        return Span2Codec.JSON.writeSpan(Span2Converter.fromSpan(span).get(0));
+      }
+    });
+  }
+
+  void sendsSpans(Encoder<Span> encoder) throws InterruptedException, IOException {
+    server.enqueue(new MockResponse());
+    List<Span> spans = asList( // ensure nothing is lost in translation
+        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[0]),
+        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[1]),
+        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[2])
+    );
+    send(encoder, spans);
 
     RecordedRequest request = server.takeRequest();
     assertThat(extractSpans(request.getBody()))
-        .isEqualTo(TestObjects.TRACE);
+        .isEqualTo(spans);
   }
 
   @Test
@@ -111,13 +148,13 @@ public class KinesisSenderTest {
   }
 
   List<Span> extractSpans(Buffer body) throws IOException {
-    byte[] thriftEncodedSpans = mapper.readTree(body.inputStream()).get("Data").binaryValue();
-    return Codec.THRIFT.readSpans(thriftEncodedSpans);
+    byte[] encodedSpans = mapper.readTree(body.inputStream()).get("Data").binaryValue();
+    return SpanDecoder.DETECTING_DECODER.readSpans(encodedSpans);
   }
 
-  void send(List<Span> spans) {
+  <S> void send(Encoder<S> encoder, List<S> spans) {
     AwaitableCallback callback = new AwaitableCallback();
-    sender.sendSpans(spans.stream().map(Encoder.THRIFT::encode).collect(toList()), callback);
+    sender.sendSpans(spans.stream().map(encoder::encode).collect(toList()), callback);
     callback.await();
   }
 }
