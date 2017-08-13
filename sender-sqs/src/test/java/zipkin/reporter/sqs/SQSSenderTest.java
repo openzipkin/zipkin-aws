@@ -23,10 +23,15 @@ import org.junit.rules.ExpectedException;
 import zipkin.Component;
 import zipkin.Span;
 import zipkin.TestObjects;
+import zipkin.internal.ApplyTimestampAndDuration;
+import zipkin.internal.Span2Codec;
+import zipkin.internal.Span2Converter;
 import zipkin.junit.aws.AmazonSQSRule;
 import zipkin.reporter.Encoder;
+import zipkin.reporter.Encoding;
 import zipkin.reporter.internal.AwaitableCallback;
 
+import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -44,13 +49,46 @@ public class SQSSenderTest {
       .build();
 
   @Test
-  public void sendsSpans() throws Exception {
-    send(TestObjects.TRACE);
+  public void sendsSpans_thrift() throws Exception {
+    sendSpans(Encoder.THRIFT);
+  }
+
+  @Test
+  public void sendsSpans_json() throws Exception {
+    sender.close();
+    sender = sender.toBuilder().encoding(Encoding.JSON).build();
+    sendSpans(Encoder.JSON);
+  }
+
+  @Test
+  public void sendsSpans_json2() throws Exception {
+    sender.close();
+    sender = sender.toBuilder().encoding(Encoding.JSON).build();
+
+    // temporary span2 encoder until the type is made public
+    sendSpans(new Encoder<Span>() {
+      @Override public Encoding encoding() {
+        return Encoding.JSON;
+      }
+
+      @Override public byte[] encode(Span span) {
+        return Span2Codec.JSON.writeSpan(Span2Converter.fromSpan(span).get(0));
+      }
+    });
+  }
+
+  void sendSpans(Encoder<Span> encoder) {
+    List<Span> spans = asList( // ensure nothing is lost in translation
+        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[0]),
+        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[1]),
+        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[2])
+    );
+    send(encoder, spans);
 
     assertThat(sqsRule.queueCount()).isEqualTo(1);
 
     List<Span> traces = sqsRule.getSpans();
-    List<Span> expected = TestObjects.TRACE;
+    List<Span> expected = spans;
 
     assertThat(traces.size()).isEqualTo(expected.size());
     assertThat(traces).isEqualTo(expected);
@@ -61,9 +99,9 @@ public class SQSSenderTest {
     assertThat(sender.check()).isEqualTo(Component.CheckResult.OK);
   }
 
-  private void send(List<Span> spans) {
+  <S> void send(Encoder<S> encoder, List<S> spans) {
     AwaitableCallback callback = new AwaitableCallback();
-    sender.sendSpans(spans.stream().map(Encoder.THRIFT::encode).collect(toList()), callback);
+    sender.sendSpans(spans.stream().map(encoder::encode).collect(toList()), callback);
     callback.await();
   }
 }

@@ -49,6 +49,7 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
   public static Builder builder() {
     return new AutoValue_KinesisSender.Builder()
         .credentialsProvider(new DefaultAWSCredentialsProviderChain())
+        .encoding(Encoding.THRIFT)
         .messageMaxBytes(1024 * 1024); // 1MB Kinesis limit.
   }
 
@@ -68,6 +69,9 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
     /** Maximum size of a message. Kinesis max message size is 1MB */
     Builder messageMaxBytes(int messageMaxBytes);
 
+    /** Allows you to change to json format. Default is thrift */
+    Builder encoding(Encoding encoding);
+
     KinesisSender build();
   }
 
@@ -82,6 +86,8 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
   // Needed to be able to overwrite for tests
   @Nullable
   abstract EndpointConfiguration endpointConfiguration();
+
+  abstract Builder toBuilder();
 
   private final AtomicBoolean closeCalled = new AtomicBoolean(false);
 
@@ -129,13 +135,8 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
   }
 
   @Override
-  public Encoding encoding() {
-    return Encoding.THRIFT;
-  }
-
-  @Override
   public int messageSizeInBytes(List<byte[]> list) {
-    return Encoding.THRIFT.listSizeInBytes(list);
+    return encoding().listSizeInBytes(list);
   }
 
   @Override

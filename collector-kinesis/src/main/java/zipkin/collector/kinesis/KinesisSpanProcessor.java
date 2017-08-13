@@ -18,12 +18,10 @@ import com.amazonaws.services.kinesis.clientlibrary.types.InitializationInput;
 import com.amazonaws.services.kinesis.clientlibrary.types.ProcessRecordsInput;
 import com.amazonaws.services.kinesis.clientlibrary.types.ShutdownInput;
 import com.amazonaws.services.kinesis.model.Record;
-import java.util.ArrayList;
-import java.util.List;
-import zipkin.Codec;
 import zipkin.collector.Collector;
-import zipkin.internal.Nullable;
 import zipkin.storage.Callback;
+
+import static zipkin.SpanDecoder.DETECTING_DECODER;
 
 public class KinesisSpanProcessor implements IRecordProcessor {
 
@@ -40,7 +38,7 @@ public class KinesisSpanProcessor implements IRecordProcessor {
   @Override
   public void processRecords(ProcessRecordsInput processRecordsInput) {
     for (Record record : processRecordsInput.getRecords()) {
-      collector.acceptSpans(record.getData().array(), Codec.THRIFT, Callback.NOOP);
+      collector.acceptSpans(record.getData().array(), DETECTING_DECODER, Callback.NOOP);
     }
   }
 

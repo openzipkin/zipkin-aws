@@ -27,12 +27,12 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-import zipkin.Codec;
 import zipkin.Component;
 import zipkin.collector.Collector;
 import zipkin.internal.Nullable;
 import zipkin.storage.Callback;
 
+import static zipkin.SpanDecoder.DETECTING_DECODER;
 
 final class SQSSpanProcessor implements Runnable, Component {
 
@@ -101,7 +101,7 @@ final class SQSSpanProcessor implements Runnable, Component {
       final String deleteId = String.valueOf(count++);
       try {
         byte[] spans = Base64.decode(message.getBody());
-        collector.acceptSpans(spans, Codec.THRIFT, new Callback<Void>() {
+        collector.acceptSpans(spans, DETECTING_DECODER, new Callback<Void>() {
           @Override public void onSuccess(@Nullable Void value) {
             toDelete.add(new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
           }

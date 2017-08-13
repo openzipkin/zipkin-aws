@@ -57,6 +57,7 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
   public static Builder builder() {
     return new AutoValue_SQSSender.Builder()
         .credentialsProvider(new DefaultAWSCredentialsProviderChain())
+        .encoding(Encoding.THRIFT)
         .messageMaxBytes(256 * 1024); // 256KB SQS limit.
   }
 
@@ -74,6 +75,9 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
 
     /** Maximum size of a message. SQS max message size is 256KB including attributes. */
     Builder messageMaxBytes(int messageMaxBytes);
+
+    /** Allows you to change to json format. Default is thrift */
+    Builder encoding(Encoding encoding);
 
     SQSSender build();
   }
@@ -103,10 +107,6 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
   @Override public int messageSizeInBytes(List<byte[]> encodedSpans) {
     int listSize = encoding().listSizeInBytes(encodedSpans);
     return (listSize + 2) * 4 / 3; // account for base64 encoding
-  }
-
-  @Override public Encoding encoding() {
-    return Encoding.THRIFT;
   }
 
   @Override public void sendSpans(List<byte[]> list, Callback callback) {
