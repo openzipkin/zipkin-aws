@@ -42,6 +42,12 @@ public class SQSSenderTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
 
+  List<Span> spans = asList( // No unicode or data that doesn't translate between json formats
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[0]),
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[1]),
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[2])
+  );
+
   SQSSender sender = SQSSender.builder()
       .queueUrl(sqsRule.queueUrl())
       .endpointConfiguration(new EndpointConfiguration(sqsRule.queueUrl(), "us-east-1"))
@@ -50,14 +56,21 @@ public class SQSSenderTest {
 
   @Test
   public void sendsSpans_thrift() throws Exception {
-    sendSpans(Encoder.THRIFT);
+    sendSpans(Encoder.THRIFT, spans);
   }
 
   @Test
   public void sendsSpans_json() throws Exception {
     sender.close();
     sender = sender.toBuilder().encoding(Encoding.JSON).build();
-    sendSpans(Encoder.JSON);
+    sendSpans(Encoder.JSON, spans);
+  }
+
+  @Test
+  public void sendsSpans_json_unicode() throws Exception {
+    sender.close();
+    sender = sender.toBuilder().encoding(Encoding.JSON).build();
+    sendSpans(Encoder.JSON, TestObjects.TRACE);
   }
 
   @Test
@@ -74,15 +87,10 @@ public class SQSSenderTest {
       @Override public byte[] encode(Span span) {
         return Span2Codec.JSON.writeSpan(Span2Converter.fromSpan(span).get(0));
       }
-    });
+    }, spans);
   }
 
-  void sendSpans(Encoder<Span> encoder) {
-    List<Span> spans = asList( // ensure nothing is lost in translation
-        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[0]),
-        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[1]),
-        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[2])
-    );
+  void sendSpans(Encoder<Span> encoder, List<Span> spans) {
     send(encoder, spans);
 
     assertThat(sqsRule.queueCount()).isEqualTo(1);

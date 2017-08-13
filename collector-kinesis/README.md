@@ -25,3 +25,7 @@ Additional information for using the module can be found
 ## Permissions
 
 The permissions required for the KCL are covered in the AWS documentation [here](http://docs.aws.amazon.com/streams/latest/dev/learning-kinesis-module-one-iam.html).
+
+## Message encoding
+The message body is a list of spans. Supported encodings are the same as
+the [POST /spans](http://zipkin.io/zipkin-api/#/paths/%252Fspans) body: thrift or json.

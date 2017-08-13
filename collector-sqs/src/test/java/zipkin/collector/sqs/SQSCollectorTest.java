@@ -16,34 +16,42 @@ package zipkin.collector.sqs;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import java.util.Arrays;
+import com.amazonaws.util.Base64;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import zipkin.Codec;
 import zipkin.Span;
 import zipkin.TestObjects;
 import zipkin.collector.CollectorComponent;
 import zipkin.collector.CollectorSampler;
 import zipkin.collector.InMemoryCollectorMetrics;
+import zipkin.internal.ApplyTimestampAndDuration;
+import zipkin.internal.Util;
 import zipkin.junit.aws.AmazonSQSRule;
 import zipkin.storage.InMemoryStorage;
-import zipkin.storage.QueryRequest;
-import zipkin.storage.StorageComponent;
 
+import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
-import static zipkin.TestObjects.TRACE;
 
 public class SQSCollectorTest {
 
   @Rule
   public AmazonSQSRule sqsRule = new AmazonSQSRule().start(9324);
 
-  private StorageComponent store;
+  List<Span> spans = asList( // No unicode or data that doesn't translate between json formats
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[0]),
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[1]),
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[2])
+  );
+
+  private InMemoryStorage store;
 
   private InMemoryCollectorMetrics metrics;
 
@@ -75,43 +83,41 @@ public class SQSCollectorTest {
 
   @Test
   public void collectSpans() throws Exception {
+    sqsRule.sendSpans(spans);
+    assertSpansAccepted(spans);
+  }
 
-    sqsRule.sendSpans(TRACE);
+  /** SQS has character constraints on json, so some traces will be base64 even if json */
+  @Test
+  public void collectBase64EncodedSpans() throws Exception {
+    sqsRule.send(Base64.encodeAsString(Codec.JSON.writeSpans(spans)));
+    assertSpansAccepted(spans);
+  }
 
-    await()
-        .atMost(15, TimeUnit.SECONDS)
-        .until(() -> store.spanStore().getRawTrace(TRACE.get(0).traceId) != null);
-
-    List<Span> fromStore = store.spanStore().getRawTrace(TRACE.get(0).traceId);
-
-    assertThat(metrics.messagesDropped()).as("check dropped metrics.").isEqualTo(0);
-    assertThat(fromStore).as("recorded spans should not be null").isNotNull();
-    assertThat(fromStore.size()).as("all spans have been recorded").isEqualTo(TRACE.size());
-    assertThat(sqsRule.queueCount()).as("accepted spans are deleted.").isEqualTo(0);
+  /** SQS has character constraints on json, but don't affect traces not using unicode */
+  @Test
+  public void collectUnencodedJsonSpans() throws Exception {
+    sqsRule.send(new String(Codec.JSON.writeSpans(spans), Util.UTF_8));
+    assertSpansAccepted(spans);
   }
 
   @Test
   public void collectLotsOfSpans() throws Exception {
-
-    Span[] LOTS = new Random().longs(10000L).mapToObj(TestObjects::span).toArray(Span[]::new);
-
-    sqsRule.sendSpans(Arrays.asList(LOTS));
-
-    QueryRequest query = QueryRequest.builder().serviceName("service").limit(LOTS.length).build();
-
-    await()
-        .atMost(60, TimeUnit.SECONDS)
-        .until(() -> {
-          List<List<Span>> spans = store.spanStore().getTraces(query);
-          return (spans != null && spans.size() == LOTS.length);
-        });
-
-    List<List<Span>> fromStore = store.spanStore().getTraces(query);
-
-    assertThat(metrics.messagesDropped()).as("check dropped metrics.").isEqualTo(0);
-    assertThat(fromStore).as("recorded spans should not be null").isNotNull();
-    assertThat(fromStore.size()).as("all spans have been accepted.").isEqualTo(LOTS.length);
-    assertThat(sqsRule.queueCount()).as("accepted spans as deleted.").isEqualTo(0);
+    List<Span> lots =
+        new Random().longs(10000L).mapToObj(TestObjects::span).collect(Collectors.toList());
+    sqsRule.sendSpans(lots);
+    assertSpansAccepted(lots);
   }
 
+  void assertSpansAccepted(List<Span> spans) {
+    await().atMost(15, TimeUnit.SECONDS).until(() -> store.acceptedSpanCount() == spans.size());
+
+    List<Span> someSpans =
+        store.spanStore().getRawTrace(spans.get(0).traceIdHigh, spans.get(0).traceId);
+
+    assertThat(metrics.messagesDropped()).as("check dropped metrics.").isEqualTo(0);
+    assertThat(someSpans).as("recorded spans should not be null").isNotNull();
+    assertThat(spans).as("some spans have been recorded").containsAll(someSpans);
+    assertThat(sqsRule.queueCount()).as("accepted spans are deleted.").isEqualTo(0);
+  }
 }

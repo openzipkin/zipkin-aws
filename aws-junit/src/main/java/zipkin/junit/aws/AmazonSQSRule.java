@@ -16,6 +16,7 @@ package zipkin.junit.aws;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.services.sqs.AmazonSQSClient;
 import com.amazonaws.services.sqs.model.DeleteMessageRequest;
+import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.PurgeQueueRequest;
 import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
@@ -31,6 +32,7 @@ import org.junit.rules.ExternalResource;
 import zipkin.Codec;
 import zipkin.Span;
 import zipkin.SpanDecoder;
+import zipkin.internal.Util;
 
 import static java.util.Collections.singletonList;
 
@@ -97,8 +99,7 @@ public class AmazonSQSRule extends ExternalResource {
     while(result != null && result.getMessages().size() > 0) {
 
       spans = Stream.concat(spans,
-          result.getMessages().stream()
-          .flatMap(m -> fromBase64(m.getBody()).stream())
+          result.getMessages().stream().flatMap(AmazonSQSRule::decodeSpans)
       );
 
       result = client.receiveMessage(queueUrl);
@@ -130,13 +131,18 @@ public class AmazonSQSRule extends ExternalResource {
     sendSpansInternal(bucket);
   }
 
-  private void sendSpansInternal(List<Span> spans) {
-    String body = Base64.encodeAsString(Codec.THRIFT.writeSpans(spans));
+  public void send(String body) {
     client.sendMessage(new SendMessageRequest(queueUrl, body));
   }
 
-  private static List<Span> fromBase64(String base64) {
-    byte[] bytes = Base64.decode(base64);
-    return SpanDecoder.DETECTING_DECODER.readSpans(bytes);
+  private void sendSpansInternal(List<Span> spans) {
+    send(Base64.encodeAsString(Codec.THRIFT.writeSpans(spans)));
+  }
+
+  static Stream<? extends Span> decodeSpans(Message m) {
+    byte[] bytes = m.getBody().charAt(0) == '['
+        ? m.getBody().getBytes(Util.UTF_8)
+        : Base64.decode(m.getBody());
+    return SpanDecoder.DETECTING_DECODER.readSpans(bytes).stream();
   }
 }
