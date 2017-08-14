@@ -59,3 +59,37 @@ The following IAM permissions are required by the KinesisCollector
 - dynamodb:UpdateItem
 - dynamodb:DeleteItem
 - cloudwatch:PutMetricData
+
+### Testing
+
+Once your collector is enabled, verify it is running:
+```bash
+$ curl -s localhost:9411/health|jq .zipkin.KinesisCollector
+{
+  "status": "UP"
+}
+```
+
+Now, you can send a test message like below:
+```bash
+# send a json list with a single json-encoded span
+$ aws kinesis put-record --stream-name $KINESIS_STREAM_NAME --partition-key $(hostname) --data '[{
+  "traceId": "86154a4ba6e91385",
+  "parentId": "86154a4ba6e91385",
+  "id": "4d1e00c0db9010db",
+  "kind": "CLIENT",
+  "name": "get",
+  "timestamp": 1472470996199000,
+  "duration": 207000,
+  "localEndpoint": {
+    "serviceName": "frontend",
+    "ipv4": "127.0.0.1"
+  },
+  "tags": {
+    "http.path": "/api"
+  }
+}]'
+# read it back using the zipkin v1 api
+$ curl -s localhost:9411/api/v1/trace/86154a4ba6e91385|jq .[].traceId
+"86154a4ba6e91385"
+```

@@ -30,6 +30,7 @@ import java.util.logging.Logger;
 import zipkin.Component;
 import zipkin.collector.Collector;
 import zipkin.internal.Nullable;
+import zipkin.internal.Util;
 import zipkin.storage.Callback;
 
 import static zipkin.SpanDecoder.DETECTING_DECODER;
@@ -100,7 +101,12 @@ final class SQSSpanProcessor implements Runnable, Component {
     for (Message message : messages) {
       final String deleteId = String.valueOf(count++);
       try {
-        byte[] spans = Base64.decode(message.getBody());
+        String stringBody = message.getBody();
+        if (stringBody.isEmpty()) continue;
+        // allow plain-text json, but permit base64 encoded thrift or json
+        byte[] spans = stringBody.charAt(0) == '['
+            ? stringBody.getBytes(Util.UTF_8)
+            : Base64.decode(stringBody);
         collector.acceptSpans(spans, DETECTING_DECODER, new Callback<Void>() {
           @Override public void onSuccess(@Nullable Void value) {
             toDelete.add(new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));

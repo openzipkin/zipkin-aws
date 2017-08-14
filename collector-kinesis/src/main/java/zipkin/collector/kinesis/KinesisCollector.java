@@ -130,7 +130,7 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
 
   @Override
   public CheckResult check() {
-    // TODO find a way to health check it
+    // TODO should check the stream exists
     return CheckResult.OK;
   }
 

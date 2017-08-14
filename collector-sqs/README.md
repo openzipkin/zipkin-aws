@@ -20,3 +20,10 @@ most users will likely find more value in the Spring Boot autoconfiguraton modul
 Additional information for using the module can be found 
 [here](https://github.com/openzipkin/zipkin-aws/tree/master/autoconfigure/collector-sqs).
 
+## Message encoding
+The message body is a list of spans. Supported encodings are the same as
+the [POST /spans](http://zipkin.io/zipkin-api/#/paths/%252Fspans) body: thrift or json.
+
+Unless the message is ascii, it must be Base64 encoded before being
+sent. For example, plain json can be sent as is. Thrift or json messages
+that include unicode characters must be encoded using Base64.

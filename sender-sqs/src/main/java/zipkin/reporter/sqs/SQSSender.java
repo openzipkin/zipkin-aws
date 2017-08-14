@@ -29,6 +29,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import zipkin.internal.LazyCloseable;
 import zipkin.internal.Nullable;
+import zipkin.internal.Util;
 import zipkin.reporter.AsyncReporter;
 import zipkin.reporter.BytesMessageEncoder;
 import zipkin.reporter.Callback;
@@ -115,7 +116,9 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
     checkNotNull(list, "list of encoded spans must not be null");
 
     byte[] encodedSpans = BytesMessageEncoder.forEncoding(encoding()).encode(list);
-    String body = Base64.encodeAsString(encodedSpans);
+    String body = encoding() == Encoding.JSON && isAscii(encodedSpans)
+        ? new String(encodedSpans, Util.UTF_8)
+        : Base64.encodeAsString(encodedSpans);
 
     SendMessageRequest request = new SendMessageRequest(queueUrl(), body);
     Future<SendMessageResult> future = get().sendMessageAsync(request,
@@ -140,5 +143,14 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
   }
 
   SQSSender() {
+  }
+
+  static boolean isAscii(byte[] encodedSpans) {
+    for (int i = 0; i < encodedSpans.length; i++) {
+      if (encodedSpans[i] >= 0x80) {
+        return false;
+      }
+    }
+    return true;
   }
 }

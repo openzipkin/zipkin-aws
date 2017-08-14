@@ -3,7 +3,7 @@
 [![Download](https://api.bintray.com/packages/openzipkin/maven/zipkin-aws/images/download.svg)](https://bintray.com/openzipkin/maven/zipkin-aws/_latestVersion)
 
 # zipkin-aws
-Shared libraries that provide Zipkin integration with AWS SQS and SNS. Requires JRE 6 or later.
+Shared libraries that provide Zipkin integration with AWS Kinesis and SQS. Requires JRE 6 or later.
 
 # Usage
 These components provide Zipkin Senders and Collectors which build off interfaces provided by
@@ -11,47 +11,73 @@ the [zipkin-reporters-java](https://github.com/openzipkin/zipkin-reporter-java) 
 [zipkin](https://github.com/openzipkin/zipkin) projects.
 
 ## Senders
+The component in an traced application that sends timing data (spans)
+out of process is called a Sender. Senders are called on interval by an
+[async reporter](https://github.com/openzipkin/zipkin-reporter-java#asyncreporter).
 
-### SQSSender
+NOTE: Applications can be written in any language, while we currently
+only have senders in Java, senders in other languages are welcome.
 
-Sends Spans to SQS using the AwsBufferedAsyncClient. This client maintains a queue and thread for
-buffering API requests to the SQS API. By default the queue will send buffered spans every 200ms or
-when the AWS batch request limit is reached.
-
-Credentials are provided using the DefaultAwsCredentialsProviderChain by default but can be changed
- through the `credentialsProvider` property which accepts an AwsCredentialsProvider.
-
-```java
-reporter = AsyncReporter.builder(
-  SQSSender.create("https://sqs.us-east-1.amazonaws.com/123456789012/queue")).build();
-```
-
-#### Properties
-
-`queueUrl`            | SQS queue URL to send spans.
-`credentialsProvider` | AwsCredentialsProvider to use for SQS API calls. Defaults to
- DefaultAwsCredentialsProviderChain
-
-#### Message Format
-
-This sender only sends Thrift encoded Spans as base64 strings in the SQS message body.
+Sender | Description
+--- | ---
+[SQS](./collector/sqs) | An alternative to Kafka.
+[Kinesis](./collector/kinesis) | An alternative similar to Kafka.
 
 ## Collectors
+The component in a zipkin server that receives trace data is called a
+collector. This decodes spans reported by applications and persists them
+to a configured storage component.
 
-### SQSCollector
+Collector | Description
+--- | ---
+[SQS](./collector/kinesis) | An alternative to Kafka.
+[Kinesis](./collector/kinesis) | An alternative to Kafka.
 
-Collects Spans from SQS using the AmazonSQSAsyncClient. By default this client uses long polling 
-and will wait on a response for up to 20 seconds. After messages are received or the wait time is
-reached the client will start a new request.  Messages that are accepted by the collector are
-deleted from SQS after successfully storing them.
+## Server integration
+In order to integrate with zipkin-server, you need to use properties
+launcher to load your collector (or sender) alongside the zipkin-server
+process.
 
-```java
-new SQSCollector.Builder()
-  .queueUrl("https://sqs.us-east-1.amazonaws.com/123456789012/queue")
-  .metrics(CollectorMetrics.NOOP_METRICS)
-  .sampler(CollectorSampler.ALWAY_SAMPLE)
-  .storage(new InMemoryStorage())
-  .build()
-  .start()
+To integrate a module with a Zipkin server, you need to:
+* add a module jar to the `loader.path`
+* enable the profile associated with that module
+* launch Zipkin with `PropertiesLauncher`
+
+Each module will also have different minimum variables that need to be set.
+
+Ex.
+```
+$ java -Dloader.path=sqs.jar -Dspring.profiles.active=sqs -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
 ```
 
+## Example integrating the SQS Collector
+
+If you cannot use our [Docker image](https://github.com/openzipkin/docker-zipkin-aws), you can still integrate
+yourself by downloading a couple jars. Here's an example of integrating the SQS Collector.
+
+### Step 1: Download zipkin-server jar
+Download the [latest released server](https://search.maven.org/remote_content?g=io.zipkin.java&a=zipkin-server&v=LATEST&c=exec) as zipkin.jar:
+
+```
+cd /tmp
+wget -O zipkin.jar 'https://search.maven.org/remote_content?g=io.zipkin.java&a=zipkin-server&v=LATEST&c=exec'
+```
+
+### Step 2: Download the latest sqs-module jar
+Download the [latest released SQS module](https://search.maven.org/remote_content?g=io.zipkin.aws&a=zipkin-autoconfigure-collector-sqs&v=LATEST&c=module) as sqs.jar:
+
+```
+cd /tmp
+wget -O sqs.jar 'https://search.maven.org/remote_content?g=io.zipkin.aws&a=zipkin-autoconfigure-collector-sqs&v=LATEST&c=module'
+```
+
+### Step 3: Run the server with the "sqs" profile active
+When you enable the "sqs" profile, you can configure sqs with
+short environment variables similar to other [Zipkin integrations](https://github.com/openzipkin/zipkin/blob/master/zipkin-server/README.md#elasticsearch-storage).
+
+``` bash
+cd /tmp
+SQS_QUEUE_URL=<from aws sqs list-queues> \
+java -Dloader.path=sqs.jar -Dspring.profiles.active=sqs -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
+```
+** NOTE: Make sure the parameters are defined in the same line or use environment variables **

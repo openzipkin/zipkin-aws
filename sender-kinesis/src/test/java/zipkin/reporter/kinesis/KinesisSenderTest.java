@@ -31,6 +31,7 @@ import okio.Buffer;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import zipkin.Codec;
 import zipkin.Component;
 import zipkin.Span;
 import zipkin.SpanDecoder;
@@ -38,6 +39,7 @@ import zipkin.TestObjects;
 import zipkin.internal.ApplyTimestampAndDuration;
 import zipkin.internal.Span2Codec;
 import zipkin.internal.Span2Converter;
+import zipkin.internal.Util;
 import zipkin.reporter.Encoder;
 import zipkin.reporter.Encoding;
 import zipkin.reporter.internal.AwaitableCallback;
@@ -48,6 +50,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class KinesisSenderTest {
   @Rule public MockWebServer server = new MockWebServer();
+
+  List<Span> spans = asList( // No unicode or data that doesn't translate between json formats 
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[0]),
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[1]),
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[2])
+  );
 
   // Kinesis sends data in CBOR format
   ObjectMapper mapper = new ObjectMapper(new CBORFactory());
@@ -64,14 +72,29 @@ public class KinesisSenderTest {
 
   @Test
   public void sendsSpans_thrift() throws Exception {
-    sendsSpans(Encoder.THRIFT);
+    sendsSpans(Encoder.THRIFT, spans);
+  }
+
+  /** Kinesis is strict with regards to all data being Base64 encoded, even ascii data */
+  @Test
+  public void base64EncodesAsciiJson() throws Exception {
+    server.enqueue(new MockResponse());
+    sender = sender.toBuilder().encoding(Encoding.JSON).build();
+    send(Encoder.JSON, spans);
+
+    RecordedRequest request = server.takeRequest();
+    byte[] encodedSpans = // binaryValue base64 decodes
+        mapper.readTree(request.getBody().inputStream()).get("Data").binaryValue();
+
+    assertThat(new String(encodedSpans))
+        .isEqualTo(new String(Codec.JSON.writeSpans(spans)));
   }
 
   @Test
   public void sendsSpans_json() throws Exception {
     sender.close();
     sender = sender.toBuilder().encoding(Encoding.JSON).build();
-    sendsSpans(Encoder.JSON);
+    sendsSpans(Encoder.JSON, spans);
   }
 
   @Test
@@ -88,16 +111,11 @@ public class KinesisSenderTest {
       @Override public byte[] encode(Span span) {
         return Span2Codec.JSON.writeSpan(Span2Converter.fromSpan(span).get(0));
       }
-    });
+    }, spans);
   }
 
-  void sendsSpans(Encoder<Span> encoder) throws InterruptedException, IOException {
+  <S> void sendsSpans(Encoder<S> encoder, List<S> spans) throws Exception {
     server.enqueue(new MockResponse());
-    List<Span> spans = asList( // ensure nothing is lost in translation
-        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[0]),
-        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[1]),
-        ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[2])
-    );
     send(encoder, spans);
 
     RecordedRequest request = server.takeRequest();
