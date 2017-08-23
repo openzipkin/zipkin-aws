@@ -59,5 +59,19 @@
     </dependency>
 
   </dependencies>
-
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-shade-plugin</artifactId>
+        <configuration>
+          <relocations>
+            <relocation>
+              <pattern>zipkin.internal</pattern>
+              <shadedPattern>zipkin.collector.sqs.internal.zipkin</shadedPattern>
+            </relocation>
+          </relocations>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>

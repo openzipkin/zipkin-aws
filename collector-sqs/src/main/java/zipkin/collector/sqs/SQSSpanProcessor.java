@@ -21,6 +21,7 @@ import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.util.Base64;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -29,8 +30,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import zipkin.Component;
 import zipkin.collector.Collector;
-import zipkin.internal.Nullable;
-import zipkin.internal.Util;
 import zipkin.storage.Callback;
 
 import static zipkin.SpanDecoder.DETECTING_DECODER;
@@ -39,6 +38,7 @@ final class SQSSpanProcessor implements Runnable, Component {
 
   private static final Logger logger = Logger.getLogger(SQSSpanProcessor.class.getName());
 
+  private static final Charset UTF_8 = Charset.forName("UTF-8");
   private static final long DEFAULT_BACKOFF = 100;
   private static final long MAX_BACKOFF = 30000;
 
@@ -105,10 +105,10 @@ final class SQSSpanProcessor implements Runnable, Component {
         if (stringBody.isEmpty()) continue;
         // allow plain-text json, but permit base64 encoded thrift or json
         byte[] spans = stringBody.charAt(0) == '['
-            ? stringBody.getBytes(Util.UTF_8)
+            ? stringBody.getBytes(UTF_8)
             : Base64.decode(stringBody);
         collector.acceptSpans(spans, DETECTING_DECODER, new Callback<Void>() {
-          @Override public void onSuccess(@Nullable Void value) {
+          @Override public void onSuccess(Void value) {
             toDelete.add(new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
           }
 

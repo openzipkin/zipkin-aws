@@ -24,132 +24,131 @@ import org.apache.spark.streaming.api.java.JavaStreamingContext;
 import org.apache.spark.streaming.kinesis.KinesisUtils;
 import zipkin.sparkstreaming.StreamFactory;
 
-import static zipkin.internal.Util.checkNotNull;
-
 public class KinesisStreamFactory implements StreamFactory {
 
-    public static Builder newBuilder() {
-        return new Builder()
-                .checkpointIntervalMillis(2000)
-                .initialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
-                .storageLevel(StorageLevel.MEMORY_AND_DISK_2());
+  public static Builder newBuilder() {
+    return new Builder()
+        .checkpointIntervalMillis(2000)
+        .initialPositionInStream(InitialPositionInStream.TRIM_HORIZON)
+        .storageLevel(StorageLevel.MEMORY_AND_DISK_2());
+  }
+
+  public static final class Builder {
+    String stream = "zipkin";
+    String app = "zipkin-sparkstreaming";
+    String awsRegion;
+    String awsEndpoint;
+    Duration checkpointInterval;
+    InitialPositionInStream initialPositionInStream;
+    StorageLevel storageLevel;
+    String awsAccessKeyId;
+    String awsSecretKey;
+
+    public Builder stream(String stream) {
+      this.stream = stream;
+      return this;
     }
 
-    public static final class Builder {
-        String stream = "zipkin";
-        String app = "zipkin-sparkstreaming";
-        String awsRegion;
-        String awsEndpoint;
-        Duration checkpointInterval;
-        InitialPositionInStream initialPositionInStream;
-        StorageLevel storageLevel;
-        String awsAccessKeyId;
-        String awsSecretKey;
-
-        public Builder stream(String stream) {
-            this.stream = stream;
-            return this;
-        }
-
-        public Builder app(String app) {
-            this.app = app;
-            return this;
-        }
-
-        public Builder awsRegion(String awsRegion) {
-            this.awsRegion = awsRegion;
-            return this;
-        }
-
-        public Builder awsEndpoint(String awsEndpoint) {
-            this.awsEndpoint = awsEndpoint;
-            return this;
-        }
-
-        public Builder checkpointInterval(Duration checkpointInterval) {
-            this.checkpointInterval = checkpointInterval;
-            return this;
-        }
-
-        public Builder checkpointIntervalMillis(int checkpointIntervalMillis) {
-            this.checkpointInterval = new Duration(checkpointIntervalMillis);
-            return this;
-        }
-
-        public Builder initialPositionInStream(InitialPositionInStream initialPositionInStream) {
-            this.initialPositionInStream = initialPositionInStream;
-            return this;
-        }
-
-        public Builder storageLevel(StorageLevel storageLevel) {
-            this.storageLevel = storageLevel;
-            return this;
-        }
-
-        public Builder credentials(String awsAccessKeyId, String awsSecretKey) {
-            checkNotNull(awsAccessKeyId, "Access Key/Secret Key pair");
-            checkNotNull(awsSecretKey, "Access Key/Secret Key pair");
-            this.awsAccessKeyId = awsAccessKeyId;
-            this.awsSecretKey = awsSecretKey;
-            return this;
-        }
-
-        public KinesisStreamFactory build() {
-            return new KinesisStreamFactory(this);
-        }
+    public Builder app(String app) {
+      this.app = app;
+      return this;
     }
 
-    private final String stream;
-    private final String app;
-    private final String regionName;
-    private final String endpoint;
-    private final Duration checkpointInterval;
-    private final InitialPositionInStream initialPositionInStream;
-    private final StorageLevel storageLevel;
-    private String awsAccessKeyId;
-    private String awsSecretKey;
-
-    KinesisStreamFactory(Builder builder) {
-        this.stream = builder.stream;
-        this.app = builder.app;
-        this.regionName = builder.awsRegion;
-        this.endpoint = builder.awsEndpoint != null ?
-                builder.awsEndpoint :
-                Region.getRegion(Regions.fromName(regionName)).getServiceEndpoint(AmazonKinesis.ENDPOINT_PREFIX);
-
-        this.checkpointInterval = builder.checkpointInterval;
-        this.initialPositionInStream = builder.initialPositionInStream;
-        this.storageLevel = builder.storageLevel;
-
-        this.awsAccessKeyId = builder.awsAccessKeyId;
-        this.awsSecretKey = builder.awsSecretKey;
+    public Builder awsRegion(String awsRegion) {
+      this.awsRegion = awsRegion;
+      return this;
     }
 
-    @Override
-    public JavaDStream<byte[]> create(JavaStreamingContext jsc) {
-        if (awsAccessKeyId != null) {
-            return KinesisUtils.createStream(
-                    jsc,
-                    stream,
-                    app,
-                    endpoint,
-                    regionName,
-                    initialPositionInStream,
-                    checkpointInterval,
-                    storageLevel,
-                    awsAccessKeyId,
-                    awsSecretKey
-            );
-        }
-        return KinesisUtils.createStream(
-                jsc,
-                stream,
-                app,
-                endpoint,
-                regionName,
-                initialPositionInStream,
-                checkpointInterval,
-                storageLevel
-        );
+    public Builder awsEndpoint(String awsEndpoint) {
+      this.awsEndpoint = awsEndpoint;
+      return this;
     }
+
+    public Builder checkpointInterval(Duration checkpointInterval) {
+      this.checkpointInterval = checkpointInterval;
+      return this;
+    }
+
+    public Builder checkpointIntervalMillis(int checkpointIntervalMillis) {
+      this.checkpointInterval = new Duration(checkpointIntervalMillis);
+      return this;
+    }
+
+    public Builder initialPositionInStream(InitialPositionInStream initialPositionInStream) {
+      this.initialPositionInStream = initialPositionInStream;
+      return this;
+    }
+
+    public Builder storageLevel(StorageLevel storageLevel) {
+      this.storageLevel = storageLevel;
+      return this;
+    }
+
+    public Builder credentials(String awsAccessKeyId, String awsSecretKey) {
+      if (awsAccessKeyId == null) throw new NullPointerException("awsAccessKeyId == null");
+      if (awsSecretKey == null) throw new NullPointerException("awsSecretKey == null");
+      this.awsAccessKeyId = awsAccessKeyId;
+      this.awsSecretKey = awsSecretKey;
+      return this;
+    }
+
+    public KinesisStreamFactory build() {
+      return new KinesisStreamFactory(this);
+    }
+  }
+
+  private final String stream;
+  private final String app;
+  private final String regionName;
+  private final String endpoint;
+  private final Duration checkpointInterval;
+  private final InitialPositionInStream initialPositionInStream;
+  private final StorageLevel storageLevel;
+  private String awsAccessKeyId;
+  private String awsSecretKey;
+
+  KinesisStreamFactory(Builder builder) {
+    this.stream = builder.stream;
+    this.app = builder.app;
+    this.regionName = builder.awsRegion;
+    this.endpoint = builder.awsEndpoint != null ?
+        builder.awsEndpoint :
+        Region.getRegion(Regions.fromName(regionName))
+            .getServiceEndpoint(AmazonKinesis.ENDPOINT_PREFIX);
+
+    this.checkpointInterval = builder.checkpointInterval;
+    this.initialPositionInStream = builder.initialPositionInStream;
+    this.storageLevel = builder.storageLevel;
+
+    this.awsAccessKeyId = builder.awsAccessKeyId;
+    this.awsSecretKey = builder.awsSecretKey;
+  }
+
+  @Override
+  public JavaDStream<byte[]> create(JavaStreamingContext jsc) {
+    if (awsAccessKeyId != null) {
+      return KinesisUtils.createStream(
+          jsc,
+          stream,
+          app,
+          endpoint,
+          regionName,
+          initialPositionInStream,
+          checkpointInterval,
+          storageLevel,
+          awsAccessKeyId,
+          awsSecretKey
+      );
+    }
+    return KinesisUtils.createStream(
+        jsc,
+        stream,
+        app,
+        endpoint,
+        regionName,
+        initialPositionInStream,
+        checkpointInterval,
+        storageLevel
+    );
+  }
 }

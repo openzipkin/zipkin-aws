@@ -30,14 +30,12 @@ import java.util.UUID;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import javax.annotation.Nullable;
 import zipkin.internal.LazyCloseable;
-import zipkin.internal.Nullable;
 import zipkin.reporter.BytesMessageEncoder;
 import zipkin.reporter.Callback;
 import zipkin.reporter.Encoding;
 import zipkin.reporter.Sender;
-
-import static zipkin.internal.Util.checkArgument;
 
 @AutoValue
 public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> implements Sender {
@@ -77,15 +75,12 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
 
   abstract String streamName();
 
-  @Nullable
-  abstract String region();
+  @Nullable abstract String region();
 
-  @Nullable
-  abstract AWSCredentialsProvider credentialsProvider();
+  @Nullable abstract AWSCredentialsProvider credentialsProvider();
 
   // Needed to be able to overwrite for tests
-  @Nullable
-  abstract EndpointConfiguration endpointConfiguration();
+  @Nullable abstract EndpointConfiguration endpointConfiguration();
 
   abstract Builder toBuilder();
 
@@ -160,7 +155,7 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
             callback.onComplete();
           }
         });
-    checkArgument(!future.isCancelled(), "cancelled sending spans");
+    if (future.isCancelled()) throw new IllegalStateException("cancelled sending spans");
   }
 
   @Override
