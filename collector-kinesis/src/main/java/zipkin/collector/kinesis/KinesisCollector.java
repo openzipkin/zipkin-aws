@@ -30,7 +30,6 @@ import zipkin.collector.Collector;
 import zipkin.collector.CollectorComponent;
 import zipkin.collector.CollectorMetrics;
 import zipkin.collector.CollectorSampler;
-import zipkin.internal.Util;
 import zipkin.storage.StorageComponent;
 
 public final class KinesisCollector implements CollectorComponent, Closeable {
@@ -54,8 +53,9 @@ public final class KinesisCollector implements CollectorComponent, Closeable {
     }
 
     @Override
-    public Builder metrics(CollectorMetrics collectorMetrics) {
-      delegate.metrics(Util.checkNotNull(collectorMetrics, "metrics").forTransport("kinesis"));
+    public Builder metrics(CollectorMetrics metrics) {
+      if (metrics == null) throw new NullPointerException("metrics == null");
+      delegate.metrics(metrics.forTransport("kinesis"));
       return this;
     }
 

@@ -24,20 +24,17 @@ import com.amazonaws.services.sqs.model.SendMessageResult;
 import com.amazonaws.util.Base64;
 import com.google.auto.value.AutoValue;
 import java.io.IOException;
+import java.nio.charset.Charset;
 import java.util.List;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import javax.annotation.Nullable;
 import zipkin.internal.LazyCloseable;
-import zipkin.internal.Nullable;
-import zipkin.internal.Util;
 import zipkin.reporter.AsyncReporter;
 import zipkin.reporter.BytesMessageEncoder;
 import zipkin.reporter.Callback;
 import zipkin.reporter.Encoding;
 import zipkin.reporter.Sender;
-
-import static zipkin.internal.Util.checkArgument;
-import static zipkin.internal.Util.checkNotNull;
 
 /**
  * Zipkin Sender implementation that sends spans to an SQS queue.
@@ -50,6 +47,7 @@ import static zipkin.internal.Util.checkNotNull;
  */
 @AutoValue
 public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements Sender {
+  private static final Charset UTF_8 = Charset.forName("UTF-8");
 
   public static SQSSender create(String url) {
     return builder().queueUrl(url).build();
@@ -113,11 +111,9 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
   @Override public void sendSpans(List<byte[]> list, Callback callback) {
     if (closeCalled.get()) throw new IllegalStateException("closed");
 
-    checkNotNull(list, "list of encoded spans must not be null");
-
     byte[] encodedSpans = BytesMessageEncoder.forEncoding(encoding()).encode(list);
     String body = encoding() == Encoding.JSON && isAscii(encodedSpans)
-        ? new String(encodedSpans, Util.UTF_8)
+        ? new String(encodedSpans, UTF_8)
         : Base64.encodeAsString(encodedSpans);
 
     SendMessageRequest request = new SendMessageRequest(queueUrl(), body);
@@ -132,7 +128,7 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
             callback.onComplete();
           }
         });
-    checkArgument(!future.isCancelled(), "cancelled sending spans");
+    if (future.isCancelled()) throw new IllegalStateException("cancelled sending spans");
   }
 
   @Override public void close() throws IOException {

@@ -32,11 +32,7 @@ import zipkin.collector.CollectorComponent;
 import zipkin.collector.CollectorMetrics;
 import zipkin.collector.CollectorSampler;
 import zipkin.internal.LazyCloseable;
-import zipkin.internal.Util;
 import zipkin.storage.StorageComponent;
-
-import static zipkin.internal.Util.checkArgument;
-
 
 public final class SQSCollector implements CollectorComponent, Closeable {
 
@@ -61,7 +57,8 @@ public final class SQSCollector implements CollectorComponent, Closeable {
     }
 
     @Override public Builder metrics(CollectorMetrics metrics) {
-      delegate.metrics(Util.checkNotNull(metrics, "metrics").forTransport("sqs"));
+      if (metrics == null) throw new NullPointerException("metrics == null");
+      delegate.metrics(metrics.forTransport("sqs"));
       return this;
     }
 
@@ -90,21 +87,25 @@ public final class SQSCollector implements CollectorComponent, Closeable {
 
     /** Amount of time to wait for messages from SQS */
     public Builder waitTimeSeconds(int seconds) {
-      checkArgument(seconds > 0 && seconds < 21, "waitTimeSeconds");
+      if (seconds < 1 || seconds > 20) {
+        throw new IllegalArgumentException("waitTimeSeconds must be between 1 and 20");
+      }
       this.waitTimeSeconds = seconds;
       return this;
     }
 
     /** Maximum number of messages to retrieve per API call to SQS */
     public Builder maxNumberOfMessages(int maxNumberOfMessages) {
-      checkArgument(maxNumberOfMessages > 0 && maxNumberOfMessages < 11, "maxNumberOfMessages");
+      if (maxNumberOfMessages < 1 || maxNumberOfMessages > 10) {
+        throw new IllegalArgumentException("maxNumberOfMessages must be between 1 and 10");
+      }
       this.maxNumberOfMessages = maxNumberOfMessages;
       return this;
     }
 
     /** How many processors to run in parallel for each queue URL */
     public Builder parallelism(int parallelism) {
-      checkArgument(parallelism > 0, "parallelism");
+      if (parallelism < 1) throw new IllegalArgumentException("parallelism must be positive");
       this.parallelism = parallelism;
       return this;
     }
@@ -148,7 +149,7 @@ public final class SQSCollector implements CollectorComponent, Closeable {
             waitTimeSeconds, maxNumberOfMessages, closed);
 
         Future<?> task = pool.submit(processor);
-        checkArgument(!task.isDone(), "unable to start processor %s", processor);
+        if (task.isDone()) throw new IllegalStateException("processor quit " + processor);
         processors.add(processor);
       }
     }

@@ -21,6 +21,7 @@ import com.amazonaws.services.sqs.model.PurgeQueueRequest;
 import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.util.Base64;
+import java.nio.charset.Charset;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -32,10 +33,8 @@ import org.junit.rules.ExternalResource;
 import zipkin.Codec;
 import zipkin.Span;
 import zipkin.SpanDecoder;
-import zipkin.internal.Util;
 
 import static java.util.Collections.singletonList;
-
 
 public class AmazonSQSRule extends ExternalResource {
 
@@ -141,7 +140,7 @@ public class AmazonSQSRule extends ExternalResource {
 
   static Stream<? extends Span> decodeSpans(Message m) {
     byte[] bytes = m.getBody().charAt(0) == '['
-        ? m.getBody().getBytes(Util.UTF_8)
+        ? m.getBody().getBytes(Charset.forName("UTF-8"))
         : Base64.decode(m.getBody());
     return SpanDecoder.DETECTING_DECODER.readSpans(bytes).stream();
   }
