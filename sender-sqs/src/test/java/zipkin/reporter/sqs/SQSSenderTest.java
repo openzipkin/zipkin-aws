@@ -24,8 +24,7 @@ import zipkin.Component;
 import zipkin.Span;
 import zipkin.TestObjects;
 import zipkin.internal.ApplyTimestampAndDuration;
-import zipkin.internal.Span2Codec;
-import zipkin.internal.Span2Converter;
+import zipkin.internal.V2SpanConverter;
 import zipkin.junit.aws.AmazonSQSRule;
 import zipkin.reporter.Encoder;
 import zipkin.reporter.Encoding;
@@ -85,7 +84,7 @@ public class SQSSenderTest {
       }
 
       @Override public byte[] encode(Span span) {
-        return Span2Codec.JSON.writeSpan(Span2Converter.fromSpan(span).get(0));
+        return zipkin.internal.v2.codec.Encoder.JSON.encode(V2SpanConverter.fromSpan(span).get(0));
       }
     }, spans);
   }
