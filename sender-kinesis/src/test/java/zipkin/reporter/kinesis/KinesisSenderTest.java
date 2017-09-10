@@ -38,6 +38,7 @@ import zipkin.SpanDecoder;
 import zipkin.TestObjects;
 import zipkin.internal.ApplyTimestampAndDuration;
 import zipkin.internal.V2SpanConverter;
+import zipkin.internal.v2.codec.SpanBytesEncoder;
 import zipkin.reporter.Encoder;
 import zipkin.reporter.Encoding;
 import zipkin.reporter.internal.AwaitableCallback;
@@ -107,7 +108,7 @@ public class KinesisSenderTest {
       }
 
       @Override public byte[] encode(Span span) {
-        return zipkin.internal.v2.codec.Encoder.JSON.encode(V2SpanConverter.fromSpan(span).get(0));
+        return SpanBytesEncoder.JSON_V2.encode(V2SpanConverter.fromSpan(span).get(0));
       }
     }, spans);
   }
