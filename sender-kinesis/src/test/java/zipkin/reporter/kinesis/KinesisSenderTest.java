@@ -38,9 +38,9 @@ import zipkin.SpanDecoder;
 import zipkin.TestObjects;
 import zipkin.internal.ApplyTimestampAndDuration;
 import zipkin.internal.V2SpanConverter;
-import zipkin.internal.v2.codec.SpanBytesEncoder;
 import zipkin.reporter.Encoder;
 import zipkin.reporter.Encoding;
+import zipkin.reporter.SpanEncoder;
 import zipkin.reporter.internal.AwaitableCallback;
 
 import static java.util.Arrays.asList;
@@ -101,16 +101,12 @@ public class KinesisSenderTest {
     sender.close();
     sender = sender.toBuilder().encoding(Encoding.JSON).build();
 
-    // temporary span2 encoder until the type is made public
-    sendsSpans(new Encoder<Span>() {
-      @Override public Encoding encoding() {
-        return Encoding.JSON;
-      }
+    server.enqueue(new MockResponse());
+    send(SpanEncoder.JSON_V2, V2SpanConverter.fromSpans(spans));
 
-      @Override public byte[] encode(Span span) {
-        return SpanBytesEncoder.JSON_V2.encode(V2SpanConverter.fromSpan(span).get(0));
-      }
-    }, spans);
+    RecordedRequest request = server.takeRequest();
+    assertThat(extractSpans(request.getBody()))
+        .isEqualTo(spans);
   }
 
   <S> void sendsSpans(Encoder<S> encoder, List<S> spans) throws Exception {
