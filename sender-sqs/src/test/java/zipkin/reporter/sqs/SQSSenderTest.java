@@ -25,11 +25,11 @@ import zipkin.Span;
 import zipkin.TestObjects;
 import zipkin.internal.ApplyTimestampAndDuration;
 import zipkin.internal.V2SpanConverter;
-import zipkin.internal.v2.codec.SpanBytesEncoder;
 import zipkin.junit.aws.AmazonSQSRule;
 import zipkin.reporter.Encoder;
 import zipkin.reporter.Encoding;
 import zipkin.reporter.internal.AwaitableCallback;
+import zipkin2.codec.SpanBytesEncoder;
 
 import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
@@ -78,7 +78,7 @@ public class SQSSenderTest {
     sender.close();
     sender = sender.toBuilder().encoding(Encoding.JSON).build();
 
-    // temporary span2 encoder until the type is made public
+    // TODO: make SQS rule work on v2 spans
     sendSpans(new Encoder<Span>() {
       @Override public Encoding encoding() {
         return Encoding.JSON;
