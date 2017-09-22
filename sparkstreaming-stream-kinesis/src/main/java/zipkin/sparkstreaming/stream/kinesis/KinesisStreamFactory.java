@@ -129,8 +129,8 @@ public class KinesisStreamFactory implements StreamFactory {
     if (awsAccessKeyId != null) {
       return KinesisUtils.createStream(
           jsc,
-          stream,
           app,
+          stream,
           endpoint,
           regionName,
           initialPositionInStream,
@@ -142,8 +142,8 @@ public class KinesisStreamFactory implements StreamFactory {
     }
     return KinesisUtils.createStream(
         jsc,
-        stream,
         app,
+        stream,
         endpoint,
         regionName,
         initialPositionInStream,
