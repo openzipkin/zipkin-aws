@@ -34,7 +34,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.zipkin.reporter</groupId>
+      <groupId>io.zipkin.reporter2</groupId>
       <artifactId>zipkin-reporter</artifactId>
     </dependency>
 
@@ -43,6 +43,12 @@
       <artifactId>aws-java-sdk-kinesis</artifactId>
     </dependency>
 
+    <dependency>
+      <groupId>io.zipkin.reporter2</groupId>
+      <artifactId>zipkin-reporter</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>zipkin-aws-junit</artifactId>

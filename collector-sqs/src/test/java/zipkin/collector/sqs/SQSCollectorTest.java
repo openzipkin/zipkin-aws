@@ -17,10 +17,10 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.util.Base64;
+import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -81,12 +81,6 @@ public class SQSCollectorTest {
     collector.close();
   }
 
-  @Test
-  public void collectSpans() throws Exception {
-    sqsRule.sendSpans(spans);
-    assertSpansAccepted(spans);
-  }
-
   /** SQS has character constraints on json, so some traces will be base64 even if json */
   @Test
   public void collectBase64EncodedSpans() throws Exception {
@@ -103,9 +97,23 @@ public class SQSCollectorTest {
 
   @Test
   public void collectLotsOfSpans() throws Exception {
-    List<Span> lots =
-        new Random().longs(10000L).mapToObj(TestObjects::span).collect(Collectors.toList());
-    sqsRule.sendSpans(lots);
+    List<Span> lots = new ArrayList<>(10000);
+
+    int count = 0;
+    List<Span> bucket = new LinkedList<>();
+
+    for (int i = 0; i < 10000; i++) {
+      Span span = TestObjects.span(i + 1);
+      lots.add(span);
+      bucket.add(span);
+      if (count++ > 9) {
+        sqsRule.send(new String(Codec.JSON.writeSpans(bucket), Util.UTF_8));
+        bucket = new LinkedList<>();
+        count = 0;
+      }
+    }
+    sqsRule.send(new String(Codec.JSON.writeSpans(bucket), Util.UTF_8));
+
     assertSpansAccepted(lots);
   }
 

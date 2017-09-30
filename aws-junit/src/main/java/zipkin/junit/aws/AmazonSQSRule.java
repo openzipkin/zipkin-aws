@@ -22,7 +22,6 @@ import com.amazonaws.services.sqs.model.ReceiveMessageResult;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.util.Base64;
 import java.nio.charset.Charset;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -30,9 +29,8 @@ import org.elasticmq.rest.sqs.SQSLimits;
 import org.elasticmq.rest.sqs.SQSRestServer;
 import org.elasticmq.rest.sqs.SQSRestServerBuilder;
 import org.junit.rules.ExternalResource;
-import zipkin.Codec;
-import zipkin.Span;
-import zipkin.SpanDecoder;
+import zipkin2.Span;
+import zipkin2.codec.SpanBytesDecoder;
 
 import static java.util.Collections.singletonList;
 
@@ -114,34 +112,14 @@ public class AmazonSQSRule extends ExternalResource {
     return spans.collect(Collectors.toList());
   }
 
-  public void sendSpans(List<Span> spans) {
-    int count = 0;
-    List<Span> bucket = new LinkedList<>();
-
-    for (Span span : spans) {
-      bucket.add(span);
-      if (count++ > 9) {
-        sendSpansInternal(bucket);
-        bucket = new LinkedList<>();
-        count = 0;
-      }
-    }
-
-    sendSpansInternal(bucket);
-  }
-
   public void send(String body) {
     client.sendMessage(new SendMessageRequest(queueUrl, body));
-  }
-
-  private void sendSpansInternal(List<Span> spans) {
-    send(Base64.encodeAsString(Codec.THRIFT.writeSpans(spans)));
   }
 
   static Stream<? extends Span> decodeSpans(Message m) {
     byte[] bytes = m.getBody().charAt(0) == '['
         ? m.getBody().getBytes(Charset.forName("UTF-8"))
         : Base64.decode(m.getBody());
-    return SpanDecoder.DETECTING_DECODER.readSpans(bytes).stream();
+    return SpanBytesDecoder.JSON_V2.decodeList(bytes).stream();
   }
 }
