@@ -32,7 +32,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.zipkin.reporter</groupId>
+      <groupId>io.zipkin.reporter2</groupId>
       <artifactId>zipkin-reporter</artifactId>
     </dependency>
 
@@ -42,25 +42,17 @@
     </dependency>
 
     <dependency>
+      <groupId>io.zipkin.reporter2</groupId>
+      <artifactId>zipkin-reporter</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>zipkin-aws-junit</artifactId>
       <version>${project.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
-  <build>
-    <plugins>
-      <plugin>
-        <artifactId>maven-shade-plugin</artifactId>
-        <configuration>
-          <relocations>
-            <relocation>
-              <pattern>zipkin.internal</pattern>
-              <shadedPattern>zipkin.reporter.sqs.internal.zipkin</shadedPattern>
-            </relocation>
-          </relocations>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
 </project>

@@ -17,23 +17,23 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
-import zipkin.Component;
-import zipkin.Span;
-import zipkin.TestObjects;
-import zipkin.internal.ApplyTimestampAndDuration;
-import zipkin.internal.V2SpanConverter;
 import zipkin.junit.aws.AmazonSQSRule;
-import zipkin.reporter.Encoder;
-import zipkin.reporter.Encoding;
-import zipkin.reporter.internal.AwaitableCallback;
+import zipkin2.Call;
+import zipkin2.Callback;
+import zipkin2.CheckResult;
+import zipkin2.Span;
 import zipkin2.codec.SpanBytesEncoder;
 
-import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static zipkin2.reporter.TestObjects.CLIENT_SPAN;
 
 public class SQSSenderTest {
 
@@ -42,12 +42,6 @@ public class SQSSenderTest {
   @Rule
   public ExpectedException thrown = ExpectedException.none();
 
-  List<Span> spans = asList( // No unicode or data that doesn't translate between json formats
-      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[0]),
-      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[1]),
-      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[2])
-  );
-
   SQSSender sender = SQSSender.builder()
       .queueUrl(sqsRule.queueUrl())
       .endpointConfiguration(new EndpointConfiguration(sqsRule.queueUrl(), "us-east-1"))
@@ -55,61 +49,56 @@ public class SQSSenderTest {
       .build();
 
   @Test
-  public void sendsSpans_thrift() throws Exception {
-    sendSpans(Encoder.THRIFT, spans);
-  }
+  public void sendsSpans() throws Exception {
+    send(CLIENT_SPAN, CLIENT_SPAN).execute();
 
-  @Test
-  public void sendsSpans_json() throws Exception {
-    sender.close();
-    sender = sender.toBuilder().encoding(Encoding.JSON).build();
-    sendSpans(Encoder.JSON, spans);
+    assertThat(readSpans())
+        .containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
   @Test
   public void sendsSpans_json_unicode() throws Exception {
-    sender.close();
-    sender = sender.toBuilder().encoding(Encoding.JSON).build();
-    sendSpans(Encoder.JSON, TestObjects.TRACE);
+    Span unicode = CLIENT_SPAN.toBuilder().putTag("error", "\uD83D\uDCA9").build();
+    send(unicode).execute();
+
+    assertThat(readSpans())
+        .containsExactly(unicode);
   }
 
   @Test
-  public void sendsSpans_json2() throws Exception {
-    sender.close();
-    sender = sender.toBuilder().encoding(Encoding.JSON).build();
+  public void outOfBandCancel() throws Exception {
+    SQSSender.SQSCall call = (SQSSender.SQSCall) send(CLIENT_SPAN, CLIENT_SPAN);
+    assertThat(call.isCanceled()).isFalse(); // sanity check
 
-    // TODO: make SQS rule work on v2 spans
-    sendSpans(new Encoder<Span>() {
-      @Override public Encoding encoding() {
-        return Encoding.JSON;
+    CountDownLatch latch = new CountDownLatch(1);
+    call.enqueue(new Callback<Void>() {
+      @Override public void onSuccess(@Nullable Void aVoid) {
+        call.future.cancel(true);
+        latch.countDown();
       }
 
-      @Override public byte[] encode(Span span) {
-        return SpanBytesEncoder.JSON_V2.encode(V2SpanConverter.fromSpan(span).get(0));
+      @Override public void onError(Throwable throwable) {
+        latch.countDown();
       }
-    }, spans);
-  }
+    });
 
-  void sendSpans(Encoder<Span> encoder, List<Span> spans) {
-    send(encoder, spans);
-
-    assertThat(sqsRule.queueCount()).isEqualTo(1);
-
-    List<Span> traces = sqsRule.getSpans();
-    List<Span> expected = spans;
-
-    assertThat(traces.size()).isEqualTo(expected.size());
-    assertThat(traces).isEqualTo(expected);
+    latch.await(5, TimeUnit.SECONDS);
+    assertThat(call.isCanceled()).isTrue();
   }
 
   @Test
   public void checkOk() throws Exception {
-    assertThat(sender.check()).isEqualTo(Component.CheckResult.OK);
+    assertThat(sender.check()).isEqualTo(CheckResult.OK);
   }
 
-  <S> void send(Encoder<S> encoder, List<S> spans) {
-    AwaitableCallback callback = new AwaitableCallback();
-    sender.sendSpans(spans.stream().map(encoder::encode).collect(toList()), callback);
-    callback.await();
+  Call<Void> send(Span... spans) {
+    return sender.sendSpans(Stream.of(spans)
+        .map(SpanBytesEncoder.JSON_V2::encode)
+        .collect(toList()));
+  }
+
+  List<Span> readSpans() {
+    assertThat(sqsRule.queueCount()).isEqualTo(1);
+    return sqsRule.getSpans();
   }
 }

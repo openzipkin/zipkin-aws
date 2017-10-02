@@ -22,23 +22,26 @@ import com.amazonaws.services.kinesis.AmazonKinesisAsyncClientBuilder;
 import com.amazonaws.services.kinesis.model.PutRecordRequest;
 import com.amazonaws.services.kinesis.model.PutRecordResult;
 import com.google.auto.value.AutoValue;
+import com.google.auto.value.extension.memoized.Memoized;
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.annotation.Nullable;
-import zipkin.internal.LazyCloseable;
-import zipkin.reporter.BytesMessageEncoder;
-import zipkin.reporter.Callback;
-import zipkin.reporter.Encoding;
-import zipkin.reporter.Sender;
+import zipkin2.Call;
+import zipkin2.Callback;
+import zipkin2.CheckResult;
+import zipkin2.codec.Encoding;
+import zipkin2.reporter.BytesMessageEncoder;
+import zipkin2.reporter.Sender;
+import zipkin2.reporter.internal.BaseCall;
 
 @AutoValue
-public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> implements Sender {
+public abstract class KinesisSender extends Sender {
 
   public static KinesisSender create(String streamName) {
     return builder().streamName(streamName).build();
@@ -47,7 +50,7 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
   public static Builder builder() {
     return new AutoValue_KinesisSender.Builder()
         .credentialsProvider(new DefaultAWSCredentialsProviderChain())
-        .encoding(Encoding.THRIFT)
+        .encoding(Encoding.JSON)
         .messageMaxBytes(1024 * 1024); // 1MB Kinesis limit.
   }
 
@@ -84,8 +87,6 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
 
   abstract Builder toBuilder();
 
-  private final AtomicBoolean closeCalled = new AtomicBoolean(false);
-
   private final AtomicReference<String> partitionKey = new AtomicReference<>("");
 
   @Override
@@ -114,8 +115,10 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
     return partitionKey.get();
   }
 
-  @Override
-  protected AmazonKinesisAsync compute() {
+  /** get and close are typically called from different threads */
+  volatile boolean provisioned, closeCalled;
+
+  @Memoized AmazonKinesisAsync get() {
     AmazonKinesisAsyncClientBuilder builder = AmazonKinesisAsyncClientBuilder.standard();
     if (credentialsProvider() != null) {
       builder.withCredentials(credentialsProvider());
@@ -126,7 +129,9 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
     if (region() != null) {
       builder.withRegion(region());
     }
-    return builder.build();
+    AmazonKinesisAsync result = builder.build();
+    provisioned = true;
+    return result;
   }
 
   @Override
@@ -134,8 +139,9 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
     return encoding().listSizeInBytes(list);
   }
 
-  @Override
-  public void sendSpans(List<byte[]> list, Callback callback) {
+  @Override public Call<Void> sendSpans(List<byte[]> list) {
+    if (closeCalled) throw new IllegalStateException("closed");
+
     ByteBuffer message = ByteBuffer.wrap(BytesMessageEncoder.forEncoding(encoding()).encode(list));
 
     PutRecordRequest request = new PutRecordRequest();
@@ -143,29 +149,58 @@ public abstract class KinesisSender extends LazyCloseable<AmazonKinesisAsync> im
     request.setData(message);
     request.setPartitionKey(getPartitionKey());
 
-    Future<PutRecordResult> future = get().putRecordAsync(request,
-        new AsyncHandler<PutRecordRequest, PutRecordResult>() {
-          @Override
-          public void onError(Exception e) {
-            callback.onError(e);
-          }
-
-          @Override
-          public void onSuccess(PutRecordRequest request, PutRecordResult putRecordResult) {
-            callback.onComplete();
-          }
-        });
-    if (future.isCancelled()) throw new IllegalStateException("cancelled sending spans");
+    return new KinesisCall(request);
   }
 
-  @Override
-  public void close() {
-    if (!closeCalled.getAndSet(true)) {
-      AmazonKinesisAsync maybeNull = maybeNull();
-      if (maybeNull != null) maybeNull.shutdown();
-    }
+  @Override public synchronized void close() {
+    if (closeCalled) return;
+    if (provisioned) get().shutdown();
+    closeCalled = true;
   }
 
   KinesisSender() {
+  }
+
+  class KinesisCall extends BaseCall<Void> {
+    private final PutRecordRequest message;
+    transient Future<PutRecordResult> future;
+
+    KinesisCall(PutRecordRequest message) {
+      this.message = message;
+    }
+
+    @Override protected Void doExecute() throws IOException {
+      get().putRecord(message);
+      return null;
+    }
+
+    @Override protected void doEnqueue(Callback<Void> callback) {
+      future = get().putRecordAsync(message,
+          new AsyncHandler<PutRecordRequest, PutRecordResult>() {
+            @Override public void onError(Exception e) {
+              callback.onError(e);
+            }
+
+            @Override
+            public void onSuccess(PutRecordRequest request, PutRecordResult result) {
+              callback.onSuccess(null);
+            }
+          });
+      if (future.isCancelled()) throw new IllegalStateException("cancelled sending spans");
+    }
+
+    @Override protected void doCancel() {
+      Future<PutRecordResult> maybeFuture = future;
+      if (maybeFuture != null) maybeFuture.cancel(true);
+    }
+
+    @Override protected boolean doIsCanceled() {
+      Future<PutRecordResult> maybeFuture = future;
+      return maybeFuture != null && maybeFuture.isCancelled();
+    }
+
+    @Override public Call<Void> clone() {
+      return new KinesisCall(message.clone());
+    }
   }
 }

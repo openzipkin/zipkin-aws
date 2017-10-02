@@ -23,38 +23,30 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import java.io.IOException;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Stream;
+import javax.annotation.Nullable;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
 import okhttp3.mockwebserver.SocketPolicy;
 import okio.Buffer;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
-import zipkin.Codec;
-import zipkin.Component;
-import zipkin.Span;
-import zipkin.SpanDecoder;
-import zipkin.TestObjects;
-import zipkin.internal.ApplyTimestampAndDuration;
-import zipkin.internal.V2SpanConverter;
-import zipkin.reporter.Encoder;
-import zipkin.reporter.Encoding;
-import zipkin.reporter.SpanEncoder;
-import zipkin.reporter.internal.AwaitableCallback;
+import zipkin2.Call;
+import zipkin2.Callback;
+import zipkin2.CheckResult;
+import zipkin2.Span;
+import zipkin2.codec.SpanBytesDecoder;
+import zipkin2.codec.SpanBytesEncoder;
 
-import static java.util.Arrays.asList;
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static zipkin2.reporter.TestObjects.CLIENT_SPAN;
 
 public class KinesisSenderTest {
   @Rule public MockWebServer server = new MockWebServer();
-
-  List<Span> spans = asList( // No unicode or data that doesn't translate between json formats 
-      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[0]),
-      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[1]),
-      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[2])
-  );
 
   // Kinesis sends data in CBOR format
   ObjectMapper mapper = new ObjectMapper(new CBORFactory());
@@ -70,52 +62,47 @@ public class KinesisSenderTest {
   }
 
   @Test
-  public void sendsSpans_thrift() throws Exception {
-    sendsSpans(Encoder.THRIFT, spans);
-  }
-
-  /** Kinesis is strict with regards to all data being Base64 encoded, even ascii data */
-  @Test
-  public void base64EncodesAsciiJson() throws Exception {
+  public void sendsSpans() throws Exception {
     server.enqueue(new MockResponse());
-    sender = sender.toBuilder().encoding(Encoding.JSON).build();
-    send(Encoder.JSON, spans);
 
-    RecordedRequest request = server.takeRequest();
-    byte[] encodedSpans = // binaryValue base64 decodes
-        mapper.readTree(request.getBody().inputStream()).get("Data").binaryValue();
+    send(CLIENT_SPAN, CLIENT_SPAN).execute();
 
-    assertThat(new String(encodedSpans))
-        .isEqualTo(new String(Codec.JSON.writeSpans(spans)));
+    assertThat(extractSpans(server.takeRequest().getBody()))
+        .containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
   @Test
-  public void sendsSpans_json() throws Exception {
-    sender.close();
-    sender = sender.toBuilder().encoding(Encoding.JSON).build();
-    sendsSpans(Encoder.JSON, spans);
+  public void outOfBandCancel() throws Exception {
+    server.enqueue(new MockResponse());
+
+    KinesisSender.KinesisCall call = (KinesisSender.KinesisCall) send(CLIENT_SPAN, CLIENT_SPAN);
+    assertThat(call.isCanceled()).isFalse(); // sanity check
+
+    CountDownLatch latch = new CountDownLatch(1);
+    call.enqueue(new Callback<Void>() {
+      @Override public void onSuccess(@Nullable Void aVoid) {
+        call.future.cancel(true);
+        latch.countDown();
+      }
+
+      @Override public void onError(Throwable throwable) {
+        latch.countDown();
+      }
+    });
+
+    latch.await(5, TimeUnit.SECONDS);
+    assertThat(call.isCanceled()).isTrue();
   }
 
   @Test
-  public void sendsSpans_json2() throws Exception {
-    sender.close();
-    sender = sender.toBuilder().encoding(Encoding.JSON).build();
-
+  public void sendsSpans_json_unicode() throws Exception {
     server.enqueue(new MockResponse());
-    send(SpanEncoder.JSON_V2, V2SpanConverter.fromSpans(spans));
 
-    RecordedRequest request = server.takeRequest();
-    assertThat(extractSpans(request.getBody()))
-        .isEqualTo(spans);
-  }
+    Span unicode = CLIENT_SPAN.toBuilder().putTag("error", "\uD83D\uDCA9").build();
+    send(unicode).execute();
 
-  <S> void sendsSpans(Encoder<S> encoder, List<S> spans) throws Exception {
-    server.enqueue(new MockResponse());
-    send(encoder, spans);
-
-    RecordedRequest request = server.takeRequest();
-    assertThat(extractSpans(request.getBody()))
-        .isEqualTo(spans);
+    assertThat(extractSpans(server.takeRequest().getBody()))
+        .containsExactly(unicode);
   }
 
   @Test
@@ -123,8 +110,8 @@ public class KinesisSenderTest {
     enqueueCborResponse(mapper.createObjectNode().set("StreamDescription",
         mapper.createObjectNode().put("StreamStatus", "ACTIVE")));
 
-    Component.CheckResult result = sender.check();
-    assertThat(result.ok).isTrue();
+    CheckResult result = sender.check();
+    assertThat(result.ok()).isTrue();
   }
 
   @Test
@@ -132,9 +119,9 @@ public class KinesisSenderTest {
     enqueueCborResponse(mapper.createObjectNode().set("StreamDescription",
         mapper.createObjectNode().put("StreamStatus", "DELETING")));
 
-    Component.CheckResult result = sender.check();
-    assertThat(result.ok).isFalse();
-    assertThat(result.exception).isInstanceOf(IllegalStateException.class);
+    CheckResult result = sender.check();
+    assertThat(result.ok()).isFalse();
+    assertThat(result.error()).isInstanceOf(IllegalStateException.class);
   }
 
   @Test
@@ -149,9 +136,9 @@ public class KinesisSenderTest {
     server.enqueue(new MockResponse()
         .setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
 
-    Component.CheckResult result = sender.check();
-    assertThat(result.ok).isFalse();
-    assertThat(result.exception).isInstanceOf(SdkClientException.class);
+    CheckResult result = sender.check();
+    assertThat(result.ok()).isFalse();
+    assertThat(result.error()).isInstanceOf(SdkClientException.class);
   }
 
   void enqueueCborResponse(JsonNode document) throws JsonProcessingException {
@@ -162,12 +149,12 @@ public class KinesisSenderTest {
 
   List<Span> extractSpans(Buffer body) throws IOException {
     byte[] encodedSpans = mapper.readTree(body.inputStream()).get("Data").binaryValue();
-    return SpanDecoder.DETECTING_DECODER.readSpans(encodedSpans);
+    return SpanBytesDecoder.JSON_V2.decodeList(encodedSpans);
   }
 
-  <S> void send(Encoder<S> encoder, List<S> spans) {
-    AwaitableCallback callback = new AwaitableCallback();
-    sender.sendSpans(spans.stream().map(encoder::encode).collect(toList()), callback);
-    callback.await();
+  Call<Void> send(zipkin2.Span... spans) {
+    return sender.sendSpans(Stream.of(spans)
+        .map(SpanBytesEncoder.JSON_V2::encode)
+        .collect(toList()));
   }
 }

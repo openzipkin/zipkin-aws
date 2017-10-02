@@ -23,18 +23,20 @@ import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageResult;
 import com.amazonaws.util.Base64;
 import com.google.auto.value.AutoValue;
+import com.google.auto.value.extension.memoized.Memoized;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.List;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicBoolean;
 import javax.annotation.Nullable;
-import zipkin.internal.LazyCloseable;
-import zipkin.reporter.AsyncReporter;
-import zipkin.reporter.BytesMessageEncoder;
-import zipkin.reporter.Callback;
-import zipkin.reporter.Encoding;
-import zipkin.reporter.Sender;
+import zipkin2.Call;
+import zipkin2.Callback;
+import zipkin2.CheckResult;
+import zipkin2.codec.Encoding;
+import zipkin2.reporter.AsyncReporter;
+import zipkin2.reporter.BytesMessageEncoder;
+import zipkin2.reporter.Sender;
+import zipkin2.reporter.internal.BaseCall;
 
 /**
  * Zipkin Sender implementation that sends spans to an SQS queue.
@@ -46,7 +48,7 @@ import zipkin.reporter.Sender;
  * <p>This sends (usually TBinaryProtocol big-endian) encoded spans to an SQS queue.
  */
 @AutoValue
-public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements Sender {
+public abstract class SQSSender extends Sender {
   private static final Charset UTF_8 = Charset.forName("UTF-8");
 
   public static SQSSender create(String url) {
@@ -56,7 +58,7 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
   public static Builder builder() {
     return new AutoValue_SQSSender.Builder()
         .credentialsProvider(new DefaultAWSCredentialsProviderChain())
-        .encoding(Encoding.THRIFT)
+        .encoding(Encoding.JSON)
         .messageMaxBytes(256 * 1024); // 256KB SQS limit.
   }
 
@@ -75,7 +77,7 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
     /** Maximum size of a message. SQS max message size is 256KB including attributes. */
     Builder messageMaxBytes(int messageMaxBytes);
 
-    /** Allows you to change to json format. Default is thrift */
+    /** Controls reporting format. Currently supports json */
     Builder encoding(Encoding encoding);
 
     SQSSender build();
@@ -90,17 +92,20 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
   // Needed to be able to overwrite for tests
   @Nullable abstract EndpointConfiguration endpointConfiguration();
 
-  private final AtomicBoolean closeCalled = new AtomicBoolean(false);
-
   @Override public CheckResult check() {
     // TODO need to do something better here.
     return CheckResult.OK;
   }
 
-  @Override protected AmazonSQSAsync compute() {
-    return AmazonSQSAsyncClientBuilder.standard()
+  /** get and close are typically called from different threads */
+  volatile boolean provisioned, closeCalled;
+
+  @Memoized AmazonSQSAsync get() {
+    AmazonSQSAsync result = AmazonSQSAsyncClientBuilder.standard()
         .withCredentials(credentialsProvider())
         .withEndpointConfiguration(endpointConfiguration()).build();
+    provisioned = true;
+    return result;
   }
 
   @Override public int messageSizeInBytes(List<byte[]> encodedSpans) {
@@ -108,34 +113,21 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
     return (listSize + 2) * 4 / 3; // account for base64 encoding
   }
 
-  @Override public void sendSpans(List<byte[]> list, Callback callback) {
-    if (closeCalled.get()) throw new IllegalStateException("closed");
+  @Override public Call<Void> sendSpans(List<byte[]> list) {
+    if (closeCalled) throw new IllegalStateException("closed");
 
     byte[] encodedSpans = BytesMessageEncoder.forEncoding(encoding()).encode(list);
     String body = encoding() == Encoding.JSON && isAscii(encodedSpans)
         ? new String(encodedSpans, UTF_8)
         : Base64.encodeAsString(encodedSpans);
 
-    SendMessageRequest request = new SendMessageRequest(queueUrl(), body);
-    Future<SendMessageResult> future = get().sendMessageAsync(request,
-        new AsyncHandler<SendMessageRequest, SendMessageResult>() {
-          @Override public void onError(Exception e) {
-            callback.onError(e);
-          }
-
-          @Override public void onSuccess(SendMessageRequest request,
-              SendMessageResult sendMessageResult) {
-            callback.onComplete();
-          }
-        });
-    if (future.isCancelled()) throw new IllegalStateException("cancelled sending spans");
+    return new SQSCall(new SendMessageRequest(queueUrl(), body));
   }
 
-  @Override public void close() throws IOException {
-    if (!closeCalled.getAndSet(true)) {
-      AmazonSQSAsync maybeNull = maybeNull();
-      if (maybeNull != null) maybeNull.shutdown();
-    }
+  @Override public synchronized void close() {
+    if (closeCalled) return;
+    if (provisioned) get().shutdown();
+    closeCalled = true;
   }
 
   SQSSender() {
@@ -148,5 +140,48 @@ public abstract class SQSSender extends LazyCloseable<AmazonSQSAsync> implements
       }
     }
     return true;
+  }
+
+  class SQSCall extends BaseCall<Void> {
+    private final SendMessageRequest message;
+    transient Future<SendMessageResult> future;
+
+    SQSCall(SendMessageRequest message) {
+      this.message = message;
+    }
+
+    @Override protected Void doExecute() throws IOException {
+      get().sendMessage(message);
+      return null;
+    }
+
+    @Override protected void doEnqueue(Callback<Void> callback) {
+      future = get().sendMessageAsync(message,
+          new AsyncHandler<SendMessageRequest, SendMessageResult>() {
+            @Override public void onError(Exception e) {
+              callback.onError(e);
+            }
+
+            @Override
+            public void onSuccess(SendMessageRequest request, SendMessageResult sendMessageResult) {
+              callback.onSuccess(null);
+            }
+          });
+      if (future.isCancelled()) throw new IllegalStateException("cancelled sending spans");
+    }
+
+    @Override protected void doCancel() {
+      Future<SendMessageResult> maybeFuture = future;
+      if (maybeFuture != null) maybeFuture.cancel(true);
+    }
+
+    @Override protected boolean doIsCanceled() {
+      Future<SendMessageResult> maybeFuture = future;
+      return maybeFuture != null && maybeFuture.isCancelled();
+    }
+
+    @Override public Call<Void> clone() {
+      return new SQSCall(message.clone());
+    }
   }
 }
