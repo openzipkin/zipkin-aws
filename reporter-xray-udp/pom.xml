@@ -15,44 +15,36 @@
 
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-
-  <modelVersion>4.0.0</modelVersion>
-
   <parent>
-    <groupId>io.zipkin.aws</groupId>
     <artifactId>zipkin-aws-parent</artifactId>
+    <groupId>io.zipkin.aws</groupId>
     <version>0.8.0-SNAPSHOT</version>
   </parent>
+  <modelVersion>4.0.0</modelVersion>
 
-  <artifactId>zipkin-aws-junit</artifactId>
-  <name>Zipkin AWS JUnit Rules</name>
+  <artifactId>zipkin-reporter-xray-udp</artifactId>
+  <name>Zipkin Reporter: AWS XRay UDP</name>
 
   <properties>
     <main.basedir>${project.basedir}/..</main.basedir>
-
-    <!-- Test use Java8 -->
-    <main.java.version>1.8</main.java.version>
-    <main.signature.artifact>java18</main.signature.artifact>
   </properties>
 
   <dependencies>
-
     <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-java-sdk-sqs</artifactId>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>zipkin-storage-xray-udp</artifactId>
     </dependency>
 
     <dependency>
-      <groupId>junit</groupId>
-      <artifactId>junit</artifactId>
-      <scope>compile</scope>
+      <groupId>io.zipkin.reporter2</groupId>
+      <artifactId>zipkin-reporter</artifactId>
     </dependency>
 
     <dependency>
-      <groupId>org.elasticmq</groupId>
-      <artifactId>elasticmq-server_2.12</artifactId>
-      <version>0.13.8</version>
+      <groupId>io.zipkin.reporter2</groupId>
+      <artifactId>zipkin-reporter</artifactId>
+      <type>test-jar</type>
+      <scope>test</scope>
     </dependency>
-
   </dependencies>
 </project>

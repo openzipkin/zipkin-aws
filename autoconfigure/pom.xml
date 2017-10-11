@@ -20,7 +20,7 @@
   <parent>
     <groupId>io.zipkin.aws</groupId>
     <artifactId>zipkin-aws-parent</artifactId>
-    <version>0.7.2-SNAPSHOT</version>
+    <version>0.8.0-SNAPSHOT</version>
   </parent>
 
   <artifactId>zipkin-autoconfigure</artifactId>
@@ -35,6 +35,7 @@
     <module>collector-sqs</module>
     <module>sparkstreaming-stream-kinesis</module>
     <module>collector-kinesis</module>
+    <module>storage-xray</module>
   </modules>
 
   <dependencies>
@@ -42,6 +43,7 @@
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-autoconfigure</artifactId>
       <version>${spring-boot.version}</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
