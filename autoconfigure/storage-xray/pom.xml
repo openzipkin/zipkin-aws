@@ -15,16 +15,15 @@
 
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-  <modelVersion>4.0.0</modelVersion>
-
   <parent>
-    <groupId>io.zipkin.aws</groupId>
     <artifactId>zipkin-autoconfigure</artifactId>
+    <groupId>io.zipkin.aws</groupId>
     <version>0.8.0-SNAPSHOT</version>
   </parent>
+  <modelVersion>4.0.0</modelVersion>
 
-  <artifactId>zipkin-autoconfigure-collector-sqs</artifactId>
-  <name>Auto Configuration: SQS Collector</name>
+  <artifactId>zipkin-autoconfigure-storage-xray</artifactId>
+  <name>Auto Configuration: XRay Storage</name>
 
   <properties>
     <main.basedir>${project.basedir}/../..</main.basedir>
@@ -33,19 +32,12 @@
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
-      <artifactId>zipkin-collector-sqs</artifactId>
-      <version>${project.version}</version>
+      <artifactId>zipkin-storage-xray-udp</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-java-sdk-sts</artifactId>
-      <version>${aws-java-sdk.version}</version>
-    </dependency>
-    <dependency>
-      <groupId>${project.groupId}</groupId>
-      <artifactId>zipkin-aws-junit</artifactId>
-      <version>${project.version}</version>
-      <scope>test</scope>
+      <groupId>io.zipkin.java</groupId>
+      <artifactId>zipkin</artifactId>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
 
@@ -66,7 +58,9 @@
           <layout>MODULE</layout>
           <classifier>module</classifier>
           <!-- https://github.com/spring-projects/spring-boot/issues/3426 transitive exclude doesn't work -->
-          <excludeGroupIds>io.zipkin.java,io.zipkin.zipkin2,org.springframework.boot,org.springframework,commons-codec,com.fasterxml.jackson.core,com.fasterxml.jackson.dataformat,org.apache.httpcomponents,commons-logging,joda-time,software.amazon.ion</excludeGroupIds>
+          <excludeGroupIds>
+            io.zipkin.java,io.zipkin.zipkin2,org.springframework.boot,org.springframework,commons-codec,com.fasterxml.jackson.core,com.fasterxml.jackson.dataformat,org.apache.httpcomponents,commons-logging,joda-time,software.amazon.ion
+          </excludeGroupIds>
           <!-- already packaged in zipkin-server -->
           <excludeArtifactIds>aws-java-sdk-core,aws-java-sdk-sts,jmespath-java</excludeArtifactIds>
         </configuration>

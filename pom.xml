@@ -19,7 +19,7 @@
 
   <groupId>io.zipkin.aws</groupId>
   <artifactId>zipkin-aws-parent</artifactId>
-  <version>0.7.2-SNAPSHOT</version>
+  <version>0.8.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -30,6 +30,8 @@
     <module>sparkstreaming-stream-kinesis</module>
     <module>collector-kinesis</module>
     <module>sender-kinesis</module>
+    <module>storage-xray-udp</module>
+    <module>reporter-xray-udp</module>
   </modules>
 
   <properties>
@@ -45,7 +47,7 @@
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
     <zipkin.version>2.2.1</zipkin.version>
-    <zipkin-reporter2.version>2.1.2</zipkin-reporter2.version>
+    <zipkin-reporter2.version>2.1.3</zipkin-reporter2.version>
 
     <slf4j.version>1.7.25</slf4j.version>
 
@@ -140,6 +142,11 @@
         <artifactId>zipkin-reporter</artifactId>
         <version>${zipkin-reporter2.version}</version>
         <type>test-jar</type>
+      </dependency>
+      <dependency>
+        <groupId>${project.groupId}</groupId>
+        <artifactId>zipkin-storage-xray-udp</artifactId>
+        <version>${project.version}</version>
       </dependency>
       <dependency>
         <groupId>junit</groupId>
