@@ -44,8 +44,8 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
-    <zipkin.version>2.1.0</zipkin.version>
-    <zipkin-reporter2.version>2.0.2</zipkin-reporter2.version>
+    <zipkin.version>2.2.1</zipkin.version>
+    <zipkin-reporter2.version>2.1.2</zipkin-reporter2.version>
 
     <slf4j.version>1.7.25</slf4j.version>
 
@@ -112,6 +112,25 @@
         <version>${zipkin.version}</version>
       </dependency>
       <dependency>
+        <groupId>io.zipkin.java</groupId>
+        <artifactId>zipkin</artifactId>
+        <version>${zipkin.version}</version>
+        <type>test-jar</type>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.zipkin.zipkin2</groupId>
+        <artifactId>zipkin</artifactId>
+        <version>${zipkin.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>io.zipkin.zipkin2</groupId>
+        <artifactId>zipkin</artifactId>
+        <version>${zipkin.version}</version>
+        <type>test-jar</type>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
         <groupId>io.zipkin.reporter2</groupId>
         <artifactId>zipkin-reporter</artifactId>
         <version>${zipkin-reporter2.version}</version>
@@ -144,21 +163,8 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.zipkin.java</groupId>
+      <groupId>io.zipkin.zipkin2</groupId>
       <artifactId>zipkin</artifactId>
-      <version>${zipkin.version}</version>
-    </dependency>
-
-    <!--
-     For javax.annotation.ParametersAreNonnullByDefault and javax.annotation.Nullable
-     This is added as a root-level dependency to prevent javadoc from failing.
-     -->
-    <dependency>
-      <groupId>org.apache.servicemix.bundles</groupId>
-      <artifactId>org.apache.servicemix.bundles.jsr305</artifactId>
-      <version>3.0.2_1</version>
-      <!-- eventhough annotations are runtime retention, we do not look them up reflectively -->
-      <scope>provided</scope>
     </dependency>
 
     <!-- don't worry. auto-* are source retention, not runtime -->
@@ -178,13 +184,6 @@
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
       <version>3.8.0</version>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.zipkin.java</groupId>
-      <artifactId>zipkin</artifactId>
-      <version>${zipkin.version}</version>
-      <type>test-jar</type>
       <scope>test</scope>
     </dependency>
     <dependency>

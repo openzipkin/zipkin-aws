@@ -20,7 +20,6 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-import javax.annotation.Nullable;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -72,7 +71,7 @@ public class SQSSenderTest {
 
     CountDownLatch latch = new CountDownLatch(1);
     call.enqueue(new Callback<Void>() {
-      @Override public void onSuccess(@Nullable Void aVoid) {
+      @Override public void onSuccess(Void aVoid) {
         call.future.cancel(true);
         latch.countDown();
       }
