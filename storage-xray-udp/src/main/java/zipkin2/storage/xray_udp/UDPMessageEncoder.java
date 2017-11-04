@@ -55,8 +55,11 @@ final class UDPMessageEncoder {
         || span.kind() != Span.Kind.SERVER && span.kind() != Span.Kind.CONSUMER) {
       writer.name("type").value("subsegment");
       if (span.kind() != null) writer.name("namespace").value("remote");
+      writer.name("name").value(span.remoteServiceName() == null ? "" : span.remoteServiceName());
+    }else{
+      writer.name("name").value(span.localServiceName());
     }
-    writer.name("name").value(span.localServiceName());
+
     if (span.timestamp() != null) {
       writer.name("start_time").value(span.timestamp() / 1_000_000.0D);
       if (span.duration() != null) {
