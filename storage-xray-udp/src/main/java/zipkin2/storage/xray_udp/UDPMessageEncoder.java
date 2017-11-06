@@ -59,6 +59,8 @@ final class UDPMessageEncoder {
     }else{
       writer.name("name").value(span.localServiceName());
     }
+    // override with the user remote tag
+    if(span.tags().get("remote") != null) writer.name("namespace").value(span.tags().get("remote"));
 
     if (span.timestamp() != null) {
       writer.name("start_time").value(span.timestamp() / 1_000_000.0D);
