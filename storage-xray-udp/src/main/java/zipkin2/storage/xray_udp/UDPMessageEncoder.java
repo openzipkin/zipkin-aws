@@ -71,11 +71,16 @@ final class UDPMessageEncoder {
       }
     }
 
+    // http section
     String httpRequestMethod = null, httpRequestUrl = null;
+    Integer httpResponseStatus = null;
+    // sql section
     String sqlUrl = null, sqlPreparation = null, sqlDatabaseType = null, sqlDatabaseVersion = null;
     String sqlDriverVersion = null,sqlUser = null, sqlSanitizedQuery = null;
-    Integer httpResponseStatus = null;
-    boolean http = false, sql = false;
+    // aws section
+    String awsOperation = null, awsAccountId = null, awsRegion = null, awsRequestId = null, awsQueueUrl = null;
+    String awsTableName = null;
+    boolean http = false, sql = false, aws = false;
 
     Map<String, String> annotations = new LinkedHashMap<>();
     Map<String, String> metadata = new LinkedHashMap<>();
@@ -117,6 +122,30 @@ final class UDPMessageEncoder {
             continue;
           case "sql.sanitized_query":
             sqlSanitizedQuery = entry.getValue();
+            continue;
+        }
+      }
+
+      if (entry.getKey().startsWith("aws.")) {
+        aws = true;
+        switch (entry.getKey()) {
+          case "aws.operation":
+            awsOperation = entry.getValue();
+            continue;
+          case "aws.account_id":
+            awsAccountId = entry.getValue();
+            continue;
+          case "aws.region":
+            awsRegion = entry.getValue();
+            continue;
+          case "aws.request_id":
+            awsRequestId = entry.getValue();
+            continue;
+          case "aws.queue_url":
+            awsQueueUrl = entry.getValue();
+            continue;
+          case "aws.table_name":
+            awsTableName = entry.getValue();
             continue;
         }
       }
@@ -164,6 +193,18 @@ final class UDPMessageEncoder {
       if (sqlDriverVersion != null) writer.name("driver_version").value(sqlDriverVersion);
       if (sqlUser != null) writer.name("user").value(sqlUser);
       if (sqlSanitizedQuery != null) writer.name("sanitized_query").value(sqlUser);
+      writer.endObject();
+    }
+
+    if (aws) {
+      writer.name("aws");
+      writer.beginObject();
+      if (awsOperation != null) writer.name("operation").value(awsOperation);
+      if (awsAccountId != null) writer.name("account_id").value(awsAccountId);
+      if (awsRegion != null) writer.name("region").value(awsRegion);
+      if (awsRequestId != null) writer.name("request_id").value(awsRequestId);
+      if (awsQueueUrl != null) writer.name("queue_url").value(awsQueueUrl);
+      if (awsTableName != null) writer.name("table_name").value(awsTableName);
       writer.endObject();
     }
 
