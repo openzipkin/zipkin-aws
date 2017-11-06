@@ -70,8 +70,10 @@ final class UDPMessageEncoder {
     }
 
     String httpRequestMethod = null, httpRequestUrl = null;
+    String sqlUrl = null, sqlPreparation = null, sqlDatabaseType = null, sqlDatabaseVersion = null;
+    String sqlDriverVersion = null,sqlUser = null, sqlSanitizedQuery = null;
     Integer httpResponseStatus = null;
-    boolean http = false;
+    boolean http = false, sql = false;
 
     Map<String, String> annotations = new LinkedHashMap<>();
     Map<String, String> metadata = new LinkedHashMap<>();
@@ -87,6 +89,32 @@ final class UDPMessageEncoder {
             continue;
           case "http.status_code":
             httpResponseStatus = Integer.parseInt(entry.getValue());
+            continue;
+        }
+      }
+      if (entry.getKey().startsWith("sql.")) {
+        sql = true;
+        switch (entry.getKey()) {
+          case "sql.url":
+            sqlUrl = entry.getValue();
+            continue;
+          case "sql.preparation":
+            sqlPreparation = entry.getValue();
+            continue;
+          case "sql.database_type":
+            sqlDatabaseType = entry.getValue();
+            continue;
+          case "sql.database_version":
+            sqlDatabaseVersion = entry.getValue();
+            continue;
+          case "sql.driver_version":
+            sqlDriverVersion = entry.getValue();
+            continue;
+          case "sql.user":
+            sqlUser = entry.getValue();
+            continue;
+          case "sql.sanitized_query":
+            sqlSanitizedQuery = entry.getValue();
             continue;
         }
       }
@@ -121,6 +149,19 @@ final class UDPMessageEncoder {
         writer.name("status").value(httpResponseStatus);
         writer.endObject();
       }
+      writer.endObject();
+    }
+
+    if (sql) {
+      writer.name("sql");
+      writer.beginObject();
+      if (sqlUrl != null) writer.name("url").value(sqlUrl);
+      if (sqlPreparation != null) writer.name("preparation").value(sqlPreparation);
+      if (sqlDatabaseType != null) writer.name("database_type").value(sqlDatabaseType);
+      if (sqlDatabaseVersion != null) writer.name("database_version").value(sqlDatabaseVersion);
+      if (sqlDriverVersion != null) writer.name("driver_version").value(sqlDriverVersion);
+      if (sqlUser != null) writer.name("user").value(sqlUser);
+      if (sqlSanitizedQuery != null) writer.name("sanitized_query").value(sqlUser);
       writer.endObject();
     }
 
