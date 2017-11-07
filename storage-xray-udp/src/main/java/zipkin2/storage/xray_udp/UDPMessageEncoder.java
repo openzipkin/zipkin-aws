@@ -80,7 +80,9 @@ final class UDPMessageEncoder {
     // aws section
     String awsOperation = null, awsAccountId = null, awsRegion = null, awsRequestId = null, awsQueueUrl = null;
     String awsTableName = null;
-    boolean http = false, sql = false, aws = false;
+    // cause section
+    String causeWorkingDirectory = null, causePaths = null, causeExceptions = null;
+    boolean http = false, sql = false, aws = false, cause = false;
 
     Map<String, String> annotations = new LinkedHashMap<>();
     Map<String, String> metadata = new LinkedHashMap<>();
@@ -146,6 +148,24 @@ final class UDPMessageEncoder {
             continue;
           case "aws.table_name":
             awsTableName = entry.getValue();
+            continue;
+        }
+      }
+
+      //String exceptionId = null, exceptionMessage = null, exceptionType = null, exceptionRemote = null;
+      //String exceptionTruncated = null, exceptionSkipped = null, exceptionCause, exceptionStack = null;
+
+      if (entry.getKey().startsWith("cause.")) {
+        cause = true;
+        switch (entry.getKey()) {
+          case "cause.working_directory":
+            causeWorkingDirectory = entry.getValue();
+            continue;
+          case "cause.paths":
+            causePaths = entry.getValue();
+            continue;
+          case "cause.exceptions":
+            causeExceptions = entry.getValue();
             continue;
         }
       }
@@ -217,6 +237,15 @@ final class UDPMessageEncoder {
       writer.endObject();
     }
 
+    if (cause) {
+      writer.name("cause");
+      writer.beginObject();
+      if (causeWorkingDirectory != null) writer.name("working_directory").value(causeWorkingDirectory);
+      if (causePaths != null) writer.name("paths").value(causePaths);
+      if (causeExceptions != null) writer.name("exceptions").value(causeExceptions);
+      writer.endObject();
+    }
+
     if (!annotations.isEmpty()) {
       writer.name("annotations");
       writer.beginObject();
@@ -240,4 +269,5 @@ final class UDPMessageEncoder {
     writer.endObject();
     return buffer.readByteArray();
   }
+
 }
