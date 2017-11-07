@@ -183,6 +183,15 @@ final class UDPMessageEncoder {
       writer.endObject();
     }
 
+    String errorStringStatus = span.tags().get("error_status");
+    Integer errorStatus =  errorStringStatus == null ? Integer.parseInt(errorStringStatus) : httpResponseStatus;
+
+    if(errorStatus != null){
+      if(errorStatus == 429) writer.name("throttle").value(true);
+      else if(errorStatus >= 500) writer.name("fault").value(true);
+      else if(errorStatus >= 400) writer.name("error").value(true);
+    }
+
     if (sql) {
       writer.name("sql");
       writer.beginObject();
