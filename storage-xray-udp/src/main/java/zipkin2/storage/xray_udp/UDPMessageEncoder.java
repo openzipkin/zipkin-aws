@@ -22,6 +22,8 @@ import java.util.logging.Logger;
 import okio.Buffer;
 import zipkin2.Span;
 
+import static java.lang.Integer.parseInt;
+
 final class UDPMessageEncoder {
   static final Logger logger = Logger.getLogger(UDPMessageEncoder.class.getName());
 
@@ -81,7 +83,7 @@ final class UDPMessageEncoder {
     String awsOperation = null, awsAccountId = null, awsRegion = null, awsRequestId = null, awsQueueUrl = null;
     String awsTableName = null;
     // cause section
-    String causeWorkingDirectory = null, causePaths = null, causeExceptions = null;
+    String causeWorkingDirectory = null, causeExceptions = null;
     boolean http = false, sql = false, aws = false, cause = false;
 
     Map<String, String> annotations = new LinkedHashMap<>();
@@ -97,7 +99,7 @@ final class UDPMessageEncoder {
             httpRequestUrl = entry.getValue();
             continue;
           case "http.status_code":
-            httpResponseStatus = Integer.parseInt(entry.getValue());
+            httpResponseStatus = parseInt(entry.getValue());
             continue;
         }
       }
@@ -152,17 +154,11 @@ final class UDPMessageEncoder {
         }
       }
 
-      //String exceptionId = null, exceptionMessage = null, exceptionType = null, exceptionRemote = null;
-      //String exceptionTruncated = null, exceptionSkipped = null, exceptionCause, exceptionStack = null;
-
       if (entry.getKey().startsWith("cause.")) {
         cause = true;
         switch (entry.getKey()) {
           case "cause.working_directory":
             causeWorkingDirectory = entry.getValue();
-            continue;
-          case "cause.paths":
-            causePaths = entry.getValue();
             continue;
           case "cause.exceptions":
             causeExceptions = entry.getValue();
@@ -203,8 +199,8 @@ final class UDPMessageEncoder {
       writer.endObject();
     }
 
-    String errorStringStatus = span.tags().get("error_status");
-    Integer errorStatus =  errorStringStatus == null ? Integer.parseInt(errorStringStatus) : httpResponseStatus;
+    Integer errorStatus = httpResponseStatus;
+    if(span.tags().get("error_status") != null) errorStatus = parseInt(span.tags().get("error_status"));
 
     if(errorStatus != null){
       if(errorStatus == 429) writer.name("throttle").value(true);
@@ -241,16 +237,18 @@ final class UDPMessageEncoder {
       writer.name("cause");
       writer.beginObject();
       if (causeWorkingDirectory != null) writer.name("working_directory").value(causeWorkingDirectory);
-      if (causePaths != null) writer.name("paths").value(causePaths);
-      if (causeExceptions != null) writer.name("exceptions").value(causeExceptions);
+      if (causeExceptions != null) {
+        String s = "\"exceptions\" :";
+        if (causeWorkingDirectory != null) s = "," + (s);
+        buffer.writeUtf8(s + causeExceptions);
+      }
       writer.endObject();
     }
 
     if (!annotations.isEmpty()) {
       writer.name("annotations");
       writer.beginObject();
-      if (httpRequestMethod != null && span.name() != null && !httpRequestMethod.equals(
-          span.name())) {
+      if (httpRequestMethod != null && span.name() != null && !httpRequestMethod.equals(span.name())) {
         writer.name("operation").value(span.name());
       }
       for (Map.Entry<String, String> annotation : annotations.entrySet()) {

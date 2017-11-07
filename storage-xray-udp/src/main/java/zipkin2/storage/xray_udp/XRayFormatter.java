@@ -26,11 +26,11 @@ public final class XRayFormatter {
       writer.endObject();
       if(maxStackTraceElement < i) break;
     }
-    writer.name("truncated").value(stackTrace.length > maxStackTraceElement);
     writer.endArray();
+    writer.name("truncated").value(stackTrace.length > maxStackTraceElement);
     writer.endObject();
-    writer.beginArray();
-    return buffer.toString();
+    writer.endArray();
+    return buffer.readByteString().utf8();
   }
 
 }
