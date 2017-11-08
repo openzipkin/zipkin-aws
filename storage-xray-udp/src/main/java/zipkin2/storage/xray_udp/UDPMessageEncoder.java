@@ -57,12 +57,12 @@ final class UDPMessageEncoder {
         || span.kind() != Span.Kind.SERVER && span.kind() != Span.Kind.CONSUMER) {
       writer.name("type").value("subsegment");
       if (span.kind() != null) writer.name("namespace").value("remote");
-      writer.name("name").value(span.remoteServiceName() == null ? "" : span.remoteServiceName());
+      if( span.remoteServiceName() != null ) writer.name("name").value(span.remoteServiceName());
     }else{
       writer.name("name").value(span.localServiceName());
     }
     // override with the user remote tag
-    if(span.tags().get("remote") != null) writer.name("namespace").value(span.tags().get("remote"));
+    if(span.tags().get("xray.namespace") != null) writer.name("namespace").value(span.tags().get("xray.namespace"));
 
     if (span.timestamp() != null) {
       writer.name("start_time").value(span.timestamp() / 1_000_000.0D);

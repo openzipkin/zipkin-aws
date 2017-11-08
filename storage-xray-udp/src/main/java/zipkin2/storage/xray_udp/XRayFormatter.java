@@ -17,8 +17,23 @@ import com.squareup.moshi.JsonWriter;
 import java.io.IOException;
 import okio.Buffer;
 
+/**
+ * This class is an utility class providing some basic ways to create simple JSON's.
+ * Since a span can be annotated by only a String value, passing input as JSON is required.
+ */
 public final class XRayFormatter {
 
+  /**
+   *
+   * Formating an exception to be consumed by XRay by Spans annotations
+   *
+   * @param exceptionId an unique exception id @see brave.internal.Platform#randomLong()
+   * @param isRemote Any calls to a remote service/broker should be true
+   * @param maxStackTraceElement XRay has a limit of 60KB per segment. Choose a wise number
+   * @param throwable The exception occured
+   * @return a JSON String which is ready to be consumed by XRay "cause.exception"
+   * @throws IOException
+   */
   public static String formatCause(String exceptionId, boolean isRemote, int maxStackTraceElement,
                                    Throwable throwable) throws IOException {
     Buffer buffer = new Buffer();
