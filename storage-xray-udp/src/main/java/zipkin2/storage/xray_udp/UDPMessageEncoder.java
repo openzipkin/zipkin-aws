@@ -202,7 +202,6 @@ final class UDPMessageEncoder {
     }
 
     Integer errorStatus = httpResponseStatus;
-    if(span.tags().get("error_status") != null) errorStatus = parseInt(span.tags().get("error_status"));
 
     if(errorStatus != null){
       if(errorStatus == 429) writer.name("throttle").value(true);
