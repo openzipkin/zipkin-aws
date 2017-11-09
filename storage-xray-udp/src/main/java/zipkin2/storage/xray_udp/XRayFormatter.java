@@ -28,7 +28,7 @@ public final class XRayFormatter {
    * Formating an exception to be consumed by XRay by Spans annotations
    *
    * @param exceptionId an unique exception id @see brave.internal.Platform#randomLong()
-   * @param isRemote Any calls to a remote service/broker should be true
+   * @param isRemote indicating that the exception was caused by an error returned by a downstream service.
    * @param maxStackTraceElement XRay has a limit of 60KB per segment. Choose a wise number
    * @param throwable The exception occured
    * @return a JSON String which is ready to be consumed by XRay "cause.exception"

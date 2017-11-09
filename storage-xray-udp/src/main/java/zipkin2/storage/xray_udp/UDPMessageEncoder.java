@@ -57,7 +57,9 @@ final class UDPMessageEncoder {
         || span.kind() != Span.Kind.SERVER && span.kind() != Span.Kind.CONSUMER) {
       writer.name("type").value("subsegment");
       if (span.kind() != null) writer.name("namespace").value("remote");
-      if( span.remoteServiceName() != null ) writer.name("name").value(span.remoteServiceName());
+      // some remote service's name can be null, using null names causes invisible subsegment
+      // using "unknown" subsegment name will help to detect missing names
+      writer.name("name").value(span.remoteServiceName() == null ? "unknown" : span.remoteServiceName());
     }else{
       writer.name("name").value(span.localServiceName());
     }
