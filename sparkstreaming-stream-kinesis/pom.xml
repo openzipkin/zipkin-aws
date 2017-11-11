@@ -33,7 +33,7 @@
         <dependency>
             <groupId>io.zipkin.sparkstreaming</groupId>
             <artifactId>zipkin-sparkstreaming</artifactId>
-            <version>0.3.3</version>
+            <version>0.3.6</version>
         </dependency>
 
         <dependency>
