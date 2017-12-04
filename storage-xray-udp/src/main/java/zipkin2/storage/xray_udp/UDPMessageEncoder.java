@@ -51,11 +51,13 @@ final class UDPMessageEncoder {
         .append(span.traceId(), 0, 8)
         .append('-')
         .append(span.traceId(), 8, 32).toString());
-    if (span.parentId() != null) writer.name("parent_id").value(span.parentId());
     writer.name("id").value(span.id());
     if (span.kind() == null
         || span.kind() != Span.Kind.SERVER && span.kind() != Span.Kind.CONSUMER) {
-      writer.name("type").value("subsegment");
+      if (span.parentId() != null) {
+        writer.name("parent_id").value(span.parentId());
+        writer.name("type").value("subsegment");
+      }
       if (span.kind() != null) writer.name("namespace").value("remote");
       // some remote service's name can be null, using null names causes invisible subsegment
       // using "unknown" subsegment name will help to detect missing names
