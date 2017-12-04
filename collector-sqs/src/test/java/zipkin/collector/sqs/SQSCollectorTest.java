@@ -16,9 +16,8 @@ package zipkin.collector.sqs;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.util.Base64;
 import java.util.ArrayList;
-import java.util.LinkedList;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import org.junit.After;
@@ -84,7 +83,7 @@ public class SQSCollectorTest {
   /** SQS has character constraints on json, so some traces will be base64 even if json */
   @Test
   public void collectBase64EncodedSpans() throws Exception {
-    sqsRule.send(Base64.encodeAsString(Codec.JSON.writeSpans(spans)));
+    sqsRule.send(Base64.getEncoder().encodeToString(Codec.JSON.writeSpans(spans)));
     assertSpansAccepted(spans);
   }
 
@@ -100,7 +99,7 @@ public class SQSCollectorTest {
     List<Span> lots = new ArrayList<>(10000);
 
     int count = 0;
-    List<Span> bucket = new LinkedList<>();
+    List<Span> bucket = new ArrayList<>();
 
     for (int i = 0; i < 10000; i++) {
       Span span = TestObjects.span(i + 1);
@@ -108,7 +107,7 @@ public class SQSCollectorTest {
       bucket.add(span);
       if (count++ > 9) {
         sqsRule.send(new String(Codec.JSON.writeSpans(bucket), Util.UTF_8));
-        bucket = new LinkedList<>();
+        bucket = new ArrayList<>();
         count = 0;
       }
     }

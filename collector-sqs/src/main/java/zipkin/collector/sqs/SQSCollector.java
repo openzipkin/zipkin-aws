@@ -20,7 +20,7 @@ import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -120,7 +120,7 @@ public final class SQSCollector implements CollectorComponent, Closeable {
 
   private final AtomicBoolean closed = new AtomicBoolean(false);
   private final LazyAmazonSQSClient client;
-  private final List<SQSSpanProcessor> processors = new LinkedList<>();
+  private final List<SQSSpanProcessor> processors = new ArrayList<>();
   private final ExecutorService pool;
   private final int parallelism;
   private final int waitTimeSeconds;

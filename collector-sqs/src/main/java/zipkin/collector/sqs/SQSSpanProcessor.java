@@ -20,9 +20,8 @@ import com.amazonaws.services.sqs.model.DeleteMessageBatchResult;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.util.Base64;
-import java.io.IOException;
 import java.nio.charset.Charset;
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -66,7 +65,7 @@ final class SQSSpanProcessor implements Runnable, Component {
     return status.get();
   }
 
-  @Override public void close() throws IOException {
+  @Override public void close() {
     // the collector owns closing of its resources so noop here
   }
 
@@ -96,7 +95,7 @@ final class SQSSpanProcessor implements Runnable, Component {
   private void process(final List<Message> messages) {
     if (messages.size() == 0) return;
 
-    final List<DeleteMessageBatchRequestEntry> toDelete = new LinkedList<>();
+    final List<DeleteMessageBatchRequestEntry> toDelete = new ArrayList<>();
     int count = 0;
     for (Message message : messages) {
       final String deleteId = String.valueOf(count++);
@@ -118,7 +117,7 @@ final class SQSSpanProcessor implements Runnable, Component {
             logger.log(Level.WARNING, "collector accept failed", t);
           }
         });
-      } catch (IllegalArgumentException e) {
+      } catch (RuntimeException | Error e) {
         logger.log(Level.WARNING, "message decoding failed", e);
         toDelete.add(new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
       }
