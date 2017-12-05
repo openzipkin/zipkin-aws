@@ -13,121 +13,160 @@
  */
 package zipkin2.storage.xray_udp;
 
+import com.jayway.jsonpath.JsonPath;
+import com.jayway.jsonpath.PathNotFoundException;
 import java.io.IOException;
+import java.util.Map;
+import okio.Buffer;
 import org.junit.Test;
 import zipkin2.Endpoint;
 import zipkin2.Span;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.data.MapEntry.entry;
 
 public class UDPMessageEncoderTest {
+  Span serverSpan = Span.newBuilder()
+      .traceId("1234567890abcdef1234567890abcdef")
+      .id("1234567890abcdef")
+      .kind(Span.Kind.SERVER)
+      .name("test-cemo")
+      .build();
 
-  @Test
-  public void doEncodeServer() throws Exception {
-    String target = "{\"format\": \"json\", \"version\": 1}\n"
-                    + "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\"}";
-    Span span = Span
-        .newBuilder()
-        .kind(Span.Kind.SERVER)
-        .name("test-cemo")
-        .id("1234567890abcdef")
-        .traceId("1234567890abcdef1234567890abcdef")
-        .shared(false)
-        .build();
+  @Test public void writeJson_server_isSegment() throws Exception {
+    Span span = serverSpan;
 
-    String spanString = asString(span);
-
-    assertThat(target).isEqualTo(spanString);
+    assertThat(writeJson(span)).isEqualTo(
+        "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\"}"
+    );
   }
 
-  @Test
-  public void doEncodeClient() throws Exception {
-    String target = "{\"format\": \"json\", \"version\": 1}\n"
-                    + "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\","
-                    + "\"type\":\"subsegment\",\"namespace\":\"remote\",\"name\":\"master\"}";
-    Span span = Span
-        .newBuilder()
+  @Test public void writeJson_server_localEndpointIsName() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .localEndpoint(Endpoint.newBuilder().serviceName("master").build())
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("master");
+  }
+
+  @Test public void writeJson_client_isRemoteSubsegment() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "type")).isEqualTo("subsegment");
+    assertThat(readString(json, "namespace")).isEqualTo("remote");
+  }
+
+  @Test public void writeJson_client_nameIsUnknown() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("unknown");
+  }
+
+  @Test public void writeJson_client_remoteEndpointIsName() throws Exception {
+    Span span = serverSpan.toBuilder()
         .kind(Span.Kind.CLIENT)
         .remoteEndpoint(Endpoint.newBuilder().serviceName("master").build())
-        .name("test-cemo")
-        .id("1234567890abcdef")
-        .traceId("1234567890abcdef1234567890abcdef")
-        .shared(false)
         .build();
 
-    String spanString = asString(span);
-
-    assertThat(target).isEqualTo(spanString);
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("master");
   }
 
-  @Test
-  public void doEncodeSql() throws Exception {
-    String target = "{\"format\": \"json\", \"version\": 1}\n"
-                    + "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\","
-                    + "\"type\":\"subsegment\",\"namespace\":\"remote\",\"name\":\"master\","
-                    + "\"sql\":{\"url\":\"jdbc:test\"}}";
-    Span span = Span
-        .newBuilder()
-        .kind(Span.Kind.CLIENT)
-        .remoteEndpoint(Endpoint.newBuilder().serviceName("master").build())
-        .name("test-cemo")
-        .id("1234567890abcdef")
-        .traceId("1234567890abcdef1234567890abcdef")
+  @Test public void writeJson_http() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .name("get")
+        .putTag("http.url", "http://foo/bar")
+        .putTag("http.status_code", "200")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readMap(json, "http.request")).containsExactly(
+        entry("method", "GET"),
+        entry("url", "http://foo/bar")
+    );
+    assertThat(readMap(json, "http.response")).containsExactly(
+        entry("status", 200)
+    );
+  }
+
+  @Test public void writeJson_http_clientError() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .name("get")
+        .putTag("http.url", "http://foo/bar")
+        .putTag("http.status_code", "409")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readBoolean(json, "error")).isTrue();
+    assertThat(readBoolean(json, "fault")).isNull();
+  }
+
+  @Test public void writeJson_http_serverError() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .name("get")
+        .putTag("http.url", "http://foo/bar")
+        .putTag("http.status_code", "500")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readBoolean(json, "error")).isNull();
+    assertThat(readBoolean(json, "fault")).isTrue();
+  }
+
+  @Test public void writeJson_sql() throws Exception {
+    Span span = serverSpan.toBuilder()
         .putTag("sql.url", "jdbc:test")
-        .shared(false)
         .build();
 
-    String spanString = asString(span);
-
-    assertThat(target).isEqualTo(spanString);
+    String json = writeJson(span);
+    assertThat(readMap(json, "sql")).containsExactly(
+        entry("url", "jdbc:test")
+    );
   }
 
-  @Test
-  public void doEncodeUnkown() throws Exception {
-    String target = "{\"format\": \"json\", \"version\": 1}\n"
-                    + "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\","
-                    + "\"type\":\"subsegment\",\"namespace\":\"remote\",\"name\":\"unknown\","
-                    + "\"sql\":{\"url\":\"jdbc:test\"}}";
-    Span span = Span
-        .newBuilder()
-        .kind(Span.Kind.CLIENT)
-        .name("test-cemo")
-        .remoteEndpoint(Endpoint.newBuilder().build())
-        .id("1234567890abcdef")
-        .traceId("1234567890abcdef1234567890abcdef")
-        .putTag("sql.url", "jdbc:test")
-        .shared(false)
-        .build();
-
-    String spanString = asString(span);
-
-    assertThat(target).isEqualTo(spanString);
-  }
-
-  @Test
-  public void doEncodeAws() throws Exception {
-    String target = "{\"format\": \"json\", \"version\": 1}\n"
-                    + "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\","
-                    + "\"type\":\"subsegment\",\"namespace\":\"remote\",\"name\":\"unknown\","
-                    + "\"aws\":{\"region\":\"reg1\",\"table_name\":\"table1\"}}";
-    Span span = Span
-        .newBuilder()
-        .kind(Span.Kind.CLIENT)
-        .name("test-cemo")
-        .remoteEndpoint(Endpoint.newBuilder().build())
-        .id("1234567890abcdef")
-        .traceId("1234567890abcdef1234567890abcdef")
+  @Test public void writeJson_aws() throws Exception {
+    Span span = serverSpan.toBuilder()
         .putTag("aws.region", "reg1")
         .putTag("aws.table_name", "table1")
-        .shared(false)
         .build();
 
-    String spanString = asString(span);
-
-    assertThat(target).isEqualTo(spanString);
+    String json = writeJson(span);
+    assertThat(readMap(json, "aws")).containsExactly(
+        entry("region", "reg1"),
+        entry("table_name", "table1")
+    );
   }
 
-  protected String asString(Span span) throws IOException {
-    return new String(UDPMessageEncoder.doEncode(span));
+  String writeJson(Span span) throws IOException {
+    Buffer buffer = new Buffer();
+    UDPMessageEncoder.writeJson(span, buffer);
+    return buffer.readUtf8();
+  }
+
+  static Boolean readBoolean(String json, String jsonPath) {
+    return tryRead(json, jsonPath);
+  }
+
+  static String readString(String json, String jsonPath) {
+    return tryRead(json, jsonPath);
+  }
+
+  static Map<String, Object> readMap(String json, String jsonPath) {
+    return tryRead(json, jsonPath);
+  }
+
+  static <T> T tryRead(String json, String jsonPath) {
+    try {
+      return JsonPath.compile(jsonPath).read(json);
+    } catch (PathNotFoundException e) {
+      return null;
+    }
   }
 }
