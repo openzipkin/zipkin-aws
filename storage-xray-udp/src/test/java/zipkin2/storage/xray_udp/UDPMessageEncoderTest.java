@@ -44,7 +44,7 @@ public class UDPMessageEncoderTest {
   public void doEncodeClient() throws Exception {
     String target = "{\"format\": \"json\", \"version\": 1}\n"
                     + "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\","
-                    + "\"type\":\"subsegment\",\"namespace\":\"remote\",\"name\":\"master\"}";
+                    + "\"namespace\":\"remote\",\"name\":\"master\"}";
     Span span = Span
         .newBuilder()
         .kind(Span.Kind.CLIENT)
@@ -64,7 +64,7 @@ public class UDPMessageEncoderTest {
   public void doEncodeSql() throws Exception {
     String target = "{\"format\": \"json\", \"version\": 1}\n"
                     + "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\","
-                    + "\"type\":\"subsegment\",\"namespace\":\"remote\",\"name\":\"master\","
+                    + "\"namespace\":\"remote\",\"name\":\"master\","
                     + "\"sql\":{\"url\":\"jdbc:test\"}}";
     Span span = Span
         .newBuilder()
@@ -86,7 +86,7 @@ public class UDPMessageEncoderTest {
   public void doEncodeUnkown() throws Exception {
     String target = "{\"format\": \"json\", \"version\": 1}\n"
                     + "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\","
-                    + "\"type\":\"subsegment\",\"namespace\":\"remote\",\"name\":\"unknown\","
+                    + "\"namespace\":\"remote\",\"name\":\"unknown\","
                     + "\"sql\":{\"url\":\"jdbc:test\"}}";
     Span span = Span
         .newBuilder()
@@ -108,7 +108,7 @@ public class UDPMessageEncoderTest {
   public void doEncodeAws() throws Exception {
     String target = "{\"format\": \"json\", \"version\": 1}\n"
                     + "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\","
-                    + "\"type\":\"subsegment\",\"namespace\":\"remote\",\"name\":\"unknown\","
+                    + "\"namespace\":\"remote\",\"name\":\"unknown\","
                     + "\"aws\":{\"region\":\"reg1\",\"table_name\":\"table1\"}}";
     Span span = Span
         .newBuilder()
