@@ -27,23 +27,7 @@ import static java.lang.Integer.parseInt;
 final class UDPMessageEncoder {
   static final Logger logger = Logger.getLogger(UDPMessageEncoder.class.getName());
 
-  static byte[] encode(Span span) {
-    try {
-      return doEncode(span);
-    } catch (IOException e) {
-      throw new AssertionError(e); // encoding error is a programming bug
-    }
-  }
-
-  static byte[] doEncode(Span span) throws IOException {
-    if (span.traceId().length() != 32) { // TODO: also sanity check first 8 chars are epoch seconds
-      if (logger.isLoggable(Level.FINE)) {
-        logger.fine("span reported without a 128-bit trace ID" + span);
-      }
-      throw new IllegalStateException("Change the tracer to use 128-bit trace IDs");
-    }
-    Buffer buffer = new Buffer();
-    buffer.writeUtf8("{\"format\": \"json\", \"version\": 1}\n");
+  static void writeJson(Span span, Buffer buffer) throws IOException {
     JsonWriter writer = JsonWriter.of(buffer);
     writer.beginObject();
     writer.name("trace_id").value(new StringBuilder()
@@ -59,12 +43,15 @@ final class UDPMessageEncoder {
       if (span.kind() != null) writer.name("namespace").value("remote");
       // some remote service's name can be null, using null names causes invisible subsegment
       // using "unknown" subsegment name will help to detect missing names
-      writer.name("name").value(span.remoteServiceName() == null ? "unknown" : span.remoteServiceName());
-    }else{
+      writer.name("name")
+          .value(span.remoteServiceName() == null ? "unknown" : span.remoteServiceName());
+    } else {
       writer.name("name").value(span.localServiceName());
     }
     // override with the user remote tag
-    if(span.tags().get("xray.namespace") != null) writer.name("namespace").value(span.tags().get("xray.namespace"));
+    if (span.tags().get("xray.namespace") != null) {
+      writer.name("namespace").value(span.tags().get("xray.namespace"));
+    }
 
     if (span.timestamp() != null) {
       writer.name("start_time").value(span.timestamp() / 1_000_000.0D);
@@ -80,9 +67,10 @@ final class UDPMessageEncoder {
     Integer httpResponseStatus = null;
     // sql section
     String sqlUrl = null, sqlPreparation = null, sqlDatabaseType = null, sqlDatabaseVersion = null;
-    String sqlDriverVersion = null,sqlUser = null, sqlSanitizedQuery = null;
+    String sqlDriverVersion = null, sqlUser = null, sqlSanitizedQuery = null;
     // aws section
-    String awsOperation = null, awsAccountId = null, awsRegion = null, awsRequestId = null, awsQueueUrl = null;
+    String awsOperation = null, awsAccountId = null, awsRegion = null, awsRequestId = null,
+        awsQueueUrl = null;
     String awsTableName = null;
     // cause section
     String causeWorkingDirectory = null, causeExceptions = null;
@@ -203,10 +191,12 @@ final class UDPMessageEncoder {
 
     Integer errorStatus = httpResponseStatus;
 
-    if(errorStatus != null){
-      if(errorStatus == 429) writer.name("throttle").value(true);
-      else if(errorStatus >= 500) writer.name("fault").value(true);
-      else if(errorStatus >= 400) writer.name("error").value(true);
+    if (errorStatus != null) {
+      if (errorStatus == 429) {
+        writer.name("throttle").value(true);
+      } else if (errorStatus >= 500) {
+        writer.name("fault").value(true);
+      } else if (errorStatus >= 400) writer.name("error").value(true);
     }
 
     if (sql) {
@@ -237,7 +227,9 @@ final class UDPMessageEncoder {
     if (cause) {
       writer.name("cause");
       writer.beginObject();
-      if (causeWorkingDirectory != null) writer.name("working_directory").value(causeWorkingDirectory);
+      if (causeWorkingDirectory != null) {
+        writer.name("working_directory").value(causeWorkingDirectory);
+      }
       if (causeExceptions != null) {
         String s = "\"exceptions\" :";
         if (causeWorkingDirectory != null) s = "," + (s);
@@ -249,7 +241,8 @@ final class UDPMessageEncoder {
     if (!annotations.isEmpty()) {
       writer.name("annotations");
       writer.beginObject();
-      if (httpRequestMethod != null && span.name() != null && !httpRequestMethod.equals(span.name())) {
+      if (httpRequestMethod != null && span.name() != null && !httpRequestMethod.equals(
+          span.name())) {
         writer.name("operation").value(span.name());
       }
       for (Map.Entry<String, String> annotation : annotations.entrySet()) {
@@ -266,7 +259,23 @@ final class UDPMessageEncoder {
       writer.endObject();
     }
     writer.endObject();
-    return buffer.readByteArray();
+    writer.flush();
   }
 
+  static byte[] encode(Span span) {
+    try {
+      if (span.traceId().length() != 32) { // TODO: also sanity check first 8 chars are epoch seconds
+        if (logger.isLoggable(Level.FINE)) {
+          logger.fine("span reported without a 128-bit trace ID" + span);
+        }
+        throw new IllegalStateException("Change the tracer to use 128-bit trace IDs");
+      }
+      Buffer buffer = new Buffer();
+      buffer.writeUtf8("{\"format\": \"json\", \"version\": 1}\n");
+      writeJson(span, buffer);
+      return buffer.readByteArray();
+    } catch (IOException e) {
+      throw new AssertionError(e); // encoding error is a programming bug
+    }
+  }
 }
