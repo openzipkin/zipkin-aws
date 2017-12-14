@@ -28,12 +28,13 @@ import zipkin.Span;
 import zipkin.TestObjects;
 import zipkin.collector.Collector;
 import zipkin.collector.InMemoryCollectorMetrics;
-import zipkin.storage.InMemoryStorage;
+import zipkin.internal.V2StorageComponent;
+import zipkin2.storage.InMemoryStorage;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * We do not integration test the KinesisCollector because there is not a
+ * We can't integration test the KinesisCollector without a local version of the service
  */
 public class KinesisSpanProcessorTest {
 
@@ -45,9 +46,9 @@ public class KinesisSpanProcessorTest {
 
   @Before
   public void setup() {
-    storage = new InMemoryStorage();
+    storage = InMemoryStorage.newBuilder().build();
     collector = Collector.builder(KinesisSpanProcessorTest.class)
-        .storage(storage)
+        .storage(V2StorageComponent.create(storage))
         .metrics(metrics)
         .build();
 
@@ -65,14 +66,14 @@ public class KinesisSpanProcessorTest {
   public void oneRecordCollected() {
     kinesisSpanProcessor.processRecords(createTestData(1));
 
-    assertThat(storage.spanStore().getRawTraces().size()).isEqualTo(1);
+    assertThat(storage.spanStore().getTraces().size()).isEqualTo(1);
   }
 
   @Test
   public void lotsOfRecordsCollected() {
     kinesisSpanProcessor.processRecords(createTestData(10000));
 
-    assertThat(storage.spanStore().getRawTraces().size()).isEqualTo(10000);
+    assertThat(storage.spanStore().getTraces().size()).isEqualTo(10000);
   }
 
   @Test
@@ -84,7 +85,7 @@ public class KinesisSpanProcessorTest {
 
     kinesisSpanProcessor.processRecords(kinesisInput);
 
-    assertThat(storage.spanStore().getRawTraces().size()).isEqualTo(0);
+    assertThat(storage.spanStore().getTraces().size()).isEqualTo(0);
 
     assertThat(metrics.messagesDropped()).isEqualTo(1);
     assertThat(metrics.bytes()).isEqualTo(encodedSpan.length);
