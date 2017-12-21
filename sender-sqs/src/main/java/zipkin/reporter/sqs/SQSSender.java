@@ -36,7 +36,6 @@ import zipkin2.internal.Nullable;
 import zipkin2.reporter.AsyncReporter;
 import zipkin2.reporter.BytesMessageEncoder;
 import zipkin2.reporter.Sender;
-import zipkin2.reporter.internal.BaseCall;
 
 /**
  * Zipkin Sender implementation that sends spans to an SQS queue.
@@ -142,7 +141,7 @@ public abstract class SQSSender extends Sender {
     return true;
   }
 
-  class SQSCall extends BaseCall<Void> {
+  class SQSCall extends Call.Base<Void> {
     private final SendMessageRequest message;
     transient Future<SendMessageResult> future;
 
