@@ -38,7 +38,6 @@ import zipkin2.codec.Encoding;
 import zipkin2.internal.Nullable;
 import zipkin2.reporter.BytesMessageEncoder;
 import zipkin2.reporter.Sender;
-import zipkin2.reporter.internal.BaseCall;
 
 @AutoValue
 public abstract class KinesisSender extends Sender {
@@ -161,7 +160,7 @@ public abstract class KinesisSender extends Sender {
   KinesisSender() {
   }
 
-  class KinesisCall extends BaseCall<Void> {
+  class KinesisCall extends Call.Base<Void> {
     private final PutRecordRequest message;
     transient Future<PutRecordResult> future;
 
