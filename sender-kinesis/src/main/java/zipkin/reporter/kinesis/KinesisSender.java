@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -38,7 +38,6 @@ import zipkin2.codec.Encoding;
 import zipkin2.internal.Nullable;
 import zipkin2.reporter.BytesMessageEncoder;
 import zipkin2.reporter.Sender;
-import zipkin2.reporter.internal.BaseCall;
 
 @AutoValue
 public abstract class KinesisSender extends Sender {
@@ -161,7 +160,7 @@ public abstract class KinesisSender extends Sender {
   KinesisSender() {
   }
 
-  class KinesisCall extends BaseCall<Void> {
+  class KinesisCall extends Call.Base<Void> {
     private final PutRecordRequest message;
     transient Future<PutRecordResult> future;
 
