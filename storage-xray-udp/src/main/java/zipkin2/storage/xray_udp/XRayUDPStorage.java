@@ -122,15 +122,18 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
   }
 
   public static final class Builder extends StorageComponent.Builder {
-    boolean strictTraceId = true;
     String address;
 
     Builder() {
     }
 
-    /** {@inheritDoc} */
+    /** Ignored as AWS X-Ray doesn't accept 64-bit trace IDs */
     @Override public Builder strictTraceId(boolean strictTraceId) {
-      this.strictTraceId = strictTraceId;
+      return this;
+    }
+
+    /** Ignored as AWS X-Ray doesn't expose storage options */
+    @Override public Builder searchEnabled(boolean searchEnabled) {
       return this;
     }
 
