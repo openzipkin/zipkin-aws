@@ -8,10 +8,34 @@ deployment to collect Spans from Amazon SQS queues.  Internally
 this module wraps the [SQSCollector](https://github.com/openzipkin/zipkin-aws/tree/master/collector-sqs) 
 and exposes configuration options through environment variables.
 
-## Usage
+## Quick start
 
-Download the module from [TODO] link and extract it to a directory relative to the
-Zipkin Server jar.
+JRE 8 is required to run Zipkin server.
+
+Fetch the latest released
+[executable jar for Zipkin server](https://search.maven.org/remote_content?g=io.zipkin.java&a=zipkin-server&v=LATEST&c=exec)
+and
+[autoconfigure module jar for the sqs collector](https://search.maven.org/remote_content?g=io.zipkin.aws&a=zipkin-autoconfigure-collector-sqs&v=LATEST&c=module).
+Run Zipkin server with the SQS collector enabled.
+
+For example:
+
+```bash
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-collector-sqs:LATEST:module sqs.jar
+$ SQS_QUEUE_URL=https://ap-southeast-1.queue.amazonaws.com/012345678901/zipkin \
+    java \
+    -Dloader.path='sqs.jar,sqs.jar!/lib' \
+    -Dspring.profiles.active=sqs \
+    -cp zipkin.jar \
+    org.springframework.boot.loader.PropertiesLauncher
+```
+
+After executing these steps, applications can send spans
+http://localhost:9411/api/v2/spans (or the legacy endpoint http://localhost:9411/api/v1/spans)
+
+The Zipkin server can be further configured as described in the
+[Zipkin server documentation](https://github.com/openzipkin/zipkin/blob/master/zipkin-server/README.md).
 
 ### Configuration
 
@@ -33,16 +57,6 @@ _Default 10_
 - `SQS_AWS_SECRET_ACCESS_KEY` Optional AWS Secret Access Key.
 - `SQS_AWS_STS_ROLE_ARN` Optional IAM role ARN for cross account role delegation.
 - `SQS_AWS_STS_REGION` Optional AWS region ID when using STS. _Default us-east-1_
-
-### Running
-
-```bash
-SQS_QUEUE_URL="https://sqs.us-east-1.amazonaws.com/123456789/my-zipkin-queue"
-SQS_PARALLELISM=10
-SQS_AWS_ACCESS_KEY_ID="XqgzeGF3tC7u"
-SQS_AWS_SECRET_ACCESS_KEY="F75uEjHM7ykLzXDJMTHrQ5Jr"
-java -Dloader.path=sqs -Dspring.profiles.active=sqs -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
-```
 
 ### Security
 

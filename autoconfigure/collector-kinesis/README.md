@@ -8,10 +8,34 @@ deployment to collect Spans from Amazon Kinesis streams.  Internally
 this module wraps the [KinesisCollector](https://github.com/openzipkin/zipkin-aws/tree/master/collector-kinesis) 
 and exposes configuration options through environment variables.
 
-## Usage
+## Quick start
 
-Download the module from [TODO] link and extract it to a directory relative to the
-Zipkin Server jar.
+JRE 8 is required to run Zipkin server.
+
+Fetch the latest released
+[executable jar for Zipkin server](https://search.maven.org/remote_content?g=io.zipkin.java&a=zipkin-server&v=LATEST&c=exec)
+and
+[autoconfigure module jar for the kinesis collector](https://search.maven.org/remote_content?g=io.zipkin.aws&a=zipkin-autoconfigure-collector-kinesis&v=LATEST&c=module).
+Run Zipkin server with the Kinesis collector enabled.
+
+For example:
+
+```bash
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-collector-kinesis:LATEST:module kinesis.jar
+$ KINESIS_STREAM_NAME=zipkin \
+    java \
+    -Dloader.path='kinesis.jar,kinesis.jar!/lib' \
+    -Dspring.profiles.active=kinesis \
+    -cp zipkin.jar \
+    org.springframework.boot.loader.PropertiesLauncher
+```
+
+After executing these steps, applications can send spans
+http://localhost:9411/api/v2/spans (or the legacy endpoint http://localhost:9411/api/v1/spans)
+
+The Zipkin server can be further configured as described in the
+[Zipkin server documentation](https://github.com/openzipkin/zipkin/blob/master/zipkin-server/README.md).
 
 ### Configuration
 
@@ -28,16 +52,6 @@ for users that prefer a file based approach.
 - `KINESIS_AWS_SECRET_ACCESS_KEY` Optional AWS Secret Access Key.
 - `KINESIS_AWS_STS_ROLE_ARN` Optional IAM role ARN for cross account role delegation.
 - `KINESIS_AWS_STS_REGION` Optional AWS region ID when using STS. _Default us-east-1_
-
-### Running
-
-```bash
-KINESIS_STREAM_NAME="zipkin-spans"
-KINESIS_APP_NAME="zipkin-server"
-KINESIS_AWS_ACCESS_KEY_ID="XqgzeGF3tC7u"
-KINESIS_AWS_SECRET_ACCESS_KEY="F75uEjHM7ykLzXDJMTHrQ5Jr"
-java -Dloader.path=kinesis -Dspring.profiles.active=kinesis -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
-```
 
 ### Security
 

@@ -15,10 +15,34 @@ and exposes configuration options through environment variables.
 * Note: This requires reporters send 128-bit trace IDs, with the first 32bits as epoch seconds *
 * Check https://github.com/openzipkin/b3-propagation/issues/6 for tracers that support epoch128 trace IDs
 
-## Usage
+## Quick start
 
-Download the module from [TODO] link and extract it to a directory relative to the
-Zipkin Server jar.
+JRE 8 is required to run Zipkin server.
+
+Fetch the latest released
+[executable jar for Zipkin server](https://search.maven.org/remote_content?g=io.zipkin.java&a=zipkin-server&v=LATEST&c=exec)
+and
+[autoconfigure module jar for the xray storage](https://search.maven.org/remote_content?g=io.zipkin.aws&a=zipkin-autoconfigure-storage-xray&v=LATEST&c=module).
+Run Zipkin server with the XRAY storage enabled.
+
+For example:
+
+```bash
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-storage-xray:LATEST:module xray.jar
+$ STORAGE_TYPE=xray \
+    java \
+    -Dloader.path='xray.jar,xray.jar!/lib' \
+    -Dspring.profiles.active=xray \
+    -cp zipkin.jar \
+    org.springframework.boot.loader.PropertiesLauncher
+```
+
+After executing these steps, applications can send spans
+http://localhost:9411/api/v2/spans (or the legacy endpoint http://localhost:9411/api/v1/spans)
+
+The Zipkin server can be further configured as described in the
+[Zipkin server documentation](https://github.com/openzipkin/zipkin/blob/master/zipkin-server/README.md).
 
 ### Configuration
 
@@ -30,13 +54,6 @@ for users that prefer a file based approach.
 ##### Environment Variables
 
 - `AWS_XRAY_DAEMON_ADDRESS` The UDP endpoint to send spans to. _Defaults to localhost:2000_
-
-### Running
-
-```bash
-STORAGE_TYPE=xray
-java -Dloader.path=xray -Dspring.profiles.active=xray -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
-```
 
 ### Testing
 
