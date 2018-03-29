@@ -27,7 +27,6 @@
     <module>collector-sqs</module>
     <module>aws-junit</module>
     <module>autoconfigure</module>
-    <module>sparkstreaming-stream-kinesis</module>
     <module>collector-kinesis</module>
     <module>sender-kinesis</module>
     <module>storage-xray-udp</module>
