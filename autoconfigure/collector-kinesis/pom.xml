@@ -53,26 +53,13 @@
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
-        <version>${spring-boot.version}</version>
         <configuration>
-          <layoutFactory implementation="zipkin.layout.ZipkinLayoutFactory">
-            <name>custom</name>
-          </layoutFactory>
-          <classifier>module</classifier>
           <!-- https://github.com/spring-projects/spring-boot/issues/3426 transitive exclude doesn't work -->
           <excludeGroupIds>io.zipkin.java,io.zipkin.zipkin2,org.springframework.boot,org.springframework,commons-codec,com.fasterxml.jackson.core,com.fasterxml.jackson.dataformat,org.apache.httpcomponents,commons-logging,joda-time,software.amazon.ion</excludeGroupIds>
           <!-- already packaged in zipkin-server -->
           <excludeArtifactIds>aws-java-sdk-core,aws-java-sdk-sts,jmespath-java</excludeArtifactIds>
         </configuration>
-        <dependencies>
-          <dependency>
-            <groupId>io.zipkin.layout</groupId>
-            <artifactId>zipkin-layout-factory</artifactId>
-            <version>0.0.2</version>
-          </dependency>
-        </dependencies>
       </plugin>
     </plugins>
   </build>
-
 </project>
