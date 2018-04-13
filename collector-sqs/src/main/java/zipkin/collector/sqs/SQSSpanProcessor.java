@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -112,9 +112,12 @@ final class SQSSpanProcessor implements Runnable, Component {
           }
 
           @Override public void onError(Throwable t) {
-            // don't delete messages. this will allow accept calls retry once the
-            // messages are marked visible by sqs.
             logger.log(Level.WARNING, "collector accept failed", t);
+            // for cases that are not recoverable just discard the message,
+            // otherwise ignore so processing can be retried.
+            if (t instanceof IllegalArgumentException) {
+              toDelete.add(new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
+            }
           }
         });
       } catch (RuntimeException | Error e) {
