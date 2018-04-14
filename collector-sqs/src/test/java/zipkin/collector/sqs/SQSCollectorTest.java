@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -114,6 +114,15 @@ public class SQSCollectorTest {
     sqsRule.send(new String(Codec.JSON.writeSpans(bucket), Util.UTF_8));
 
     assertSpansAccepted(lots);
+  }
+
+  @Test
+  public void malformedSpansShouldBeDiscarded() throws Exception {
+    sqsRule.send("[not going to work]");
+    sqsRule.send(new String(Codec.JSON.writeSpans(spans)));
+    assertSpansAccepted(spans);
+
+    assertThat(sqsRule.notVisibleCount()).as("corrupt spans are deleted.").isEqualTo(0);
   }
 
   void assertSpansAccepted(List<Span> spans) {
