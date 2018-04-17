@@ -27,6 +27,7 @@ public class TracingRequestHandler extends RequestHandler2 {
     Span span = Tracing.currentTracer().nextSpan();
     span.start();
     span.remoteEndpoint(Endpoint.newBuilder().serviceName(request.getServiceName()).build());
+    span.tag("aws.service_name", request.getServiceName());
     span.tag("aws.operation", getAwsOperationFromRequest(request));
     request.addHandlerContext(SPAN, span);
   }
