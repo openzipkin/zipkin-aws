@@ -32,7 +32,7 @@
   </properties>
 
   <modules>
-    <module>aws-sdk</module>
+    <module>aws-java-sdk-core</module>
   </modules>
 
 </project>
