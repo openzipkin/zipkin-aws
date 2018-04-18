@@ -29,6 +29,10 @@ import zipkin2.Endpoint;
 public class TracingRequestHandler extends RequestHandler2 {
   private static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
 
+  public static Builder newBuilder() {
+    return new Builder();
+  }
+
   public static class Builder {
     Tracer tracer;
 
@@ -40,10 +44,14 @@ public class TracingRequestHandler extends RequestHandler2 {
     public TracingRequestHandler build() {
       return new TracingRequestHandler(this);
     }
+
+    private Builder(){
+    }
   }
 
   /** Package private for subclassing by {@link CurrentTracingRequestHandler} */
-  TracingRequestHandler() {}
+  TracingRequestHandler() {
+  }
 
   private Tracer tracer;
 
