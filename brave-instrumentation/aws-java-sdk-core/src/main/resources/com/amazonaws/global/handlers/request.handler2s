@@ -1,1 +1,1 @@
-brave.instrumentation.aws.TracingRequestHandler
+brave.instrumentation.aws.CurrentTracingRequestHandler

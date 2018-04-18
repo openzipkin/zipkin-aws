@@ -14,7 +14,7 @@
 package brave.instrumentation.aws;
 
 import brave.Span;
-import brave.Tracing;
+import brave.Tracer;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.AmazonWebServiceResult;
@@ -29,15 +29,41 @@ import zipkin2.Endpoint;
 public class TracingRequestHandler extends RequestHandler2 {
   private static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
 
+  public static class Builder {
+    Tracer tracer;
+
+    public Builder tracer(Tracer tracer) {
+      this.tracer = tracer;
+      return this;
+    }
+
+    public TracingRequestHandler build() {
+      return new TracingRequestHandler(this);
+    }
+  }
+
+  /** Package private for subclassing by {@link CurrentTracingRequestHandler} */
+  TracingRequestHandler() {}
+
+  private Tracer tracer;
+
+  private TracingRequestHandler(Builder builder) {
+    this.tracer = builder.tracer;
+  }
+
+  protected Tracer tracer() {
+    return tracer;
+  }
+
   @Override public AmazonWebServiceRequest beforeExecution(AmazonWebServiceRequest request) {
     return super.beforeExecution(request);
   }
 
   @Override public void beforeRequest(Request<?> request) {
-    if (Tracing.currentTracer() == null) {
+    if (tracer() == null) {
       return;
     }
-    Span span = Tracing.currentTracer().nextSpan();
+    Span span = tracer().nextSpan();
     span.start();
     span.remoteEndpoint(Endpoint.newBuilder().serviceName(request.getServiceName()).build());
     span.tag("aws.service_name", request.getServiceName());
