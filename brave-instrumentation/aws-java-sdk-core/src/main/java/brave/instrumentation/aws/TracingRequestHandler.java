@@ -27,13 +27,15 @@ import com.amazonaws.handlers.RequestHandler2;
 import zipkin2.Endpoint;
 
 public class TracingRequestHandler extends RequestHandler2 {
-  private static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
+  /** Package private default constructor for subclassing by {@link CurrentTracingRequestHandler} */
+  TracingRequestHandler() {
+  }
 
-  public static Builder newBuilder() {
+  public static Builder builder() {
     return new Builder();
   }
 
-  public static class Builder {
+  public static final class Builder {
     Tracer tracer;
 
     public Builder tracer(Tracer tracer) {
@@ -49,13 +51,11 @@ public class TracingRequestHandler extends RequestHandler2 {
     }
   }
 
-  /** Package private for subclassing by {@link CurrentTracingRequestHandler} */
-  TracingRequestHandler() {
-  }
+  private static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
 
   private Tracer tracer;
 
-  private TracingRequestHandler(Builder builder) {
+  TracingRequestHandler(Builder builder) {
     this.tracer = builder.tracer;
   }
 
