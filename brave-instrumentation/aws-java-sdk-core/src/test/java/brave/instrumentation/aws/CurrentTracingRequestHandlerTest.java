@@ -17,6 +17,8 @@ import brave.Tracing;
 import brave.context.log4j2.ThreadContextCurrentTraceContext;
 import brave.propagation.StrictCurrentTraceContext;
 import brave.sampler.Sampler;
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
+import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
@@ -83,6 +85,7 @@ public class CurrentTracingRequestHandlerTest {
 
   private AmazonDynamoDB clientBuilder() {
     return AmazonDynamoDBClientBuilder.standard()
+        .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
         .withRequestHandlers(new CurrentTracingRequestHandler())
         .build();
