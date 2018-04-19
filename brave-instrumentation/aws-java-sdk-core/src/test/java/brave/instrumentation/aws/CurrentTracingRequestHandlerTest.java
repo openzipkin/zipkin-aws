@@ -22,11 +22,13 @@ import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
+import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import java.util.Collections;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -43,11 +45,17 @@ public class CurrentTracingRequestHandlerTest {
   public MockDynamoDBServer dynamoDBServer = new MockDynamoDBServer();
 
   BlockingQueue<Span> spans = new LinkedBlockingQueue<>();
-  AmazonDynamoDB client = clientBuilder();
+  AmazonDynamoDB client;
 
   @Before
   public void setup() {
     tracingBuilder().build();
+    client = clientBuilder();
+  }
+
+  @After
+  public void cleanup() {
+    Tracing.current().close();
   }
 
   // See brave.http.ITHttp for rationale on polling after tests complete
@@ -66,16 +74,24 @@ public class CurrentTracingRequestHandlerTest {
 
   @Test
   public void testSpanCreatedAndTagsApplied() throws InterruptedException {
-    dynamoDBServer.enqueue(new MockResponse().setBody("{\"LastEvaluatedTableName\": \"Thread\",\"TableNames\": [\"Forum\",\"Reply\",\"Thread\"]}"));
+    dynamoDBServer.enqueue(createDeleteItemResponse());
 
-    client.deleteItem("test", Collections.EMPTY_MAP);
+    client().deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
 
     Span span = spans.poll(100, TimeUnit.MILLISECONDS);
     assertThat(span.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
     assertThat(span.tags().get("aws.operation")).isEqualToIgnoringCase("deleteitem");
+    assertThat(span.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
   }
 
-  private Tracing.Builder tracingBuilder() {
+  protected MockResponse createDeleteItemResponse() {
+    MockResponse response = new MockResponse();
+    response.setBody("{}");
+    response.addHeader("x-amzn-RequestId","abcd");
+    return response;
+  }
+
+  Tracing.Builder tracingBuilder() {
     return Tracing.newBuilder()
         .spanReporter(spans::add)
         .currentTraceContext( // connect to log4j
@@ -89,5 +105,9 @@ public class CurrentTracingRequestHandlerTest {
         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
         .withRequestHandlers(new CurrentTracingRequestHandler())
         .build();
+  }
+
+  protected AmazonDynamoDB client() {
+    return client;
   }
 }

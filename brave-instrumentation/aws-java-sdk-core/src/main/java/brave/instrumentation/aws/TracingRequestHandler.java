@@ -65,8 +65,7 @@ public class TracingRequestHandler extends RequestHandler2 {
   }
 
   @Override public void beforeRequest(Request<?> request) {
-    if (request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != null &&
-        request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != this) {
+    if (requestIsAlreadyHandled(request)) {
       return;
     }
     if (tracer() == null) {
@@ -89,8 +88,7 @@ public class TracingRequestHandler extends RequestHandler2 {
   }
 
   @Override public void afterAttempt(HandlerAfterAttemptContext context) {
-    if (context.getRequest().getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != null &&
-        context.getRequest().getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != this) {
+    if (requestIsAlreadyHandled(context.getRequest())) {
       return;
     }
     if (context.getException() != null) {
@@ -103,8 +101,7 @@ public class TracingRequestHandler extends RequestHandler2 {
   }
 
   @Override public void afterResponse(Request<?> request, Response<?> response) {
-    if (request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != null &&
-        request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != this) {
+    if (requestIsAlreadyHandled(request)) {
       return;
     }
     Span span = request.getHandlerContext(SPAN);
@@ -116,8 +113,7 @@ public class TracingRequestHandler extends RequestHandler2 {
   }
 
   @Override public void afterError(Request<?> request, Response<?> response, Exception e) {
-    if (request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != null &&
-        request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != this) {
+    if (requestIsAlreadyHandled(request)) {
       return;
     }
     Span span = request.getHandlerContext(SPAN);
@@ -132,6 +128,11 @@ public class TracingRequestHandler extends RequestHandler2 {
       }
     }
     span.finish();
+  }
+
+  private boolean requestIsAlreadyHandled(Request<?> request) {
+    return request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != null &&
+        request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != this;
   }
 
   private void tagSpanWithRequestId(Span span, Response response) {
