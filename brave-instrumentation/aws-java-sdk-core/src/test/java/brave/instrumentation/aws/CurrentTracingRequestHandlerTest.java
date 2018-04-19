@@ -63,12 +63,12 @@ public class CurrentTracingRequestHandlerTest {
   };
 
   @Test
-  public void test() throws InterruptedException {
+  public void testSpanCreatedAndTagsApplied() throws InterruptedException {
     dynamoDBServer.enqueue(new MockResponse().setBody("{\"LastEvaluatedTableName\": \"Thread\",\"TableNames\": [\"Forum\",\"Reply\",\"Thread\"]}"));
 
     client.deleteItem("test", Collections.EMPTY_MAP);
 
-    Span span = spans.take();
+    Span span = spans.poll(100, TimeUnit.MILLISECONDS);
     assertThat(span.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
     assertThat(span.tags().get("aws.operation")).isEqualToIgnoringCase("deleteitem");
   }

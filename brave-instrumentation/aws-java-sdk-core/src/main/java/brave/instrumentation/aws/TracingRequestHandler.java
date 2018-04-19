@@ -52,6 +52,7 @@ public class TracingRequestHandler extends RequestHandler2 {
   }
 
   private static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
+  private static final HandlerContextKey<TracingRequestHandler> TRACING_REQUEST_HANDLER_CONTEXT_KEY = new HandlerContextKey<>(TracingRequestHandler.class.getCanonicalName());
 
   private Tracer tracer;
 
@@ -63,11 +64,11 @@ public class TracingRequestHandler extends RequestHandler2 {
     return tracer;
   }
 
-  @Override public AmazonWebServiceRequest beforeExecution(AmazonWebServiceRequest request) {
-    return super.beforeExecution(request);
-  }
-
   @Override public void beforeRequest(Request<?> request) {
+    if (request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != null &&
+        request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != this) {
+      return;
+    }
     if (tracer() == null) {
       return;
     }
@@ -77,6 +78,7 @@ public class TracingRequestHandler extends RequestHandler2 {
     span.tag("aws.service_name", request.getServiceName());
     span.tag("aws.operation", getAwsOperationFromRequest(request));
     request.addHandlerContext(SPAN, span);
+    request.addHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY, this);
   }
 
   private String getAwsOperationFromRequest(Request<?> request) {
@@ -87,6 +89,10 @@ public class TracingRequestHandler extends RequestHandler2 {
   }
 
   @Override public void afterAttempt(HandlerAfterAttemptContext context) {
+    if (context.getRequest().getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != null &&
+        context.getRequest().getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != this) {
+      return;
+    }
     if (context.getException() != null) {
       Span span = context.getRequest().getHandlerContext(SPAN);
       if (span == null) {
@@ -97,6 +103,10 @@ public class TracingRequestHandler extends RequestHandler2 {
   }
 
   @Override public void afterResponse(Request<?> request, Response<?> response) {
+    if (request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != null &&
+        request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != this) {
+      return;
+    }
     Span span = request.getHandlerContext(SPAN);
     if (span == null) {
       return;
@@ -106,6 +116,10 @@ public class TracingRequestHandler extends RequestHandler2 {
   }
 
   @Override public void afterError(Request<?> request, Response<?> response, Exception e) {
+    if (request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != null &&
+        request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != this) {
+      return;
+    }
     Span span = request.getHandlerContext(SPAN);
     if (span == null) {
       return;
