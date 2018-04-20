@@ -19,6 +19,7 @@ import brave.Tracing;
 import brave.http.HttpClientAdapter;
 import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
+import brave.propagation.Propagation;
 import brave.propagation.TraceContext;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceRequest;
@@ -55,7 +56,12 @@ public class TracingRequestHandler extends RequestHandler2 {
     HttpTracing httpTracing = HttpTracing.create(Tracing.current());
     tracer = Tracing.current().tracer();
     handler = HttpClientHandler.create(httpTracing, ADAPTER);
-    injector = httpTracing.tracing().propagation().injector(Request::addHeader);
+    injector = httpTracing.tracing().propagation().injector(
+        new Propagation.Setter<Request<?>, String>() {
+          @Override public void put(Request<?> carrier, String key, String value) {
+            carrier.addHeader(key, value);
+          }
+        });
   }
 
   TracingRequestHandler(HttpTracing httpTracing) {
