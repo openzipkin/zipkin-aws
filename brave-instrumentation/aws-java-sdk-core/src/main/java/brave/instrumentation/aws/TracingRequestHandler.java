@@ -15,6 +15,11 @@ package brave.instrumentation.aws;
 
 import brave.Span;
 import brave.Tracer;
+import brave.Tracing;
+import brave.http.HttpClientAdapter;
+import brave.http.HttpClientHandler;
+import brave.http.HttpTracing;
+import brave.propagation.TraceContext;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.AmazonWebServiceResult;
@@ -27,37 +32,36 @@ import com.amazonaws.handlers.RequestHandler2;
 import zipkin2.Endpoint;
 
 public class TracingRequestHandler extends RequestHandler2 {
-  /** Package private default constructor for subclassing by {@link CurrentTracingRequestHandler} */
-  TracingRequestHandler() {
+
+  public static TracingRequestHandler create(Tracing tracing) {
+    return new TracingRequestHandler(HttpTracing.create(tracing));
   }
 
-  public static Builder builder() {
-    return new Builder();
+  public static TracingRequestHandler create(HttpTracing httpTracing) {
+    return new TracingRequestHandler(httpTracing);
   }
 
-  public static final class Builder {
-    Tracer tracer;
-
-    public Builder tracer(Tracer tracer) {
-      this.tracer = tracer;
-      return this;
-    }
-
-    public TracingRequestHandler build() {
-      return new TracingRequestHandler(this);
-    }
-
-    private Builder(){
-    }
-  }
+  private static final HttpClientAdapter<Request<?>, Response<?>> ADAPTER = new HttpAdapter();
 
   private static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
   private static final HandlerContextKey<TracingRequestHandler> TRACING_REQUEST_HANDLER_CONTEXT_KEY = new HandlerContextKey<>(TracingRequestHandler.class.getCanonicalName());
 
-  private Tracer tracer;
+  Tracer tracer;
+  HttpClientHandler<Request<?>, Response<?>> handler;
+  TraceContext.Injector<Request<?>> injector;
 
-  TracingRequestHandler(Builder builder) {
-    this.tracer = builder.tracer;
+  /** Package private default constructor for subclassing by {@link CurrentTracingRequestHandler} */
+  TracingRequestHandler() {
+    HttpTracing httpTracing = HttpTracing.create(Tracing.current());
+    tracer = Tracing.current().tracer();
+    handler = HttpClientHandler.create(httpTracing, ADAPTER);
+    injector = httpTracing.tracing().propagation().injector(Request::addHeader);
+  }
+
+  TracingRequestHandler(HttpTracing httpTracing) {
+    tracer = httpTracing.tracing().tracer();
+    handler = HttpClientHandler.create(httpTracing, ADAPTER);
+    injector = httpTracing.tracing().propagation().injector(Request::addHeader);
   }
 
   protected Tracer tracer() {
@@ -71,9 +75,7 @@ public class TracingRequestHandler extends RequestHandler2 {
     if (tracer() == null) {
       return;
     }
-    Span span = tracer().nextSpan();
-    span.start();
-    span.remoteEndpoint(Endpoint.newBuilder().serviceName(request.getServiceName()).build());
+    Span span = handler.handleSend(injector, request);
     span.tag("aws.service_name", request.getServiceName());
     span.tag("aws.operation", getAwsOperationFromRequest(request));
     request.addHandlerContext(SPAN, span);
@@ -109,7 +111,7 @@ public class TracingRequestHandler extends RequestHandler2 {
       return;
     }
     tagSpanWithRequestId(span, response);
-    span.finish();
+    handler.handleReceive(response, null, span);
   }
 
   @Override public void afterError(Request<?> request, Response<?> response, Exception e) {
@@ -127,7 +129,7 @@ public class TracingRequestHandler extends RequestHandler2 {
         tagSpanWithRequestId(span, (AmazonServiceException) e);
       }
     }
-    span.finish();
+    handler.handleReceive(response, e, span);
   }
 
   private boolean requestIsAlreadyHandled(Request<?> request) {

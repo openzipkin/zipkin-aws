@@ -35,7 +35,7 @@ public class TracingRequestHandlerTest extends CurrentTracingRequestHandlerTest 
   @Before
   public void setup() {
     Tracing tracing = tracingBuilder().build();
-    tracingRequestHandler = TracingRequestHandler.builder().tracer(tracing.tracer()).build();
+    tracingRequestHandler = TracingRequestHandler.create(tracing);
     client = AmazonDynamoDBClientBuilder.standard()
         .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
