@@ -14,7 +14,6 @@
 package brave.instrumentation.aws;
 
 import brave.Span;
-import brave.Tracer;
 import brave.Tracing;
 import brave.http.HttpClientAdapter;
 import brave.http.HttpClientHandler;
@@ -22,7 +21,6 @@ import brave.http.HttpTracing;
 import brave.propagation.Propagation;
 import brave.propagation.TraceContext;
 import com.amazonaws.AmazonServiceException;
-import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.AmazonWebServiceResult;
 import com.amazonaws.Request;
 import com.amazonaws.Response;
@@ -30,7 +28,6 @@ import com.amazonaws.ResponseMetadata;
 import com.amazonaws.handlers.HandlerAfterAttemptContext;
 import com.amazonaws.handlers.HandlerContextKey;
 import com.amazonaws.handlers.RequestHandler2;
-import zipkin2.Endpoint;
 
 public class TracingRequestHandler extends RequestHandler2 {
 
@@ -53,33 +50,16 @@ public class TracingRequestHandler extends RequestHandler2 {
     }
   };
 
-  Tracer tracer;
   HttpClientHandler<Request<?>, Response<?>> handler;
   TraceContext.Injector<Request<?>> injector;
 
-  /** Package private default constructor for subclassing by {@link CurrentTracingRequestHandler} */
-  TracingRequestHandler() {
-    HttpTracing httpTracing = HttpTracing.create(Tracing.current());
-    tracer = Tracing.current().tracer();
-    handler = HttpClientHandler.create(httpTracing, ADAPTER);
-    injector = httpTracing.tracing().propagation().injector(SETTER);
-  }
-
   TracingRequestHandler(HttpTracing httpTracing) {
-    tracer = httpTracing.tracing().tracer();
     handler = HttpClientHandler.create(httpTracing, ADAPTER);
     injector = httpTracing.tracing().propagation().injector(SETTER);
-  }
-
-  protected Tracer tracer() {
-    return tracer;
   }
 
   @Override public void beforeRequest(Request<?> request) {
     if (requestIsAlreadyHandled(request)) {
-      return;
-    }
-    if (tracer() == null) {
       return;
     }
     Span span = handler.handleSend(injector, request);
@@ -87,13 +67,6 @@ public class TracingRequestHandler extends RequestHandler2 {
     span.tag("aws.operation", getAwsOperationFromRequest(request));
     request.addHandlerContext(SPAN, span);
     request.addHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY, this);
-  }
-
-  private String getAwsOperationFromRequest(Request<?> request) {
-    // EX: ListBucketsRequest
-    String operation = request.getOriginalRequest().getClass().getSimpleName();
-    operation = operation.substring(0, operation.length() - 7); // Drop the "Request"
-    return operation;
   }
 
   @Override public void afterAttempt(HandlerAfterAttemptContext context) {
@@ -137,6 +110,14 @@ public class TracingRequestHandler extends RequestHandler2 {
       }
     }
     handler.handleReceive(response, e, span);
+  }
+
+
+  private String getAwsOperationFromRequest(Request<?> request) {
+    // EX: ListBucketsRequest
+    String operation = request.getOriginalRequest().getClass().getSimpleName();
+    operation = operation.substring(0, operation.length() - 7); // Drop the "Request"
+    return operation;
   }
 
   private boolean requestIsAlreadyHandled(Request<?> request) {
