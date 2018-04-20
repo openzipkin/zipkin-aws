@@ -47,6 +47,12 @@ public class TracingRequestHandler extends RequestHandler2 {
   private static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
   private static final HandlerContextKey<TracingRequestHandler> TRACING_REQUEST_HANDLER_CONTEXT_KEY = new HandlerContextKey<>(TracingRequestHandler.class.getCanonicalName());
 
+  private static final Propagation.Setter<Request<?>, String> SETTER = new Propagation.Setter<Request<?>, String>() {
+    @Override public void put(Request<?> carrier, String key, String value) {
+      carrier.addHeader(key, value);
+    }
+  };
+
   Tracer tracer;
   HttpClientHandler<Request<?>, Response<?>> handler;
   TraceContext.Injector<Request<?>> injector;
@@ -56,18 +62,13 @@ public class TracingRequestHandler extends RequestHandler2 {
     HttpTracing httpTracing = HttpTracing.create(Tracing.current());
     tracer = Tracing.current().tracer();
     handler = HttpClientHandler.create(httpTracing, ADAPTER);
-    injector = httpTracing.tracing().propagation().injector(
-        new Propagation.Setter<Request<?>, String>() {
-          @Override public void put(Request<?> carrier, String key, String value) {
-            carrier.addHeader(key, value);
-          }
-        });
+    injector = httpTracing.tracing().propagation().injector(SETTER);
   }
 
   TracingRequestHandler(HttpTracing httpTracing) {
     tracer = httpTracing.tracing().tracer();
     handler = HttpClientHandler.create(httpTracing, ADAPTER);
-    injector = httpTracing.tracing().propagation().injector(Request::addHeader);
+    injector = httpTracing.tracing().propagation().injector(SETTER);
   }
 
   protected Tracer tracer() {
