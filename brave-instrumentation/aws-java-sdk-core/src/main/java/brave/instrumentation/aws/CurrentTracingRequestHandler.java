@@ -26,6 +26,7 @@ public class CurrentTracingRequestHandler extends TracingRequestHandler {
   private HttpClientHandler<Request<?>, Response<?>> handler;
   private TraceContext.Injector<Request<?>> injector;
 
+  /** A default constructor is required by the AWS autoloading mechanism */
   public CurrentTracingRequestHandler() {
   }
 
@@ -40,9 +41,8 @@ public class CurrentTracingRequestHandler extends TracingRequestHandler {
 
   @Override protected HttpClientHandler<Request<?>, Response<?>> handler() {
     if (handler == null) {
-      HttpTracing httpTracing = httpTracing();
-      if (httpTracing != null) {
-        handler = HttpClientHandler.create(httpTracing, ADAPTER);
+      if (httpTracing() != null) {
+        handler = HttpClientHandler.create(httpTracing(), ADAPTER);
       }
     }
     return handler;
@@ -50,9 +50,8 @@ public class CurrentTracingRequestHandler extends TracingRequestHandler {
 
   @Override protected TraceContext.Injector<Request<?>> injector() {
     if (injector == null) {
-      HttpTracing httpTracing = httpTracing();
-      if (httpTracing != null) {
-        injector = httpTracing.tracing().propagation().injector(SETTER);
+      if (httpTracing() != null) {
+        injector = httpTracing().tracing().propagation().injector(SETTER);
       }
     }
     return injector;
