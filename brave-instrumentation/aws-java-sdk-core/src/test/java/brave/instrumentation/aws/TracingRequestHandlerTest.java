@@ -29,13 +29,12 @@ import zipkin2.Span;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class TracingRequestHandlerTest extends CurrentTracingRequestHandlerTest {
-  private TracingRequestHandler tracingRequestHandler;
   private AmazonDynamoDB client;
 
   @Before
   @Override public void setup() {
     Tracing tracing = tracingBuilder().build();
-    tracingRequestHandler = TracingRequestHandler.create(tracing);
+    TracingRequestHandler tracingRequestHandler = TracingRequestHandler.create(tracing);
     client = AmazonDynamoDBClientBuilder.standard()
         .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
@@ -47,13 +46,7 @@ public class TracingRequestHandlerTest extends CurrentTracingRequestHandlerTest 
   public void testThatOnlyOneHandlerRuns() throws InterruptedException {
     dynamoDBServer.enqueue(createDeleteItemResponse());
 
-    client = AmazonDynamoDBClientBuilder.standard()
-        .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
-        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
-        .withRequestHandlers(new CurrentTracingRequestHandler(), tracingRequestHandler, new CurrentTracingRequestHandler())
-        .build();
-
-    client.deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
+    client().deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
 
     spans.poll(100, TimeUnit.MILLISECONDS);
     // Let the test rule verify no spans are remaining
