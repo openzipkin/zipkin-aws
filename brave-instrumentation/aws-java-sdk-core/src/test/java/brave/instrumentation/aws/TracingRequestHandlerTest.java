@@ -33,7 +33,7 @@ public class TracingRequestHandlerTest extends CurrentTracingRequestHandlerTest 
   private AmazonDynamoDB client;
 
   @Before
-  public void setup() {
+  @Override public void setup() {
     Tracing tracing = tracingBuilder().build();
     tracingRequestHandler = TracingRequestHandler.create(tracing);
     client = AmazonDynamoDBClientBuilder.standard()

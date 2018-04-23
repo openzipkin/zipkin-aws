@@ -45,7 +45,7 @@ public class CurrentTracingRequestHandlerTest {
   public MockDynamoDBServer dynamoDBServer = new MockDynamoDBServer();
 
   BlockingQueue<Span> spans = new LinkedBlockingQueue<>();
-  AmazonDynamoDB client;
+  private AmazonDynamoDB client;
 
   @Before
   public void setup() {
@@ -84,7 +84,7 @@ public class CurrentTracingRequestHandlerTest {
     assertThat(span.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
   }
 
-  protected MockResponse createDeleteItemResponse() {
+  MockResponse createDeleteItemResponse() {
     MockResponse response = new MockResponse();
     response.setBody("{}");
     response.addHeader("x-amzn-RequestId","abcd");
