@@ -84,6 +84,24 @@ public class CurrentTracingRequestHandlerTest {
     assertThat(span.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
   }
 
+  @Test
+  public void testTracingCreatedAfterRequestHandler() throws InterruptedException {
+    dynamoDBServer.enqueue(createDeleteItemResponse());
+    dynamoDBServer.enqueue(createDeleteItemResponse());
+    Tracing.current().close();
+
+    client().deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
+
+    Span span = spans.poll(100, TimeUnit.MILLISECONDS);
+    assertThat(span).isNull();
+
+    tracingBuilder().build();
+    client().deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
+
+    span = spans.poll(100, TimeUnit.MILLISECONDS);
+    assertThat(span).isNotNull();
+  }
+
   MockResponse createDeleteItemResponse() {
     MockResponse response = new MockResponse();
     response.setBody("{}");

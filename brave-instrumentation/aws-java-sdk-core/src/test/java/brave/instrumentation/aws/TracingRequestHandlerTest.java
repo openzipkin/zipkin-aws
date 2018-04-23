@@ -14,6 +14,9 @@
 package brave.instrumentation.aws;
 
 import brave.Tracing;
+import brave.context.log4j2.ThreadContextCurrentTraceContext;
+import brave.propagation.StrictCurrentTraceContext;
+import brave.sampler.Sampler;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
@@ -21,38 +24,112 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import java.util.Collections;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
+import okhttp3.mockwebserver.MockResponse;
+import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.rules.TestRule;
+import org.junit.rules.TestWatcher;
+import org.junit.runner.Description;
 import zipkin2.Span;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class TracingRequestHandlerTest extends CurrentTracingRequestHandlerTest {
+public class TracingRequestHandlerTest {
+
+  @Rule
+  public MockDynamoDBServer dynamoDBServer = new MockDynamoDBServer();
+
+  BlockingQueue<Span> spans = new LinkedBlockingQueue<>();
   private AmazonDynamoDB client;
 
   @Before
-  @Override public void setup() {
+  public void setup() {
     Tracing tracing = tracingBuilder().build();
     TracingRequestHandler tracingRequestHandler = TracingRequestHandler.create(tracing);
     client = AmazonDynamoDBClientBuilder.standard()
         .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
-        .withRequestHandlers(tracingRequestHandler, new CurrentTracingRequestHandler())
+        .withRequestHandlers(tracingRequestHandler)
         .build();
+  }
+
+  @After
+  public void cleanup() {
+    Tracing.current().close();
+  }
+
+  // See brave.http.ITHttp for rationale on polling after tests complete
+  @Rule public TestRule assertSpansEmpty = new TestWatcher() {
+    // only check success path to avoid masking assertion errors or exceptions
+    @Override protected void succeeded(Description description) {
+      try {
+        assertThat(spans.poll(100, TimeUnit.MILLISECONDS))
+            .withFailMessage("Span remaining in queue. Check for redundant reporting")
+            .isNull();
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+  };
+
+  @Test
+  public void testSpanCreatedAndTagsApplied() throws InterruptedException {
+    dynamoDBServer.enqueue(createDeleteItemResponse());
+
+    client().deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
+
+    Span span = spans.poll(100, TimeUnit.MILLISECONDS);
+    assertThat(span.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
+    assertThat(span.tags().get("aws.operation")).isEqualToIgnoringCase("deleteitem");
+    assertThat(span.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
   }
 
   @Test
   public void testThatOnlyOneHandlerRuns() throws InterruptedException {
     dynamoDBServer.enqueue(createDeleteItemResponse());
 
-    client().deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
+    Tracing tracing = tracingBuilder().build();
+    TracingRequestHandler tracingRequestHandler = TracingRequestHandler.create(tracing);
+    AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
+        .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
+        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
+        .withRequestHandlers(tracingRequestHandler, new CurrentTracingRequestHandler())
+        .build();
+    client.deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
 
     spans.poll(100, TimeUnit.MILLISECONDS);
     // Let the test rule verify no spans are remaining
   }
 
-  @Override protected AmazonDynamoDB client() {
+  MockResponse createDeleteItemResponse() {
+    MockResponse response = new MockResponse();
+    response.setBody("{}");
+    response.addHeader("x-amzn-RequestId","abcd");
+    return response;
+  }
+
+  Tracing.Builder tracingBuilder() {
+    return Tracing.newBuilder()
+        .spanReporter(spans::add)
+        .currentTraceContext( // connect to log4j
+            ThreadContextCurrentTraceContext.create(new StrictCurrentTraceContext()))
+        .sampler(Sampler.ALWAYS_SAMPLE);
+  }
+
+  private AmazonDynamoDB clientBuilder() {
+    return AmazonDynamoDBClientBuilder.standard()
+        .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
+        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
+        .withRequestHandlers(new CurrentTracingRequestHandler())
+        .build();
+  }
+
+  protected AmazonDynamoDB client() {
     return client;
   }
 }
