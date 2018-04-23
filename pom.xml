@@ -45,14 +45,14 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
-    <zipkin.version>2.7.1</zipkin.version>
+    <zipkin.version>2.7.2</zipkin.version>
     <zipkin-reporter2.version>2.5.0</zipkin-reporter2.version>
 
     <slf4j.version>1.7.25</slf4j.version>
 
-    <aws-java-sdk.version>1.11.273</aws-java-sdk.version>
+    <aws-java-sdk.version>1.11.315</aws-java-sdk.version>
 
-    <spring-boot.version>1.5.10.RELEASE</spring-boot.version>
+    <spring-boot.version>1.5.12.RELEASE</spring-boot.version>
   </properties>
 
   <name>Zipkin AWS (Parent)</name>
@@ -204,11 +204,11 @@
   <build>
     <pluginManagement>
       <plugins>
-        <!-- mvn -N io.takari:maven:wrapper -Dmaven=3.5.2 -->
+        <!-- mvn -N io.takari:maven:wrapper -Dmaven=3.5.3 -->
         <plugin>
           <groupId>io.takari</groupId>
           <artifactId>maven</artifactId>
-          <version>0.5.0</version>
+          <version>0.6.0</version>
         </plugin>
         <!-- unhook direct dependence on internal classes -->
         <plugin>
