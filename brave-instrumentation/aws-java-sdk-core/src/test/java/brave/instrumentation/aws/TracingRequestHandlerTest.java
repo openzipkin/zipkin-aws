@@ -89,23 +89,6 @@ public class TracingRequestHandlerTest {
     assertThat(span.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
   }
 
-  @Test
-  public void testThatOnlyOneHandlerRuns() throws InterruptedException {
-    dynamoDBServer.enqueue(createDeleteItemResponse());
-
-    Tracing tracing = tracingBuilder().build();
-    TracingRequestHandler tracingRequestHandler = TracingRequestHandler.create(tracing);
-    AmazonDynamoDB client = AmazonDynamoDBClientBuilder.standard()
-        .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
-        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
-        .withRequestHandlers(tracingRequestHandler, new CurrentTracingRequestHandler())
-        .build();
-    client.deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
-
-    spans.poll(100, TimeUnit.MILLISECONDS);
-    // Let the test rule verify no spans are remaining
-  }
-
   private MockResponse createDeleteItemResponse() {
     MockResponse response = new MockResponse();
     response.setBody("{}");

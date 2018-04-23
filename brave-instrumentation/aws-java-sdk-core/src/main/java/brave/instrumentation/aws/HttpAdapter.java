@@ -16,22 +16,11 @@ package brave.instrumentation.aws;
 import brave.http.HttpClientAdapter;
 import com.amazonaws.Request;
 import com.amazonaws.Response;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import zipkin2.Endpoint;
 
-public class HttpAdapter extends HttpClientAdapter<Request<?>, Response<?>> {
+final class HttpAdapter extends HttpClientAdapter<Request<?>, Response<?>> {
   @Override public boolean parseServerAddress(Request<?> request, Endpoint.Builder builder) {
-    // Does this belong here?
-    builder.serviceName(request.getServiceName());
-
-    InetAddress inetAddress = null;
-    try {
-      inetAddress = InetAddress.getByName(request.getEndpoint().getHost());
-    } catch (UnknownHostException e) {
-      return false;
-    }
-    return builder.parseIp(inetAddress);
+    return false;
   }
 
   @Override public String method(Request<?> request) {

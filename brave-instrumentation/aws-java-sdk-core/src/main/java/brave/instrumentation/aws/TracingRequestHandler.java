@@ -28,8 +28,9 @@ import com.amazonaws.ResponseMetadata;
 import com.amazonaws.handlers.HandlerAfterAttemptContext;
 import com.amazonaws.handlers.HandlerContextKey;
 import com.amazonaws.handlers.RequestHandler2;
+import zipkin2.Endpoint;
 
-public class TracingRequestHandler extends RequestHandler2 {
+public final class TracingRequestHandler extends RequestHandler2 {
 
   public static TracingRequestHandler create(Tracing tracing) {
     return new TracingRequestHandler(HttpTracing.create(tracing));
@@ -39,8 +40,8 @@ public class TracingRequestHandler extends RequestHandler2 {
     return new TracingRequestHandler(httpTracing);
   }
 
-  private static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
-  private static final HandlerContextKey<TracingRequestHandler> TRACING_REQUEST_HANDLER_CONTEXT_KEY = new HandlerContextKey<>(TracingRequestHandler.class.getCanonicalName());
+  static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
+  static final HandlerContextKey<TracingRequestHandler> TRACING_REQUEST_HANDLER_CONTEXT_KEY = new HandlerContextKey<>(TracingRequestHandler.class.getCanonicalName());
 
   static final HttpClientAdapter<Request<?>, Response<?>> ADAPTER = new HttpAdapter();
 
@@ -50,41 +51,25 @@ public class TracingRequestHandler extends RequestHandler2 {
     }
   };
 
-  private HttpClientHandler<Request<?>, Response<?>> handler;
-  private TraceContext.Injector<Request<?>> injector;
+  final HttpClientHandler<Request<?>, Response<?>> handler;
+  final TraceContext.Injector<Request<?>> injector;
 
-  /** Package private default constructor for subclassing */
-  TracingRequestHandler() {
-  }
-
-  private TracingRequestHandler(HttpTracing httpTracing) {
+  TracingRequestHandler(HttpTracing httpTracing) {
     handler = HttpClientHandler.create(httpTracing, ADAPTER);
     injector = httpTracing.tracing().propagation().injector(SETTER);
   }
 
-  protected HttpClientHandler<Request<?>, Response<?>> handler() {
-    return handler;
-  }
-
-  protected TraceContext.Injector<Request<?>> injector() {
-    return injector;
-  }
-
-  @Override public void beforeRequest(Request<?> request) {
-    if (requestIsAlreadyHandled(request) || handler() == null || injector() == null) {
-      return;
-    }
-    Span span = handler().handleSend(injector(), request);
+  @Override public final void beforeRequest(Request<?> request) {
+    Span span = handler.handleSend(injector, request);
+    span.remoteEndpoint(
+        Endpoint.newBuilder().serviceName(request.getServiceName()).build());
     span.tag("aws.service_name", request.getServiceName());
     span.tag("aws.operation", getAwsOperationFromRequest(request));
     request.addHandlerContext(SPAN, span);
     request.addHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY, this);
   }
 
-  @Override public void afterAttempt(HandlerAfterAttemptContext context) {
-    if (requestIsAlreadyHandled(context.getRequest())) {
-      return;
-    }
+  @Override public final void afterAttempt(HandlerAfterAttemptContext context) {
     if (context.getException() != null) {
       Span span = context.getRequest().getHandlerContext(SPAN);
       if (span == null) {
@@ -94,22 +79,16 @@ public class TracingRequestHandler extends RequestHandler2 {
     }
   }
 
-  @Override public void afterResponse(Request<?> request, Response<?> response) {
-    if (requestIsAlreadyHandled(request) || handler() == null) {
-      return;
-    }
+  @Override public final void afterResponse(Request<?> request, Response<?> response) {
     Span span = request.getHandlerContext(SPAN);
     if (span == null) {
       return;
     }
     tagSpanWithRequestId(span, response);
-    handler().handleReceive(response, null, span);
+    handler.handleReceive(response, null, span);
   }
 
-  @Override public void afterError(Request<?> request, Response<?> response, Exception e) {
-    if (requestIsAlreadyHandled(request) || handler() == null) {
-      return;
-    }
+  @Override public final void afterError(Request<?> request, Response<?> response, Exception e) {
     Span span = request.getHandlerContext(SPAN);
     if (span == null) {
       return;
@@ -121,7 +100,7 @@ public class TracingRequestHandler extends RequestHandler2 {
         tagSpanWithRequestId(span, (AmazonServiceException) e);
       }
     }
-    handler().handleReceive(response, e, span);
+    handler.handleReceive(response, e, span);
   }
 
 
@@ -130,11 +109,6 @@ public class TracingRequestHandler extends RequestHandler2 {
     String operation = request.getOriginalRequest().getClass().getSimpleName();
     operation = operation.substring(0, operation.length() - 7); // Drop the "Request"
     return operation;
-  }
-
-  private boolean requestIsAlreadyHandled(Request<?> request) {
-    return request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != null &&
-        request.getHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY) != this;
   }
 
   private void tagSpanWithRequestId(Span span, Response response) {
