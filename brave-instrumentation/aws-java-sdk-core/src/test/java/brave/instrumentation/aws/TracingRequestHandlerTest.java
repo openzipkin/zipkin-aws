@@ -44,7 +44,7 @@ public class TracingRequestHandlerTest {
   @Rule
   public MockDynamoDBServer dynamoDBServer = new MockDynamoDBServer();
 
-  BlockingQueue<Span> spans = new LinkedBlockingQueue<>();
+  private BlockingQueue<Span> spans = new LinkedBlockingQueue<>();
   private AmazonDynamoDB client;
 
   @Before
@@ -81,7 +81,7 @@ public class TracingRequestHandlerTest {
   public void testSpanCreatedAndTagsApplied() throws InterruptedException {
     dynamoDBServer.enqueue(createDeleteItemResponse());
 
-    client().deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
+    client.deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
 
     Span span = spans.poll(100, TimeUnit.MILLISECONDS);
     assertThat(span.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
@@ -106,30 +106,18 @@ public class TracingRequestHandlerTest {
     // Let the test rule verify no spans are remaining
   }
 
-  MockResponse createDeleteItemResponse() {
+  private MockResponse createDeleteItemResponse() {
     MockResponse response = new MockResponse();
     response.setBody("{}");
     response.addHeader("x-amzn-RequestId","abcd");
     return response;
   }
 
-  Tracing.Builder tracingBuilder() {
+  private Tracing.Builder tracingBuilder() {
     return Tracing.newBuilder()
         .spanReporter(spans::add)
         .currentTraceContext( // connect to log4j
             ThreadContextCurrentTraceContext.create(new StrictCurrentTraceContext()))
         .sampler(Sampler.ALWAYS_SAMPLE);
-  }
-
-  private AmazonDynamoDB clientBuilder() {
-    return AmazonDynamoDBClientBuilder.standard()
-        .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
-        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
-        .withRequestHandlers(new CurrentTracingRequestHandler())
-        .build();
-  }
-
-  protected AmazonDynamoDB client() {
-    return client;
   }
 }
