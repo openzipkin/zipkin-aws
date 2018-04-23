@@ -39,30 +39,42 @@ public class TracingRequestHandler extends RequestHandler2 {
     return new TracingRequestHandler(httpTracing);
   }
 
-  private static final HttpClientAdapter<Request<?>, Response<?>> ADAPTER = new HttpAdapter();
-
   private static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
   private static final HandlerContextKey<TracingRequestHandler> TRACING_REQUEST_HANDLER_CONTEXT_KEY = new HandlerContextKey<>(TracingRequestHandler.class.getCanonicalName());
 
-  private static final Propagation.Setter<Request<?>, String> SETTER = new Propagation.Setter<Request<?>, String>() {
+  static final HttpClientAdapter<Request<?>, Response<?>> ADAPTER = new HttpAdapter();
+
+  static final Propagation.Setter<Request<?>, String> SETTER = new Propagation.Setter<Request<?>, String>() {
     @Override public void put(Request<?> carrier, String key, String value) {
       carrier.addHeader(key, value);
     }
   };
 
-  HttpClientHandler<Request<?>, Response<?>> handler;
-  TraceContext.Injector<Request<?>> injector;
+  private HttpClientHandler<Request<?>, Response<?>> handler;
+  private TraceContext.Injector<Request<?>> injector;
 
-  TracingRequestHandler(HttpTracing httpTracing) {
+  /** Package private default constructor for subclassing */
+  TracingRequestHandler() {
+  }
+
+  private TracingRequestHandler(HttpTracing httpTracing) {
     handler = HttpClientHandler.create(httpTracing, ADAPTER);
     injector = httpTracing.tracing().propagation().injector(SETTER);
   }
 
+  protected HttpClientHandler<Request<?>, Response<?>> handler() {
+    return handler;
+  }
+
+  protected TraceContext.Injector<Request<?>> injector() {
+    return injector;
+  }
+
   @Override public void beforeRequest(Request<?> request) {
-    if (requestIsAlreadyHandled(request)) {
+    if (requestIsAlreadyHandled(request) || handler() == null || injector() == null) {
       return;
     }
-    Span span = handler.handleSend(injector, request);
+    Span span = handler().handleSend(injector(), request);
     span.tag("aws.service_name", request.getServiceName());
     span.tag("aws.operation", getAwsOperationFromRequest(request));
     request.addHandlerContext(SPAN, span);
@@ -83,7 +95,7 @@ public class TracingRequestHandler extends RequestHandler2 {
   }
 
   @Override public void afterResponse(Request<?> request, Response<?> response) {
-    if (requestIsAlreadyHandled(request)) {
+    if (requestIsAlreadyHandled(request) || handler() == null) {
       return;
     }
     Span span = request.getHandlerContext(SPAN);
@@ -91,11 +103,11 @@ public class TracingRequestHandler extends RequestHandler2 {
       return;
     }
     tagSpanWithRequestId(span, response);
-    handler.handleReceive(response, null, span);
+    handler().handleReceive(response, null, span);
   }
 
   @Override public void afterError(Request<?> request, Response<?> response, Exception e) {
-    if (requestIsAlreadyHandled(request)) {
+    if (requestIsAlreadyHandled(request) || handler() == null) {
       return;
     }
     Span span = request.getHandlerContext(SPAN);
@@ -109,7 +121,7 @@ public class TracingRequestHandler extends RequestHandler2 {
         tagSpanWithRequestId(span, (AmazonServiceException) e);
       }
     }
-    handler.handleReceive(response, e, span);
+    handler().handleReceive(response, e, span);
   }
 
 
