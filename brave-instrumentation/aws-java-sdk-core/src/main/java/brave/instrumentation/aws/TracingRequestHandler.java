@@ -30,14 +30,18 @@ import com.amazonaws.handlers.HandlerContextKey;
 import com.amazonaws.handlers.RequestHandler2;
 import zipkin2.Endpoint;
 
+/**
+ * Traces AWS Java SDK calls. Adds on the standard zipkin/brave http tags, as well as tags that
+ * align with the XRay data model.
+ */
 public final class TracingRequestHandler extends RequestHandler2 {
-
-  public static TracingRequestHandler create(Tracing tracing) {
-    return new TracingRequestHandler(HttpTracing.create(tracing));
-  }
 
   public static TracingRequestHandler create(HttpTracing httpTracing) {
     return new TracingRequestHandler(httpTracing);
+  }
+
+  public static TracingRequestHandler create(Tracing tracing) {
+    return new TracingRequestHandler(HttpTracing.create(tracing));
   }
 
   static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
@@ -98,6 +102,7 @@ public final class TracingRequestHandler extends RequestHandler2 {
     } else if (e != null) {
       if (e instanceof AmazonServiceException) {
         tagSpanWithRequestId(span, (AmazonServiceException) e);
+        span.tag("http.status_code", String.valueOf(((AmazonServiceException) e).getStatusCode()));
       }
     }
     handler.handleReceive(response, e, span);
