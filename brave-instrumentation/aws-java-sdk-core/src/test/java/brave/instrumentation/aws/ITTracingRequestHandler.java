@@ -45,7 +45,7 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
   }
 
   @Override protected void closeClient(AmazonDynamoDB dynamoDB) throws Exception {
-
+    dynamoDB.shutdown();
   }
 
   @Override protected void get(AmazonDynamoDB dynamoDB, String s) throws Exception {
