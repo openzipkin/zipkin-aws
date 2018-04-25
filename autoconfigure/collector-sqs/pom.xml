@@ -20,7 +20,7 @@
   <parent>
     <groupId>io.zipkin.aws</groupId>
     <artifactId>zipkin-autoconfigure</artifactId>
-    <version>0.9.4</version>
+    <version>0.9.5-SNAPSHOT</version>
   </parent>
 
   <artifactId>zipkin-autoconfigure-collector-sqs</artifactId>
