@@ -31,6 +31,7 @@
     <module>sender-kinesis</module>
     <module>storage-xray-udp</module>
     <module>reporter-xray-udp</module>
+    <module>brave-instrumentation</module>
   </modules>
 
   <properties>
@@ -45,6 +46,7 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
+    <brave.version>4.19.1</brave.version>
     <zipkin.version>2.7.3</zipkin.version>
     <zipkin-reporter2.version>2.5.0</zipkin-reporter2.version>
 
@@ -161,6 +163,13 @@
         <groupId>com.amazonaws</groupId>
         <artifactId>aws-java-sdk-bom</artifactId>
         <version>${aws-java-sdk.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>io.zipkin.brave</groupId>
+        <artifactId>brave-bom</artifactId>
+        <version>${brave.version}</version>
         <type>pom</type>
         <scope>import</scope>
       </dependency>
