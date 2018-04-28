@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -28,6 +28,7 @@ import zipkin2.Call;
 import zipkin2.Callback;
 import zipkin2.CheckResult;
 import zipkin2.Span;
+import zipkin2.codec.Encoding;
 import zipkin2.codec.SpanBytesEncoder;
 
 import static java.util.stream.Collectors.toList;
@@ -65,6 +66,17 @@ public class SQSSenderTest {
   }
 
   @Test
+  public void sendsSpans_PROTO3() throws Exception {
+    sender.close();
+    sender = sender.toBuilder().encoding(Encoding.PROTO3).build();
+
+    send(CLIENT_SPAN, CLIENT_SPAN).execute();
+
+    assertThat(readSpans())
+        .containsExactly(CLIENT_SPAN, CLIENT_SPAN);
+  }
+
+  @Test
   public void outOfBandCancel() throws Exception {
     SQSSender.SQSCall call = (SQSSender.SQSCall) send(CLIENT_SPAN, CLIENT_SPAN);
     assertThat(call.isCanceled()).isFalse(); // sanity check
@@ -91,9 +103,9 @@ public class SQSSenderTest {
   }
 
   Call<Void> send(Span... spans) {
-    return sender.sendSpans(Stream.of(spans)
-        .map(SpanBytesEncoder.JSON_V2::encode)
-        .collect(toList()));
+    SpanBytesEncoder bytesEncoder = sender.encoding() == Encoding.JSON
+        ? SpanBytesEncoder.JSON_V2 : SpanBytesEncoder.PROTO3;
+    return sender.sendSpans(Stream.of(spans).map(bytesEncoder::encode).collect(toList()));
   }
 
   List<Span> readSpans() {

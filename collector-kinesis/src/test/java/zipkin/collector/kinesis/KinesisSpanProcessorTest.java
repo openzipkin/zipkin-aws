@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -28,15 +28,24 @@ import zipkin.Span;
 import zipkin.TestObjects;
 import zipkin.collector.Collector;
 import zipkin.collector.InMemoryCollectorMetrics;
+import zipkin.internal.ApplyTimestampAndDuration;
+import zipkin.internal.V2SpanConverter;
 import zipkin.internal.V2StorageComponent;
+import zipkin2.codec.SpanBytesEncoder;
 import zipkin2.storage.InMemoryStorage;
 
+import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * We can't integration test the KinesisCollector without a local version of the service
  */
 public class KinesisSpanProcessorTest {
+  List<Span> spans = asList( // No unicode or data that doesn't translate between json formats
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[0]),
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[1]),
+      ApplyTimestampAndDuration.apply(TestObjects.LOTS_OF_SPANS[2])
+  );
 
   private InMemoryStorage storage;
   private InMemoryCollectorMetrics metrics = new InMemoryCollectorMetrics();
@@ -67,6 +76,25 @@ public class KinesisSpanProcessorTest {
     kinesisSpanProcessor.processRecords(createTestData(1));
 
     assertThat(storage.spanStore().getTraces().size()).isEqualTo(1);
+  }
+
+  /** Ensures list encoding works: a version 2 json list of spans */
+  @Test public void messageWithMultipleSpans_json2() {
+    messageWithMultipleSpans(SpanBytesEncoder.JSON_V2);
+  }
+
+  /** Ensures list encoding works: proto3 ListOfSpans */
+  @Test public void messageWithMultipleSpans_proto3() {
+    messageWithMultipleSpans(SpanBytesEncoder.PROTO3);
+  }
+
+  void messageWithMultipleSpans(SpanBytesEncoder encoder) {
+    byte[] message = encoder.encodeList(V2SpanConverter.fromSpans(spans));
+
+    List<Record> records = Arrays.asList(new Record().withData(ByteBuffer.wrap(message)));
+    kinesisSpanProcessor.processRecords(new ProcessRecordsInput().withRecords(records));
+
+    assertThat(storage.spanStore().getTraces().size()).isEqualTo(spans.size());
   }
 
   @Test

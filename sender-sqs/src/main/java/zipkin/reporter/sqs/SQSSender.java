@@ -76,7 +76,11 @@ public abstract class SQSSender extends Sender {
     /** Maximum size of a message. SQS max message size is 256KB including attributes. */
     Builder messageMaxBytes(int messageMaxBytes);
 
-    /** Controls reporting format. Currently supports json */
+    /**
+     * Use this to change the encoding used in messages. Default is {@linkplain Encoding#JSON}
+     *
+     * <p>Note: If ultimately sending to Zipkin, version 2.8+ is required to process protobuf.
+     */
     Builder encoding(Encoding encoding);
 
     SQSSender build();

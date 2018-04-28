@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -37,6 +37,7 @@ import zipkin2.Call;
 import zipkin2.Callback;
 import zipkin2.CheckResult;
 import zipkin2.Span;
+import zipkin2.codec.Encoding;
 import zipkin2.codec.SpanBytesDecoder;
 import zipkin2.codec.SpanBytesEncoder;
 
@@ -63,6 +64,19 @@ public class KinesisSenderTest {
   @Test
   public void sendsSpans() throws Exception {
     server.enqueue(new MockResponse());
+
+    send(CLIENT_SPAN, CLIENT_SPAN).execute();
+
+    assertThat(extractSpans(server.takeRequest().getBody()))
+        .containsExactly(CLIENT_SPAN, CLIENT_SPAN);
+  }
+
+  @Test
+  public void sendsSpans_PROTO3() throws Exception {
+    server.enqueue(new MockResponse());
+
+    sender.close();
+    sender = sender.toBuilder().encoding(Encoding.PROTO3).build();
 
     send(CLIENT_SPAN, CLIENT_SPAN).execute();
 
@@ -148,12 +162,15 @@ public class KinesisSenderTest {
 
   List<Span> extractSpans(Buffer body) throws IOException {
     byte[] encodedSpans = mapper.readTree(body.inputStream()).get("Data").binaryValue();
-    return SpanBytesDecoder.JSON_V2.decodeList(encodedSpans);
+    if (encodedSpans[0] == '[') {
+      return SpanBytesDecoder.JSON_V2.decodeList(encodedSpans);
+    }
+    return SpanBytesDecoder.PROTO3.decodeList(encodedSpans);
   }
 
   Call<Void> send(zipkin2.Span... spans) {
-    return sender.sendSpans(Stream.of(spans)
-        .map(SpanBytesEncoder.JSON_V2::encode)
-        .collect(toList()));
+    SpanBytesEncoder bytesEncoder = sender.encoding() == Encoding.JSON
+        ? SpanBytesEncoder.JSON_V2 : SpanBytesEncoder.PROTO3;
+    return sender.sendSpans(Stream.of(spans).map(bytesEncoder::encode).collect(toList()));
   }
 }

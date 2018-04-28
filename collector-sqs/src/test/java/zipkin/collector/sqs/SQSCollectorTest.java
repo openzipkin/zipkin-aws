@@ -16,6 +16,7 @@ package zipkin.collector.sqs;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -32,8 +33,10 @@ import zipkin.collector.CollectorSampler;
 import zipkin.collector.InMemoryCollectorMetrics;
 import zipkin.internal.ApplyTimestampAndDuration;
 import zipkin.internal.Util;
+import zipkin.internal.V2SpanConverter;
 import zipkin.junit.aws.AmazonSQSRule;
 import zipkin.storage.InMemoryStorage;
+import zipkin2.codec.SpanBytesEncoder;
 
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,27 +78,43 @@ public class SQSCollectorTest {
   }
 
   @After
-  public void teardown() throws Exception {
+  public void teardown() throws IOException {
     store.close();
     collector.close();
   }
 
   /** SQS has character constraints on json, so some traces will be base64 even if json */
   @Test
-  public void collectBase64EncodedSpans() throws Exception {
+  public void collectBase64EncodedSpans() {
     sqsRule.send(Base64.getEncoder().encodeToString(Codec.JSON.writeSpans(spans)));
     assertSpansAccepted(spans);
   }
 
   /** SQS has character constraints on json, but don't affect traces not using unicode */
   @Test
-  public void collectUnencodedJsonSpans() throws Exception {
+  public void collectUnencodedJsonSpans() {
     sqsRule.send(new String(Codec.JSON.writeSpans(spans), Util.UTF_8));
     assertSpansAccepted(spans);
   }
 
+  /** Ensures list encoding works: a version 2 json list of spans */
+  @Test public void messageWithMultipleSpans_json2() {
+    messageWithMultipleSpans(SpanBytesEncoder.JSON_V2);
+  }
+
+  /** Ensures list encoding works: proto3 ListOfSpans */
+  @Test public void messageWithMultipleSpans_proto3() {
+    messageWithMultipleSpans(SpanBytesEncoder.PROTO3);
+  }
+
+  void messageWithMultipleSpans(SpanBytesEncoder encoder) {
+    byte[] message = encoder.encodeList(V2SpanConverter.fromSpans(spans));
+    sqsRule.send(Base64.getEncoder().encodeToString(message));
+    assertSpansAccepted(spans);
+  }
+
   @Test
-  public void collectLotsOfSpans() throws Exception {
+  public void collectLotsOfSpans() {
     List<Span> lots = new ArrayList<>(10000);
 
     int count = 0;
@@ -117,7 +136,7 @@ public class SQSCollectorTest {
   }
 
   @Test
-  public void malformedSpansShouldBeDiscarded() throws Exception {
+  public void malformedSpansShouldBeDiscarded() {
     sqsRule.send("[not going to work]");
     sqsRule.send(new String(Codec.JSON.writeSpans(spans)));
     assertSpansAccepted(spans);
