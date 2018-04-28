@@ -15,6 +15,7 @@ package brave.instrumentation.aws;
 
 import brave.Tracing;
 import brave.context.log4j2.ThreadContextScopeDecorator;
+import brave.http.HttpTracing;
 import brave.propagation.StrictScopeDecorator;
 import brave.propagation.ThreadLocalCurrentTraceContext;
 import brave.sampler.Sampler;
@@ -51,14 +52,12 @@ public class TracingRequestHandlerTest {
   @Before
   public void setup() {
     Tracing tracing = tracingBuilder().build();
-    TracingRequestHandler tracingRequestHandler = TracingRequestHandler.create(tracing);
-    client = AmazonDynamoDBClientBuilder.standard()
-        .withCredentials(
-            new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
-        .withEndpointConfiguration(
-            new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
-        .withRequestHandlers(tracingRequestHandler)
-        .build();
+    HttpTracing httpTracing = HttpTracing.create(tracing);
+    AmazonDynamoDBClientBuilder clientBuilder = AmazonDynamoDBClientBuilder.standard()
+        .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
+        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"));
+
+    client = AwsClientTracing.create(httpTracing).build(clientBuilder);
   }
 
   @After
@@ -86,10 +85,13 @@ public class TracingRequestHandlerTest {
 
     client.deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
 
-    Span span = spans.poll(100, TimeUnit.MILLISECONDS);
-    assertThat(span.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
-    assertThat(span.tags().get("aws.operation")).isEqualToIgnoringCase("deleteitem");
-    assertThat(span.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
+    Span httpSpan = spans.poll(100, TimeUnit.MILLISECONDS);
+    assertThat(httpSpan.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
+    assertThat(httpSpan.tags().get("aws.operation")).isEqualToIgnoringCase("deleteitem");
+    assertThat(httpSpan.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
+
+    Span sdkSpan = spans.poll(100, TimeUnit.MILLISECONDS);
+    assertThat(sdkSpan.name()).isEqualToIgnoringCase("amazondynamodbv2");
   }
 
   private MockResponse createDeleteItemResponse() {

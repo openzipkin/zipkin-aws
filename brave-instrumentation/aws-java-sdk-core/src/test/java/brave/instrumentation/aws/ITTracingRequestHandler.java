@@ -39,7 +39,7 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
 
     return AmazonDynamoDBAsyncClientBuilder.standard()
         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://127.0.0.1:" + i, "us-east-1"))
-        .withRequestHandlers(TracingRequestHandler.create(httpTracing))
+        .withRequestHandlers(new TracingRequestHandler(httpTracing))
         .withClientConfiguration(clientConfiguration)
         .build();
   }
