@@ -128,6 +128,9 @@ public class AmazonSQSRule extends ExternalResource {
     byte[] bytes = m.getBody().charAt(0) == '['
         ? m.getBody().getBytes(Charset.forName("UTF-8"))
         : Base64.decode(m.getBody());
-    return SpanBytesDecoder.JSON_V2.decodeList(bytes).stream();
+    if (bytes[0] == '[') {
+      return SpanBytesDecoder.JSON_V2.decodeList(bytes).stream();
+    }
+    return SpanBytesDecoder.PROTO3.decodeList(bytes).stream();
   }
 }
