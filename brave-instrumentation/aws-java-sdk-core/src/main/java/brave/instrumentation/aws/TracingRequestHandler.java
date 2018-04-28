@@ -14,18 +14,20 @@
 package brave.instrumentation.aws;
 
 import brave.Span;
-import brave.Tracing;
+import brave.Tracer;
 import brave.http.HttpClientAdapter;
 import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
 import brave.propagation.Propagation;
 import brave.propagation.TraceContext;
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.AmazonWebServiceResult;
 import com.amazonaws.Request;
 import com.amazonaws.Response;
 import com.amazonaws.ResponseMetadata;
 import com.amazonaws.handlers.HandlerAfterAttemptContext;
+import com.amazonaws.handlers.HandlerBeforeAttemptContext;
 import com.amazonaws.handlers.HandlerContextKey;
 import com.amazonaws.handlers.RequestHandler2;
 import zipkin2.Endpoint;
@@ -36,78 +38,76 @@ import zipkin2.Endpoint;
  */
 public final class TracingRequestHandler extends RequestHandler2 {
 
-  public static TracingRequestHandler create(HttpTracing httpTracing) {
-    return new TracingRequestHandler(httpTracing);
-  }
-
-  public static TracingRequestHandler create(Tracing tracing) {
-    return new TracingRequestHandler(HttpTracing.create(tracing));
-  }
-
+  static final HandlerContextKey<Span> APPLICATION_SPAN = new HandlerContextKey<>("APPLICATION_SPAN");
   static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
-  static final HandlerContextKey<TracingRequestHandler> TRACING_REQUEST_HANDLER_CONTEXT_KEY = new HandlerContextKey<>(TracingRequestHandler.class.getCanonicalName());
 
   static final HttpClientAdapter<Request<?>, Response<?>> ADAPTER = new HttpAdapter();
 
-  static final Propagation.Setter<Request<?>, String> SETTER = new Propagation.Setter<Request<?>, String>() {
-    @Override public void put(Request<?> carrier, String key, String value) {
-      carrier.addHeader(key, value);
-    }
-  };
+  static final Propagation.Setter<Request<?>, String> SETTER = (carrier, key, value) -> carrier.addHeader(key, value);
 
+  final Tracer tracer;
   final HttpClientHandler<Request<?>, Response<?>> handler;
   final TraceContext.Injector<Request<?>> injector;
 
   TracingRequestHandler(HttpTracing httpTracing) {
+    tracer = httpTracing.tracing().tracer();
     handler = HttpClientHandler.create(httpTracing, ADAPTER);
     injector = httpTracing.tracing().propagation().injector(SETTER);
   }
 
-  @Override public final void beforeRequest(Request<?> request) {
+  @Override
+  public AmazonWebServiceRequest beforeExecution(AmazonWebServiceRequest request) {
+    Span span = tracer.nextSpan();
+    span.start();
+    request.addHandlerContext(APPLICATION_SPAN, span);
+
+    return request;
+  }
+
+  @Override
+  public void beforeAttempt(HandlerBeforeAttemptContext context) {
+    Span applicationSpan = context.getRequest().getHandlerContext(APPLICATION_SPAN);
+    applicationSpan.name(context.getRequest().getServiceName() + "." + getAwsOperationFromRequest(context.getRequest()));
+
+    Tracer.SpanInScope scope = tracer.withSpanInScope(applicationSpan);
+
+    Span span = newSpanFromRequest(context.getRequest());
+    context.getRequest().addHandlerContext(SPAN, span);
+
+    scope.close();
+  }
+
+  @Override public final void afterAttempt(HandlerAfterAttemptContext context) {
+    Span span = context.getRequest().getHandlerContext(SPAN);
+    if (context.getException() != null && context.getException() instanceof AmazonServiceException) {
+      tagSpanWithRequestId(span, (AmazonServiceException) context.getException());
+    } else {
+      tagSpanWithRequestId(span, context.getResponse());
+    }
+    handler.handleReceive(context.getResponse(), context.getException(), span);
+  }
+
+  @Override public final void afterResponse(Request<?> request, Response<?> response) {
+    Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
+    applicationSpan.finish();
+  }
+
+  @Override public final void afterError(Request<?> request, Response<?> response, Exception e) {
+    Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
+    applicationSpan.error(e);
+    applicationSpan.finish();
+  }
+
+
+  private Span newSpanFromRequest(Request<?> request) {
     Span span = handler.handleSend(injector, request);
     span.remoteEndpoint(
         Endpoint.newBuilder().serviceName(request.getServiceName()).build());
     span.tag("aws.service_name", request.getServiceName());
     span.tag("aws.operation", getAwsOperationFromRequest(request));
-    request.addHandlerContext(SPAN, span);
-    request.addHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY, this);
-  }
 
-  @Override public final void afterAttempt(HandlerAfterAttemptContext context) {
-    if (context.getException() != null) {
-      Span span = context.getRequest().getHandlerContext(SPAN);
-      if (span == null) {
-        return;
-      }
-      span.error(context.getException());
-    }
+    return span;
   }
-
-  @Override public final void afterResponse(Request<?> request, Response<?> response) {
-    Span span = request.getHandlerContext(SPAN);
-    if (span == null) {
-      return;
-    }
-    tagSpanWithRequestId(span, response);
-    handler.handleReceive(response, null, span);
-  }
-
-  @Override public final void afterError(Request<?> request, Response<?> response, Exception e) {
-    Span span = request.getHandlerContext(SPAN);
-    if (span == null) {
-      return;
-    }
-    if (response != null) {
-      tagSpanWithRequestId(span, response);
-    } else if (e != null) {
-      if (e instanceof AmazonServiceException) {
-        tagSpanWithRequestId(span, (AmazonServiceException) e);
-        span.tag("http.status_code", String.valueOf(((AmazonServiceException) e).getStatusCode()));
-      }
-    }
-    handler.handleReceive(response, e, span);
-  }
-
 
   private String getAwsOperationFromRequest(Request<?> request) {
     // EX: ListBucketsRequest
