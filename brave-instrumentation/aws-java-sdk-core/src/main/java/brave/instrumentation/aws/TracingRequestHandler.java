@@ -26,6 +26,7 @@ import com.amazonaws.AmazonWebServiceResult;
 import com.amazonaws.Request;
 import com.amazonaws.Response;
 import com.amazonaws.ResponseMetadata;
+import com.amazonaws.SignableRequest;
 import com.amazonaws.handlers.HandlerAfterAttemptContext;
 import com.amazonaws.handlers.HandlerBeforeAttemptContext;
 import com.amazonaws.handlers.HandlerContextKey;
@@ -43,7 +44,7 @@ public final class TracingRequestHandler extends RequestHandler2 {
 
   static final HttpClientAdapter<Request<?>, Response<?>> ADAPTER = new HttpAdapter();
 
-  static final Propagation.Setter<Request<?>, String> SETTER = (carrier, key, value) -> carrier.addHeader(key, value);
+  static final Propagation.Setter<Request<?>, String> SETTER = SignableRequest::addHeader;
 
   final Tracer tracer;
   final HttpClientHandler<Request<?>, Response<?>> handler;
