@@ -27,11 +27,13 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import java.util.Collections;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.Ignore;
 import zipkin2.Span;
 
 import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Ignore
 public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
   @Override protected void getAsync(AmazonDynamoDB dynamoDB, String s) throws Exception {
     dynamoDB.getItem(s, Collections.EMPTY_MAP);
