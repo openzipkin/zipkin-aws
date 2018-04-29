@@ -57,7 +57,11 @@ public class TracingRequestHandlerTest {
         .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"));
 
-    client = AwsClientTracing.build(httpTracing, clientBuilder);
+    client = new AwsClientTracing<AmazonDynamoDBClientBuilder, AmazonDynamoDB>()
+        .withHttpTracing(httpTracing)
+        .withCurrentTraceContext(tracing.currentTraceContext())
+        .withAwsClientBuilder(clientBuilder)
+        .build();
   }
 
   @After
@@ -91,7 +95,7 @@ public class TracingRequestHandlerTest {
     assertThat(httpSpan.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
 
     Span sdkSpan = spans.poll(100, TimeUnit.MILLISECONDS);
-    assertThat(sdkSpan.name()).isEqualToIgnoringCase("amazondynamodbv2.deleteitem");
+    assertThat(sdkSpan.name()).isEqualToIgnoringCase("amazondynamodbv2");
   }
 
   private MockResponse createDeleteItemResponse() {

@@ -23,6 +23,7 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import java.util.Collections;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.RecordedRequest;
@@ -45,7 +46,11 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://127.0.0.1:" + i, "us-east-1"))
         .withClientConfiguration(clientConfiguration);
 
-    return AwsClientTracing.build(httpTracing, clientBuilder);
+    return client = new AwsClientTracing<AmazonDynamoDBClientBuilder, AmazonDynamoDB>()
+        .withHttpTracing(httpTracing)
+        .withCurrentTraceContext(httpTracing.tracing().currentTraceContext())
+        .withAwsClientBuilder(clientBuilder)
+        .build();
   }
 
   @Override protected void closeClient(AmazonDynamoDB dynamoDB) throws Exception {

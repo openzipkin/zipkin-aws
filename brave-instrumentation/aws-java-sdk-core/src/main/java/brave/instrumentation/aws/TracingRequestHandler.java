@@ -67,7 +67,6 @@ public final class TracingRequestHandler extends RequestHandler2 {
   @Override
   public void beforeAttempt(HandlerBeforeAttemptContext context) {
     Span applicationSpan = context.getRequest().getHandlerContext(APPLICATION_SPAN);
-    applicationSpan.name(context.getRequest().getServiceName() + "." + getAwsOperationFromRequest(context.getRequest()));
 
     Tracer.SpanInScope scope = tracer.withSpanInScope(applicationSpan);
 
@@ -89,11 +88,13 @@ public final class TracingRequestHandler extends RequestHandler2 {
 
   @Override public final void afterResponse(Request<?> request, Response<?> response) {
     Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
+    applicationSpan.name(request.getServiceName());
     applicationSpan.finish();
   }
 
   @Override public final void afterError(Request<?> request, Response<?> response, Exception e) {
     Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
+    applicationSpan.name(request.getServiceName());
     applicationSpan.error(e);
     applicationSpan.finish();
   }
