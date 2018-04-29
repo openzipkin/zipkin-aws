@@ -44,7 +44,11 @@ public final class TracingRequestHandler extends RequestHandler2 {
 
   static final HttpClientAdapter<Request<?>, Response<?>> ADAPTER = new HttpAdapter();
 
-  static final Propagation.Setter<Request<?>, String> SETTER = SignableRequest::addHeader;
+  static final Propagation.Setter<Request<?>, String> SETTER = new Propagation.Setter<Request<?>, String>() {
+    @Override public void put(Request<?> carrier, String key, String value) {
+      carrier.addHeader(key, value);
+    }
+  };
 
   final Tracer tracer;
   final HttpClientHandler<Request<?>, Response<?>> handler;
