@@ -22,54 +22,50 @@ import com.amazonaws.client.builder.ExecutorFactory;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-public final class AwsClientTracing<Builder extends AwsClientBuilder, Client> {
-
-  HttpTracing httpTracing;
-  CurrentTraceContext currentTraceContext;
-  AwsClientBuilder<Builder, Client> awsClientBuilder;
-
-  public AwsClientTracing() {
+public final class AwsClientTracing {
+  public static AwsClientTracing create(HttpTracing httpTracing) {
+    return new AwsClientTracing(httpTracing); // no builder yet as we don't need it yet.
   }
 
-  public AwsClientTracing<Builder, Client> withHttpTracing(HttpTracing httpTracing) {
+  final HttpTracing httpTracing;
+  final CurrentTraceContext currentTraceContext;
+
+  AwsClientTracing(HttpTracing httpTracing) { // intentionally hidden constructor
+    if (httpTracing == null) throw new NullPointerException("httpTracing == null");
     this.httpTracing = httpTracing;
-    return this;
+    this.currentTraceContext = httpTracing.tracing().currentTraceContext();
   }
 
-  public AwsClientTracing<Builder, Client> withCurrentTraceContext(CurrentTraceContext currentTraceContext) {
-    this.currentTraceContext = currentTraceContext;
-    return this;
-  }
-
-  public AwsClientTracing<Builder, Client> withAwsClientBuilder(AwsClientBuilder awsClientBuilder) {
-    this.awsClientBuilder = awsClientBuilder;
-    return this;
-  }
-
-  public Client build() {
-    if (httpTracing == null || currentTraceContext == null || awsClientBuilder == null) {
-      throw new IllegalStateException("AwsClientTracing expects All of: HttpTracing, CurrentTraceContext, and AwsClientBuilder");
-    }
-    if (awsClientBuilder instanceof AwsAsyncClientBuilder) {
-      ExecutorFactory executorFactory = ((AwsAsyncClientBuilder) awsClientBuilder).getExecutorFactory();
+  public <Builder extends AwsClientBuilder, Client> Client build(
+      AwsClientBuilder<Builder, Client> builder
+  ) {
+    if (builder == null) throw new NullPointerException("builder == null");
+    if (builder instanceof AwsAsyncClientBuilder) {
+      ExecutorFactory executorFactory = ((AwsAsyncClientBuilder) builder).getExecutorFactory();
       if (executorFactory == null) {
-        ((AwsAsyncClientBuilder) awsClientBuilder).setExecutorFactory(new TracingExecutorFactory(currentTraceContext, awsClientBuilder.getClientConfiguration()));
+        ((AwsAsyncClientBuilder) builder).setExecutorFactory(
+            new TracingExecutorFactory(currentTraceContext, builder.getClientConfiguration())
+        );
       } else {
-        ((AwsAsyncClientBuilder) awsClientBuilder).setExecutorFactory(
-            new TracingExecutorFactoryWrapper(currentTraceContext, executorFactory));
+        ((AwsAsyncClientBuilder) builder).setExecutorFactory(
+            new TracingExecutorFactoryWrapper(currentTraceContext, executorFactory)
+        );
       }
     }
-
-    awsClientBuilder.withRequestHandlers(new TracingRequestHandler(httpTracing));
-    return awsClientBuilder.build();
+    builder.withRequestHandlers(new TracingRequestHandler(httpTracing));
+    return builder.build();
   }
 
   static final class TracingExecutorFactory implements ExecutorFactory {
-    CurrentTraceContext currentTraceContext;
-    ExecutorService executorService;
+    final CurrentTraceContext currentTraceContext;
+    final ExecutorService executorService;
 
-    TracingExecutorFactory(CurrentTraceContext currentTraceContext, ClientConfiguration clientConfiguration) {
+    TracingExecutorFactory(
+        CurrentTraceContext currentTraceContext,
+        ClientConfiguration clientConfiguration
+    ) {
       this.currentTraceContext = currentTraceContext;
+      // same as AwsAsyncClientBuilder.AsyncBuilderParams.defaultExecutor()
       this.executorService = Executors.newFixedThreadPool(clientConfiguration.getMaxConnections());
     }
 
@@ -79,18 +75,19 @@ public final class AwsClientTracing<Builder extends AwsClientBuilder, Client> {
   }
 
   static final class TracingExecutorFactoryWrapper implements ExecutorFactory {
-    CurrentTraceContext currentTraceContext;
-    ExecutorFactory delegate;
+    final CurrentTraceContext currentTraceContext;
+    final ExecutorFactory delegate;
 
-    TracingExecutorFactoryWrapper(CurrentTraceContext currentTraceContext, ExecutorFactory delegate) {
+    TracingExecutorFactoryWrapper(
+        CurrentTraceContext currentTraceContext,
+        ExecutorFactory delegate
+    ) {
       this.currentTraceContext = currentTraceContext;
       this.delegate = delegate;
     }
 
-    @Override
-    public ExecutorService newExecutor() {
+    @Override public ExecutorService newExecutor() {
       return currentTraceContext.executorService(delegate.newExecutor());
     }
   }
-
 }

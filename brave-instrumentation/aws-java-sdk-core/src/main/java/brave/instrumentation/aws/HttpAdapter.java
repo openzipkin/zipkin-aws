@@ -16,6 +16,9 @@ package brave.instrumentation.aws;
 import brave.http.HttpClientAdapter;
 import com.amazonaws.Request;
 import com.amazonaws.Response;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import zipkin2.Endpoint;
 
 final class HttpAdapter extends HttpClientAdapter<Request<?>, Response<?>> {
@@ -27,8 +30,24 @@ final class HttpAdapter extends HttpClientAdapter<Request<?>, Response<?>> {
     return request.getHttpMethod().name();
   }
 
+  @Override public String path(Request<?> request) {
+    return request.getResourcePath();
+  }
+
   @Override public String url(Request<?> request) {
-    return request.getEndpoint().toASCIIString();
+    StringBuilder url = new StringBuilder(request.getEndpoint().toString());
+    if (request.getResourcePath() != null) url.append(request.getResourcePath());
+    if (request.getParameters().isEmpty()) return url.toString();
+    url.append('?');
+    Iterator<Map.Entry<String, List<String>>> entries = request.getParameters().entrySet().iterator();
+    while (entries.hasNext()) {
+      Map.Entry<String, List<String>> entry = entries.next();
+      url.append(entry.getKey());
+      if (entry.getKey().isEmpty()) continue;
+      url.append('=').append(entry.getValue().get(0)); // skip the others.
+      if (entries.hasNext()) url.append('&');
+    }
+    return url.toString();
   }
 
   @Override public String requestHeader(Request<?> request, String name) {

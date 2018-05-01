@@ -22,7 +22,6 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import java.util.Collections;
@@ -57,11 +56,7 @@ public class TracingRequestHandlerTest {
         .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"));
 
-    client = new AwsClientTracing<AmazonDynamoDBClientBuilder, AmazonDynamoDB>()
-        .withHttpTracing(httpTracing)
-        .withCurrentTraceContext(tracing.currentTraceContext())
-        .withAwsClientBuilder(clientBuilder)
-        .build();
+    client = AwsClientTracing.create(httpTracing).build(clientBuilder);
   }
 
   @After
