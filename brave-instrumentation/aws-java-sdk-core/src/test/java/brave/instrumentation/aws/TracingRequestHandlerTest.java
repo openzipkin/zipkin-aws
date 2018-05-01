@@ -15,12 +15,14 @@ package brave.instrumentation.aws;
 
 import brave.Tracing;
 import brave.context.log4j2.ThreadContextCurrentTraceContext;
+import brave.http.HttpTracing;
 import brave.propagation.StrictCurrentTraceContext;
 import brave.sampler.Sampler;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import java.util.Collections;
@@ -50,11 +52,15 @@ public class TracingRequestHandlerTest {
   @Before
   public void setup() {
     Tracing tracing = tracingBuilder().build();
-    TracingRequestHandler tracingRequestHandler = TracingRequestHandler.create(tracing);
-    client = AmazonDynamoDBClientBuilder.standard()
+    HttpTracing httpTracing = HttpTracing.create(tracing);
+    AmazonDynamoDBClientBuilder clientBuilder = AmazonDynamoDBClientBuilder.standard()
         .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
-        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
-        .withRequestHandlers(tracingRequestHandler)
+        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"));
+
+    client = new AwsClientTracing<AmazonDynamoDBClientBuilder, AmazonDynamoDB>()
+        .withHttpTracing(httpTracing)
+        .withCurrentTraceContext(tracing.currentTraceContext())
+        .withAwsClientBuilder(clientBuilder)
         .build();
   }
 
@@ -83,10 +89,13 @@ public class TracingRequestHandlerTest {
 
     client.deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
 
-    Span span = spans.poll(100, TimeUnit.MILLISECONDS);
-    assertThat(span.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
-    assertThat(span.tags().get("aws.operation")).isEqualToIgnoringCase("deleteitem");
-    assertThat(span.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
+    Span httpSpan = spans.poll(100, TimeUnit.MILLISECONDS);
+    assertThat(httpSpan.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
+    assertThat(httpSpan.tags().get("aws.operation")).isEqualToIgnoringCase("deleteitem");
+    assertThat(httpSpan.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
+
+    Span sdkSpan = spans.poll(100, TimeUnit.MILLISECONDS);
+    assertThat(sdkSpan.name()).isEqualToIgnoringCase("amazondynamodbv2");
   }
 
   private MockResponse createDeleteItemResponse() {

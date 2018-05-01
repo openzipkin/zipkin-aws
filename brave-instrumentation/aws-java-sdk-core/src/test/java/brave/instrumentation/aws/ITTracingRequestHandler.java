@@ -16,17 +16,24 @@ package brave.instrumentation.aws;
 import brave.SpanCustomizer;
 import brave.http.HttpAdapter;
 import brave.http.HttpClientParser;
+import brave.http.HttpTracing;
+import brave.sampler.Sampler;
 import brave.test.http.ITHttpAsyncClient;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import java.util.Collections;
 import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.RecordedRequest;
+import org.junit.Ignore;
 import zipkin2.Span;
 
+import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 
+@Ignore
 public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
   @Override protected void getAsync(AmazonDynamoDB dynamoDB, String s) throws Exception {
     dynamoDB.getItem(s, Collections.EMPTY_MAP);
@@ -37,10 +44,14 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
     clientConfiguration.setMaxErrorRetry(2);
     clientConfiguration.setRequestTimeout(1000);
 
-    return AmazonDynamoDBAsyncClientBuilder.standard()
+    AmazonDynamoDBAsyncClientBuilder clientBuilder = AmazonDynamoDBAsyncClientBuilder.standard()
         .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://127.0.0.1:" + i, "us-east-1"))
-        .withRequestHandlers(TracingRequestHandler.create(httpTracing))
-        .withClientConfiguration(clientConfiguration)
+        .withClientConfiguration(clientConfiguration);
+
+    return client = new AwsClientTracing<AmazonDynamoDBClientBuilder, AmazonDynamoDB>()
+        .withHttpTracing(httpTracing)
+        .withCurrentTraceContext(httpTracing.tracing().currentTraceContext())
+        .withAwsClientBuilder(clientBuilder)
         .build();
   }
 
@@ -95,6 +106,9 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
         .containsEntry("http.url", url(uri))
         .containsEntry("request_customizer.is_span", "false")
         .containsEntry("response_customizer.is_span", "false");
+
+    Span sdk = takeSpan();
+    assertThat(span.parentId()).isEqualToIgnoringCase(sdk.id());
   }
 
   /** Body's inherently have a structure */
@@ -111,6 +125,21 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
     Span span = takeSpan();
     assertThat(span.name())
         .isEqualTo("post");
+  }
+
+  @Override public void propagates_sampledFalse() throws Exception {
+    close();
+    httpTracing = HttpTracing.create(tracingBuilder(Sampler.NEVER_SAMPLE).build());
+    client = newClient(server.getPort());
+
+    server.enqueue(new MockResponse());
+    get(client, "/foo");
+
+    RecordedRequest request = server.takeRequest();
+    assertThat(request.getHeaders().toMultimap())
+        .containsKeys("x-b3-traceId", "x-b3-spanId")
+        //.doesNotContainKey("x-b3-parentSpanId") -- Our spans are children
+        .containsEntry("x-b3-sampled", asList("0"));
   }
 
   /*
