@@ -21,7 +21,7 @@
   <parent>
     <groupId>io.zipkin.aws</groupId>
     <artifactId>zipkin-aws-parent</artifactId>
-    <version>0.10.1-SNAPSHOT</version>
+    <version>0.9.5-SNAPSHOT</version>
   </parent>
 
   <artifactId>brave-instrumentation-parent</artifactId>
@@ -29,7 +29,7 @@
 
   <properties>
     <main.basedir>${project.basedir}/..</main.basedir>
-    <brave.version>4.19.2</brave.version>
+    <brave.version>4.19.1</brave.version>
   </properties>
 
   <modules>
