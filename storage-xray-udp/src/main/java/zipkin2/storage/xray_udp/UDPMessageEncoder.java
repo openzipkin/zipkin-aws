@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -42,9 +42,17 @@ final class UDPMessageEncoder {
       writer.name("type").value("subsegment");
       if (span.kind() != null) writer.name("namespace").value("remote");
       // some remote service's name can be null, using null names causes invisible subsegment
-      // using "unknown" subsegment name will help to detect missing names
-      writer.name("name")
-          .value(span.remoteServiceName() == null ? "unknown" : span.remoteServiceName());
+      // using "unknown" subsegment name will help to detect missing names but will also
+      // result in the service map displaying services depending on an "unknown" one.
+      if (span.remoteServiceName() == null) {
+        if ("true".equalsIgnoreCase(System.getenv("AWS_XRAY_USE_LOCAL_SPAN_FOR_MISSING_REMOTES"))) {
+          writer.name("name").value(span.localServiceName());
+        } else {
+          writer.name("name").value("unknown");
+        }
+      } else {
+        writer.name("name").value(span.remoteServiceName());
+      }
     } else {
       writer.name("name").value(span.localServiceName());
     }
