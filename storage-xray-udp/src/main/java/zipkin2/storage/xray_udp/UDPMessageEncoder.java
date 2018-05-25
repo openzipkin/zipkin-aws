@@ -30,27 +30,50 @@ final class UDPMessageEncoder {
   static void writeJson(Span span, Buffer buffer) throws IOException {
     JsonWriter writer = JsonWriter.of(buffer);
     writer.beginObject();
-    writer
-        .name("trace_id")
-        .value(
-            new StringBuilder()
-                .append("1-")
-                .append(span.traceId(), 0, 8)
-                .append('-')
-                .append(span.traceId(), 8, 32)
-                .toString());
+    writer.name("trace_id");
+    writer.value(new Buffer()
+        .writeByte('"')
+        .writeByte('1') // version
+        .writeByte('-')
+        .writeUtf8(span.traceId(), 0, 8) // 32-bit epoch seconds
+        .writeByte('-')
+        .writeUtf8(span.traceId(), 8, 32) // 96-bit trace ID
+        .writeByte('"'));
     if (span.parentId() != null) writer.name("parent_id").value(span.parentId());
     writer.name("id").value(span.id());
-    if (span.kind() == null
-        || span.kind() != Span.Kind.SERVER && span.kind() != Span.Kind.CONSUMER) {
+    if (span.kind() == null) {
+      // Spans without a kind should be internal operations in the service (for example an
+      // hystrix command). The X-Ray documentation says that the subsegment name for
+      // internal operations should be the name of the function invoked.
+      // See the subsegment section at
+      // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html
+
+      // Subsegments are never root spans. Make sure root internal spans aren't marked as subsegment
+      if (span.parentId() != null) writer.name("type").value("subsegment");
+      writer.name("name").value(span.name() == null ? "unknown" : span.name());
+    } else if (span.kind() == Span.Kind.CLIENT || span.kind() == Span.Kind.PRODUCER) {
       // Subsegments are never root spans. Make sure root client spans aren't marked as subsegment
       if (span.parentId() != null) writer.name("type").value("subsegment");
-      if (span.kind() != null) writer.name("namespace").value("remote");
-      // some remote service's name can be null, using null names causes invisible subsegment
-      // using "unknown" subsegment name will help to detect missing names
-      writer
-          .name("name")
-          .value(span.remoteServiceName() == null ? "unknown" : span.remoteServiceName());
+      writer.name("namespace").value("remote");
+
+      // For the remote subsegment name, use a fallback model:
+      //
+      // Start with the remote service name
+      //  fallback to the hostname (ex "http.host" tag if available)
+      //  fallback to the span name (because it is already hinted as low cardinality)
+      //  fallback to "unknown", so that instrumentation can be detected
+      //
+      // When users report a problem, such as a graph with too much cardinality, tell them to
+      // configure a valid remote service name. This could happen if the hostname is ephemeral, for
+      // example.
+      //
+      // This could be achieved by using things like HttpTracing.clientOf, or by wrapping the
+      // reporter to choose a remote service name based on other data.
+      String name = span.remoteServiceName();
+      if (name == null) name = span.tags().get("http.host");
+      if (name == null) name = span.name();
+      if (name == null) name = "unknown";
+      writer.name("name").value(name);
     } else {
       writer.name("name").value(span.localServiceName());
     }
@@ -274,8 +297,8 @@ final class UDPMessageEncoder {
 
   static byte[] encode(Span span) {
     try {
-      if (span.traceId().length()
-          != 32) { // TODO: also sanity check first 8 chars are epoch seconds
+      // TODO: also sanity check first 8 chars are epoch seconds
+      if (span.traceId().length() != 32) {
         if (logger.isLoggable(Level.FINE)) {
           logger.fine("span reported without a 128-bit trace ID" + span);
         }

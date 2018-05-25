@@ -73,8 +73,70 @@ public class UDPMessageEncoderTest {
   }
 
   @Test
+  public void writeJson_custom_nameIsUnknown() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(null)
+        .name(null)
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("unknown");
+  }
+
+  @Test
+  public void writeJson_custom_nameIsName() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(null)
+        .name("hystrix")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("hystrix");
+  }
+
+  @Test
   public void writeJson_client_nameIsUnknown() throws Exception {
-    Span span = serverSpan.toBuilder().kind(Span.Kind.CLIENT).build();
+    Span span = Span.newBuilder()
+        .traceId(serverSpan.traceId()).id("b")
+        .kind(Span.Kind.CLIENT)
+        .remoteEndpoint(Endpoint.newBuilder().ip("1.2.3.4").build())
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("unknown");
+  }
+
+  @Test
+  public void writeJson_client_nameIsHost() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .name("get /")
+        .putTag("http.host", "facebook.com")
+        .localEndpoint(Endpoint.newBuilder().serviceName("master").build())
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("facebook.com");
+  }
+
+  @Test
+  public void writeJson_client_nameIsName() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .name("get /")
+        .localEndpoint(Endpoint.newBuilder().serviceName("master").build())
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("get /");
+  }
+
+  @Test
+  public void writeJson_client_nameIsUnknownWhenNameNull() throws Exception {
+    Span span = Span.newBuilder()
+        .traceId(serverSpan.traceId()).id("b")
+        .kind(Span.Kind.CLIENT)
+        .build();
 
     String json = writeJson(span);
     assertThat(readString(json, "name")).isEqualTo("unknown");
@@ -82,12 +144,10 @@ public class UDPMessageEncoderTest {
 
   @Test
   public void writeJson_client_remoteEndpointIsName() throws Exception {
-    Span span =
-        serverSpan
-            .toBuilder()
-            .kind(Span.Kind.CLIENT)
-            .remoteEndpoint(Endpoint.newBuilder().serviceName("master").build())
-            .build();
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .remoteEndpoint(Endpoint.newBuilder().serviceName("master").build())
+        .build();
 
     String json = writeJson(span);
     assertThat(readString(json, "name")).isEqualTo("master");
