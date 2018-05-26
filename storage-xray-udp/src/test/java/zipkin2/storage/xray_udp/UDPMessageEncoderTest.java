@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -18,7 +18,9 @@ import com.jayway.jsonpath.PathNotFoundException;
 import java.io.IOException;
 import java.util.Map;
 import okio.Buffer;
+import org.junit.Rule;
 import org.junit.Test;
+import org.junit.contrib.java.lang.system.EnvironmentVariables;
 import zipkin2.Endpoint;
 import zipkin2.Span;
 
@@ -32,6 +34,8 @@ public class UDPMessageEncoderTest {
       .kind(Span.Kind.SERVER)
       .name("test-cemo")
       .build();
+
+  @Rule public final EnvironmentVariables environmentVariables = new EnvironmentVariables();
 
   @Test public void writeJson_server_isSegment() throws Exception {
     Span span = serverSpan;
@@ -67,6 +71,18 @@ public class UDPMessageEncoderTest {
 
     String json = writeJson(span);
     assertThat(readString(json, "name")).isEqualTo("unknown");
+  }
+
+  @Test public void writeJson_client_localEndpointIsName() throws Exception {
+    environmentVariables.set("AWS_XRAY_USE_LOCAL_SPAN_FOR_MISSING_REMOTES", "true");
+
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .localEndpoint(Endpoint.newBuilder().serviceName("master").build())
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("master");
   }
 
   @Test public void writeJson_client_remoteEndpointIsName() throws Exception {
