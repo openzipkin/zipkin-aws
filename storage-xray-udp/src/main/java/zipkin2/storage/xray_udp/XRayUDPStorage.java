@@ -51,6 +51,7 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
   }
 
   abstract InetSocketAddress address();
+  abstract boolean useLocalServiceNameWhenRemoteIsMissing();
 
   @Memoized DatagramSocket socket() {
     DatagramSocket result;
@@ -77,12 +78,12 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
 
     int length = spans.size();
     if (length == 1) { // don't allocate an array for a single span
-      return new UDPCall(Collections.singletonList(UDPMessageEncoder.encode(spans.get(0))));
+      return new UDPCall(Collections.singletonList(UDPMessageEncoder.encode(spans.get(0), useLocalServiceNameWhenRemoteIsMissing())));
     }
 
     List<byte[]> encoded = new ArrayList<>(length);
     for (int i = 0; i < length; i++) {
-      encoded.add(UDPMessageEncoder.encode(spans.get(i)));
+      encoded.add(UDPMessageEncoder.encode(spans.get(i), useLocalServiceNameWhenRemoteIsMissing()));
     }
     return new UDPCall(encoded);
   }
@@ -123,6 +124,7 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
 
   public static final class Builder extends StorageComponent.Builder {
     String address;
+    boolean useLocalServiceNameWhenRemoteIsMissing;
 
     Builder() {
     }
@@ -144,12 +146,17 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
       return this;
     }
 
+    public Builder useLocalServiceNameWhenRemoteIsMissing() {
+      this.useLocalServiceNameWhenRemoteIsMissing = true;
+      return this;
+    }
+
     @Override public XRayUDPStorage build() {
       String address = this.address;
       if (address == null) {
         address = System.getenv("AWS_XRAY_DAEMON_ADDRESS");
         if (address == null || address.isEmpty()) {
-          return new AutoValue_XRayUDPStorage(new InetSocketAddress("localhost", 2000));
+          return new AutoValue_XRayUDPStorage(new InetSocketAddress("localhost", 2000), this.useLocalServiceNameWhenRemoteIsMissing);
         } // otherwise fall through to parse
       }
       String[] splitAddress = address.split(":");
@@ -159,7 +166,7 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
         if (splitAddress.length == 2) port = Integer.parseInt(splitAddress[1]);
       } catch (NumberFormatException ignore) {
       }
-      return new AutoValue_XRayUDPStorage(new InetSocketAddress(host, port));
+      return new AutoValue_XRayUDPStorage(new InetSocketAddress(host, port), this.useLocalServiceNameWhenRemoteIsMissing);
     }
   }
 

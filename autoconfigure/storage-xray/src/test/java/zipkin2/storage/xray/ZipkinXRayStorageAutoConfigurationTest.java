@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -72,5 +72,32 @@ public class ZipkinXRayStorageAutoConfigurationTest {
 
     assertThat(context.getBean(ZipkinXRayStorageProperties.class).getDaemonAddress())
         .isEqualTo("localhost:3000");
+  }
+
+  @Test public void propertyDefaultValue_useLocalServiceNameWhenMissingRemote() {
+    context = new AnnotationConfigApplicationContext();
+    addEnvironment(context,
+        "zipkin.storage.type:xray"
+    );
+    context.register(PropertyPlaceholderAutoConfiguration.class,
+        ZipkinXRayStorageAutoConfiguration.class);
+    context.refresh();
+
+    assertThat(context.getBean(ZipkinXRayStorageProperties.class).isUseLocalServiceNameWhenRemoteIsMissing())
+        .isEqualTo(false);
+  }
+
+  @Test public void canOverrideProperty_useLocalServiceNameWhenMissingRemote() {
+    context = new AnnotationConfigApplicationContext();
+    addEnvironment(context,
+        "zipkin.storage.type:xray",
+        "zipkin.storage.xray.use-local-service-name-when-remote-is-missing:true"
+    );
+    context.register(PropertyPlaceholderAutoConfiguration.class,
+        ZipkinXRayStorageAutoConfiguration.class);
+    context.refresh();
+
+    assertThat(context.getBean(ZipkinXRayStorageProperties.class).isUseLocalServiceNameWhenRemoteIsMissing())
+        .isEqualTo(true);
   }
 }

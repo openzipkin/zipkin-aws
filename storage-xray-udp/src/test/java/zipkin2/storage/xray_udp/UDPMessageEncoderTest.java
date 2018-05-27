@@ -18,9 +18,7 @@ import com.jayway.jsonpath.PathNotFoundException;
 import java.io.IOException;
 import java.util.Map;
 import okio.Buffer;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.contrib.java.lang.system.EnvironmentVariables;
 import zipkin2.Endpoint;
 import zipkin2.Span;
 
@@ -34,8 +32,6 @@ public class UDPMessageEncoderTest {
       .kind(Span.Kind.SERVER)
       .name("test-cemo")
       .build();
-
-  @Rule public final EnvironmentVariables environmentVariables = new EnvironmentVariables();
 
   @Test public void writeJson_server_isSegment() throws Exception {
     Span span = serverSpan;
@@ -74,25 +70,21 @@ public class UDPMessageEncoderTest {
   }
 
   @Test public void writeJson_client_localEndpointIsName() throws Exception {
-    environmentVariables.set("AWS_XRAY_USE_LOCAL_SPAN_FOR_MISSING_REMOTES", "true");
-
     Span span = serverSpan.toBuilder()
         .kind(Span.Kind.CLIENT)
         .localEndpoint(Endpoint.newBuilder().serviceName("master").build())
         .build();
 
-    String json = writeJson(span);
+    String json = writeJson(span, true);
     assertThat(readString(json, "name")).isEqualTo("master");
   }
 
   @Test public void writeJson_client_nameIsUnknownWhenLocalServiceNameNull() throws Exception {
-    environmentVariables.set("AWS_XRAY_USE_LOCAL_SPAN_FOR_MISSING_REMOTES", "true");
-
     Span span = serverSpan.toBuilder()
         .kind(Span.Kind.CLIENT)
         .build();
 
-    String json = writeJson(span);
+    String json = writeJson(span, true);
     assertThat(readString(json, "name")).isEqualTo("unknown");
   }
 
@@ -172,8 +164,12 @@ public class UDPMessageEncoderTest {
   }
 
   String writeJson(Span span) throws IOException {
+    return writeJson(span, false);
+  }
+
+  String writeJson(Span span, boolean useLocalServiceNameWhenRemoteIsMissing) throws IOException {
     Buffer buffer = new Buffer();
-    UDPMessageEncoder.writeJson(span, buffer);
+    UDPMessageEncoder.writeJson(span, buffer, useLocalServiceNameWhenRemoteIsMissing);
     return buffer.readUtf8();
   }
 

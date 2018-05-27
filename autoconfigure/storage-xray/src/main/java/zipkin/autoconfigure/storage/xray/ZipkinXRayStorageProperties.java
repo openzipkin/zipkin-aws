@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -24,6 +24,8 @@ public class ZipkinXRayStorageProperties implements Serializable { // for Spark 
   /** Amazon X-Ray Daemon UDP daemon address; defaults to localhost:2000 */
   private String daemonAddress;
 
+  private boolean useLocalServiceNameWhenRemoteIsMissing;
+
   public String getDaemonAddress() {
     return daemonAddress;
   }
@@ -32,9 +34,18 @@ public class ZipkinXRayStorageProperties implements Serializable { // for Spark 
     this.daemonAddress = "".equals(daemonAddress) ? null : daemonAddress;
   }
 
+  public boolean isUseLocalServiceNameWhenRemoteIsMissing() {
+    return useLocalServiceNameWhenRemoteIsMissing;
+  }
+
+  public void setUseLocalServiceNameWhenRemoteIsMissing(boolean useLocalServiceNameWhenRemoteIsMissing) {
+    this.useLocalServiceNameWhenRemoteIsMissing = useLocalServiceNameWhenRemoteIsMissing;
+  }
+
   public XRayUDPStorage.Builder toBuilder() {
     XRayUDPStorage.Builder builder = XRayUDPStorage.newBuilder();
     if (daemonAddress != null) builder.address(daemonAddress);
+    if (useLocalServiceNameWhenRemoteIsMissing) builder.useLocalServiceNameWhenRemoteIsMissing();
     return builder;
   }
 }

@@ -27,7 +27,7 @@ import static java.lang.Integer.parseInt;
 final class UDPMessageEncoder {
   static final Logger logger = Logger.getLogger(UDPMessageEncoder.class.getName());
 
-  static void writeJson(Span span, Buffer buffer) throws IOException {
+  static void writeJson(Span span, Buffer buffer, boolean useLocalServiceNameWhenRemoteIsMissing) throws IOException {
     JsonWriter writer = JsonWriter.of(buffer);
     writer.beginObject();
     writer.name("trace_id").value(new StringBuilder()
@@ -45,7 +45,7 @@ final class UDPMessageEncoder {
       // using "unknown" subsegment name will help to detect missing names but will also
       // result in the service map displaying services depending on an "unknown" one.
       if (span.remoteServiceName() == null) {
-        if ("true".equalsIgnoreCase(System.getenv("AWS_XRAY_USE_LOCAL_SPAN_FOR_MISSING_REMOTES"))) {
+        if (useLocalServiceNameWhenRemoteIsMissing) {
           writer.name("name").value(span.localServiceName() == null ? "unknown" : span.localServiceName());
         } else {
           writer.name("name").value("unknown");
@@ -270,7 +270,7 @@ final class UDPMessageEncoder {
     writer.flush();
   }
 
-  static byte[] encode(Span span) {
+  static byte[] encode(Span span, boolean useLocalServiceNameWhenRemoteIsMissing) {
     try {
       if (span.traceId().length() != 32) { // TODO: also sanity check first 8 chars are epoch seconds
         if (logger.isLoggable(Level.FINE)) {
@@ -280,7 +280,7 @@ final class UDPMessageEncoder {
       }
       Buffer buffer = new Buffer();
       buffer.writeUtf8("{\"format\": \"json\", \"version\": 1}\n");
-      writeJson(span, buffer);
+      writeJson(span, buffer, useLocalServiceNameWhenRemoteIsMissing);
       return buffer.readByteArray();
     } catch (IOException e) {
       throw new AssertionError(e); // encoding error is a programming bug
