@@ -85,6 +85,17 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "name")).isEqualTo("master");
   }
 
+  @Test public void writeJson_client_nameIsUnknownWhenLocalServiceNameNull() throws Exception {
+    environmentVariables.set("AWS_XRAY_USE_LOCAL_SPAN_FOR_MISSING_REMOTES", "true");
+
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("unknown");
+  }
+
   @Test public void writeJson_client_remoteEndpointIsName() throws Exception {
     Span span = serverSpan.toBuilder()
         .kind(Span.Kind.CLIENT)

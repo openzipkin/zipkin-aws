@@ -46,7 +46,7 @@ final class UDPMessageEncoder {
       // result in the service map displaying services depending on an "unknown" one.
       if (span.remoteServiceName() == null) {
         if ("true".equalsIgnoreCase(System.getenv("AWS_XRAY_USE_LOCAL_SPAN_FOR_MISSING_REMOTES"))) {
-          writer.name("name").value(span.localServiceName());
+          writer.name("name").value(span.localServiceName() == null ? "unknown" : span.localServiceName());
         } else {
           writer.name("name").value("unknown");
         }
