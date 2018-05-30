@@ -37,10 +37,17 @@ final class UDPMessageEncoder {
         .append(span.traceId(), 8, 32).toString());
     if (span.parentId() != null) writer.name("parent_id").value(span.parentId());
     writer.name("id").value(span.id());
-    if (span.kind() == null
-        || span.kind() != Span.Kind.SERVER && span.kind() != Span.Kind.CONSUMER) {
+    if (span.kind() == null) {
+      // Spans without a kind should be internal operations in the service (for example an
+      // hystrix command). The X-Ray documentation says that the subsegment name for
+      // internal operations should be the name of the function invoked.
+      // See the subsegment section at
+      // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html
       writer.name("type").value("subsegment");
-      if (span.kind() != null) writer.name("namespace").value("remote");
+      writer.name("name").value(span.name() == null ? "unknown" : span.name());
+    } else if (span.kind() != Span.Kind.SERVER && span.kind() != Span.Kind.CONSUMER) {
+      writer.name("type").value("subsegment");
+      writer.name("namespace").value("remote");
       // some remote service's name can be null, using null names causes invisible subsegment
       // using "unknown" subsegment name will help to detect missing names but will also
       // result in the service map displaying services depending on an "unknown" one.

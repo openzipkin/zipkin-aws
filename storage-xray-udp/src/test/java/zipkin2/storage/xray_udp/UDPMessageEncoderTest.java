@@ -60,6 +60,26 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "namespace")).isEqualTo("remote");
   }
 
+  @Test public void writeJson_custom_nameIsUnknown() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(null)
+        .name(null)
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("unknown");
+  }
+
+  @Test public void writeJson_custom_nameIsName() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(null)
+        .name("hystrix")
+        .build();
+
+    String json = writeJson(span, true);
+    assertThat(readString(json, "name")).isEqualTo("hystrix");
+  }
+
   @Test public void writeJson_client_nameIsUnknown() throws Exception {
     Span span = serverSpan.toBuilder()
         .kind(Span.Kind.CLIENT)
