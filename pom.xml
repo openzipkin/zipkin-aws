@@ -46,8 +46,8 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
-    <zipkin.version>2.8.3</zipkin.version>
-    <zipkin-reporter2.version>2.6.0</zipkin-reporter2.version>
+    <zipkin.version>2.9.0</zipkin.version>
+    <zipkin-reporter2.version>2.7.0</zipkin-reporter2.version>
 
     <slf4j.version>1.7.25</slf4j.version>
 
@@ -157,6 +157,16 @@
         <groupId>org.awaitility</groupId>
         <artifactId>awaitility</artifactId>
         <version>3.0.0</version>
+      </dependency>
+      <dependency>
+        <groupId>com.squareup.okhttp3</groupId>
+        <artifactId>okhttp</artifactId>
+        <version>3.10.0</version>
+      </dependency>
+      <dependency>
+        <groupId>com.squareup.okhttp3</groupId>
+        <artifactId>mockwebserver</artifactId>
+        <version>3.10.0</version>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>
