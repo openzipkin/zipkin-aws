@@ -1,0 +1,7 @@
+# When enabled, this allows shorter env properties (ex -Dspring.profiles.active=elasticsearch-aws)
+zipkin:
+  storage:
+    elasticsearch:
+      aws:
+        domain: ${ES_AWS_DOMAIN:}
+        region: ${ES_AWS_REGION:}
