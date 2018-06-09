@@ -35,12 +35,6 @@
       <groupId>io.zipkin.brave</groupId>
       <artifactId>brave-instrumentation-http</artifactId>
     </dependency>
-    <!--Needed for span.remoteEndpoint-->
-    <dependency>
-      <groupId>io.zipkin.java</groupId>
-      <artifactId>zipkin</artifactId>
-      <optional>true</optional>
-    </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-core</artifactId>

@@ -32,6 +32,7 @@
     <module>storage-xray-udp</module>
     <module>reporter-xray-udp</module>
     <module>brave-instrumentation</module>
+    <module>brave-propagation-aws</module>
   </modules>
 
   <properties>
@@ -52,6 +53,7 @@
     <slf4j.version>1.7.25</slf4j.version>
 
     <aws-java-sdk.version>1.11.315</aws-java-sdk.version>
+    <brave.version>5.0.0</brave.version>
 
     <spring-boot.version>2.0.1.RELEASE</spring-boot.version>
   </properties>
