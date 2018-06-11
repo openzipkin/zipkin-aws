@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -27,7 +27,7 @@ import static java.lang.Integer.parseInt;
 final class UDPMessageEncoder {
   static final Logger logger = Logger.getLogger(UDPMessageEncoder.class.getName());
 
-  static void writeJson(Span span, Buffer buffer) throws IOException {
+  static void writeJson(Span span, Buffer buffer, boolean useLocalServiceNameWhenRemoteIsMissing) throws IOException {
     JsonWriter writer = JsonWriter.of(buffer);
     writer.beginObject();
     writer.name("trace_id").value(new StringBuilder()
@@ -37,14 +37,29 @@ final class UDPMessageEncoder {
         .append(span.traceId(), 8, 32).toString());
     if (span.parentId() != null) writer.name("parent_id").value(span.parentId());
     writer.name("id").value(span.id());
-    if (span.kind() == null
-        || span.kind() != Span.Kind.SERVER && span.kind() != Span.Kind.CONSUMER) {
+    if (span.kind() == null) {
+      // Spans without a kind should be internal operations in the service (for example an
+      // hystrix command). The X-Ray documentation says that the subsegment name for
+      // internal operations should be the name of the function invoked.
+      // See the subsegment section at
+      // https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html
       writer.name("type").value("subsegment");
-      if (span.kind() != null) writer.name("namespace").value("remote");
+      writer.name("name").value(span.name() == null ? "unknown" : span.name());
+    } else if (span.kind() != Span.Kind.SERVER && span.kind() != Span.Kind.CONSUMER) {
+      writer.name("type").value("subsegment");
+      writer.name("namespace").value("remote");
       // some remote service's name can be null, using null names causes invisible subsegment
-      // using "unknown" subsegment name will help to detect missing names
-      writer.name("name")
-          .value(span.remoteServiceName() == null ? "unknown" : span.remoteServiceName());
+      // using "unknown" subsegment name will help to detect missing names but will also
+      // result in the service map displaying services depending on an "unknown" one.
+      if (span.remoteServiceName() == null) {
+        if (useLocalServiceNameWhenRemoteIsMissing) {
+          writer.name("name").value(span.localServiceName() == null ? "unknown" : span.localServiceName());
+        } else {
+          writer.name("name").value("unknown");
+        }
+      } else {
+        writer.name("name").value(span.remoteServiceName());
+      }
     } else {
       writer.name("name").value(span.localServiceName());
     }
@@ -262,7 +277,7 @@ final class UDPMessageEncoder {
     writer.flush();
   }
 
-  static byte[] encode(Span span) {
+  static byte[] encode(Span span, boolean useLocalServiceNameWhenRemoteIsMissing) {
     try {
       if (span.traceId().length() != 32) { // TODO: also sanity check first 8 chars are epoch seconds
         if (logger.isLoggable(Level.FINE)) {
@@ -272,7 +287,7 @@ final class UDPMessageEncoder {
       }
       Buffer buffer = new Buffer();
       buffer.writeUtf8("{\"format\": \"json\", \"version\": 1}\n");
-      writeJson(span, buffer);
+      writeJson(span, buffer, useLocalServiceNameWhenRemoteIsMissing);
       return buffer.readByteArray();
     } catch (IOException e) {
       throw new AssertionError(e); // encoding error is a programming bug

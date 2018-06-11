@@ -1,5 +1,5 @@
 /**
- * Copyright 2016-2017 The OpenZipkin Authors
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -60,12 +60,51 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "namespace")).isEqualTo("remote");
   }
 
+  @Test public void writeJson_custom_nameIsUnknown() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(null)
+        .name(null)
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("unknown");
+  }
+
+  @Test public void writeJson_custom_nameIsName() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(null)
+        .name("hystrix")
+        .build();
+
+    String json = writeJson(span, true);
+    assertThat(readString(json, "name")).isEqualTo("hystrix");
+  }
+
   @Test public void writeJson_client_nameIsUnknown() throws Exception {
     Span span = serverSpan.toBuilder()
         .kind(Span.Kind.CLIENT)
         .build();
 
     String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("unknown");
+  }
+
+  @Test public void writeJson_client_localEndpointIsName() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .localEndpoint(Endpoint.newBuilder().serviceName("master").build())
+        .build();
+
+    String json = writeJson(span, true);
+    assertThat(readString(json, "name")).isEqualTo("master");
+  }
+
+  @Test public void writeJson_client_nameIsUnknownWhenLocalServiceNameNull() throws Exception {
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .build();
+
+    String json = writeJson(span, true);
     assertThat(readString(json, "name")).isEqualTo("unknown");
   }
 
@@ -145,8 +184,12 @@ public class UDPMessageEncoderTest {
   }
 
   String writeJson(Span span) throws IOException {
+    return writeJson(span, false);
+  }
+
+  String writeJson(Span span, boolean useLocalServiceNameWhenRemoteIsMissing) throws IOException {
     Buffer buffer = new Buffer();
-    UDPMessageEncoder.writeJson(span, buffer);
+    UDPMessageEncoder.writeJson(span, buffer, useLocalServiceNameWhenRemoteIsMissing);
     return buffer.readUtf8();
   }
 
