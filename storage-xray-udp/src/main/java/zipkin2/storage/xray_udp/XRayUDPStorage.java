@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -36,15 +36,17 @@ import zipkin2.storage.StorageComponent;
 public abstract class XRayUDPStorage extends StorageComponent implements SpanStore, SpanConsumer {
 
   static final int PACKET_LENGTH = 256 * 1024;
-  static final ThreadLocal<byte[]> BUF = new ThreadLocal<byte[]>() {
-    @Override protected byte[] initialValue() {
-      return new byte[PACKET_LENGTH];
-    }
-  };
+  static final ThreadLocal<byte[]> BUF =
+      new ThreadLocal<byte[]>() {
+        @Override
+        protected byte[] initialValue() {
+          return new byte[PACKET_LENGTH];
+        }
+      };
   /** get and close are typically called from different threads */
   volatile boolean provisioned, closeCalled;
-  XRayUDPStorage() {
-  }
+
+  XRayUDPStorage() {}
 
   public static Builder newBuilder() {
     return new Builder();
@@ -52,7 +54,8 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
 
   abstract InetSocketAddress address();
 
-  @Memoized DatagramSocket socket() {
+  @Memoized
+  DatagramSocket socket() {
     DatagramSocket result;
     try {
       result = new DatagramSocket();
@@ -63,15 +66,18 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
     return result;
   }
 
-  @Override public SpanStore spanStore() {
+  @Override
+  public SpanStore spanStore() {
     return this;
   }
 
-  @Override public SpanConsumer spanConsumer() {
+  @Override
+  public SpanConsumer spanConsumer() {
     return this;
   }
 
-  @Override public Call<Void> accept(List<Span> spans) {
+  @Override
+  public Call<Void> accept(List<Span> spans) {
     if (closeCalled) throw new IllegalStateException("closed");
     if (spans.isEmpty()) return Call.create(null);
 
@@ -95,45 +101,52 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
     socket().send(packet);
   }
 
-  @Override public synchronized void close() {
+  @Override
+  public synchronized void close() {
     if (closeCalled) return;
     if (provisioned) socket().close();
     closeCalled = true;
   }
 
-  @Override public Call<List<List<Span>>> getTraces(QueryRequest queryRequest) {
+  @Override
+  public Call<List<List<Span>>> getTraces(QueryRequest queryRequest) {
     throw new UnsupportedOperationException("This is collector-only at the moment");
   }
 
-  @Override public Call<List<Span>> getTrace(String s) {
+  @Override
+  public Call<List<Span>> getTrace(String s) {
     throw new UnsupportedOperationException("This is collector-only at the moment");
   }
 
-  @Override public Call<List<String>> getServiceNames() {
+  @Override
+  public Call<List<String>> getServiceNames() {
     throw new UnsupportedOperationException("This is collector-only at the moment");
   }
 
-  @Override public Call<List<String>> getSpanNames(String s) {
+  @Override
+  public Call<List<String>> getSpanNames(String s) {
     throw new UnsupportedOperationException("This is collector-only at the moment");
   }
 
-  @Override public Call<List<DependencyLink>> getDependencies(long l, long l1) {
+  @Override
+  public Call<List<DependencyLink>> getDependencies(long l, long l1) {
     throw new UnsupportedOperationException("This is collector-only at the moment");
   }
 
   public static final class Builder extends StorageComponent.Builder {
     String address;
 
-    Builder() {
-    }
+    Builder() {}
 
     /** Ignored as AWS X-Ray doesn't accept 64-bit trace IDs */
-    @Override public Builder strictTraceId(boolean strictTraceId) {
+    @Override
+    public Builder strictTraceId(boolean strictTraceId) {
       return this;
     }
 
     /** Ignored as AWS X-Ray doesn't expose storage options */
-    @Override public Builder searchEnabled(boolean searchEnabled) {
+    @Override
+    public Builder searchEnabled(boolean searchEnabled) {
       return this;
     }
 
@@ -144,7 +157,8 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
       return this;
     }
 
-    @Override public XRayUDPStorage build() {
+    @Override
+    public XRayUDPStorage build() {
       String address = this.address;
       if (address == null) {
         address = System.getenv("AWS_XRAY_DAEMON_ADDRESS");
@@ -170,12 +184,14 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
       this.messages = messages;
     }
 
-    @Override protected Void doExecute() throws IOException {
+    @Override
+    protected Void doExecute() throws IOException {
       for (byte[] message : messages) send(message);
       return null;
     }
 
-    @Override protected void doEnqueue(Callback<Void> callback) {
+    @Override
+    protected void doEnqueue(Callback<Void> callback) {
       try {
         doExecute();
         callback.onSuccess(null);
@@ -185,7 +201,8 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
       }
     }
 
-    @Override public Call<Void> clone() {
+    @Override
+    public Call<Void> clone() {
       return new UDPCall(messages);
     }
   }

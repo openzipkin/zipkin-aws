@@ -14,7 +14,9 @@
     the License.
 
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.zipkin.aws</groupId>
@@ -51,11 +53,12 @@
     <zipkin-reporter2.version>2.7.0</zipkin-reporter2.version>
 
     <slf4j.version>1.7.25</slf4j.version>
+    <log4j.version>2.11.0</log4j.version>
 
-    <aws-java-sdk.version>1.11.315</aws-java-sdk.version>
+    <aws-java-sdk.version>1.11.344</aws-java-sdk.version>
     <brave.version>5.0.0</brave.version>
 
-    <spring-boot.version>2.0.1.RELEASE</spring-boot.version>
+    <spring-boot.version>2.0.2.RELEASE</spring-boot.version>
   </properties>
 
   <name>Zipkin AWS (Parent)</name>
@@ -111,20 +114,13 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>io.zipkin.java</groupId>
+        <groupId>io.zipkin.zipkin2</groupId>
         <artifactId>zipkin</artifactId>
         <version>${zipkin.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.zipkin.java</groupId>
-        <artifactId>zipkin</artifactId>
-        <version>${zipkin.version}</version>
-        <type>test-jar</type>
-        <scope>test</scope>
       </dependency>
       <dependency>
         <groupId>io.zipkin.zipkin2</groupId>
-        <artifactId>zipkin</artifactId>
+        <artifactId>zipkin-collector</artifactId>
         <version>${zipkin.version}</version>
       </dependency>
       <dependency>
@@ -190,7 +186,7 @@
     <dependency>
       <groupId>com.google.auto.value</groupId>
       <artifactId>auto-value</artifactId>
-      <version>1.5.3</version>
+      <version>1.5.4</version>
       <scope>provided</scope>
     </dependency>
 
@@ -202,13 +198,13 @@
     <dependency>
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
-      <version>3.9.0</version>
+      <version>3.10.0</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>ch.qos.logback</groupId>
       <artifactId>logback-classic</artifactId>
-      <version>1.2.2</version>
+      <version>1.2.3</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -222,40 +218,6 @@
           <groupId>io.takari</groupId>
           <artifactId>maven</artifactId>
           <version>0.6.0</version>
-        </plugin>
-        <!-- unhook direct dependence on internal classes -->
-        <plugin>
-          <artifactId>maven-shade-plugin</artifactId>
-          <version>3.1.0</version>
-          <executions>
-            <execution>
-              <phase>package</phase>
-              <goals>
-                <goal>shade</goal>
-              </goals>
-              <configuration>
-                <minimizeJar>true</minimizeJar>
-                <createDependencyReducedPom>false</createDependencyReducedPom>
-                <artifactSet>
-                  <includes>
-                    <include>io.zipkin.java:zipkin</include>
-                  </includes>
-                </artifactSet>
-                <filters>
-                  <filter>
-                    <!-- Shade references to classes packages -->
-                    <artifact>io.zipkin.java:zipkin</artifact>
-                    <includes>
-                      <include>zipkin/internal/Lazy*.class</include>
-                    </includes>
-                    <excludes>
-                      <exclude>*</exclude>
-                    </excludes>
-                  </filter>
-                </filters>
-              </configuration>
-            </execution>
-          </executions>
         </plugin>
         <plugin>
           <groupId>org.springframework.boot</groupId>
@@ -302,12 +264,12 @@
           <dependency>
             <groupId>org.codehaus.plexus</groupId>
             <artifactId>plexus-compiler-javac-errorprone</artifactId>
-            <version>2.8.2</version>
+            <version>2.8.4</version>
           </dependency>
           <dependency>
             <groupId>com.google.errorprone</groupId>
             <artifactId>error_prone_core</artifactId>
-            <version>2.2.0</version>
+            <version>2.3.1</version>
           </dependency>
         </dependencies>
       </plugin>
@@ -315,7 +277,7 @@
       <plugin>
         <groupId>net.orfjackal.retrolambda</groupId>
         <artifactId>retrolambda-maven-plugin</artifactId>
-        <version>2.5.3</version>
+        <version>2.5.4</version>
         <executions>
           <execution>
             <goals>
@@ -371,6 +333,10 @@
         <version>${license-maven-plugin.version}</version>
         <configuration>
           <header>${main.basedir}/src/etc/header.txt</header>
+          <mapping>
+            <!-- Don't use javadoc style as this makes code formatters break it by adding tags! -->
+            <java>SLASHSTAR_STYLE</java>
+          </mapping>
           <excludes>
             <exclude>.travis.yml</exclude>
             <exclude>.gitignore</exclude>
@@ -465,7 +431,7 @@
 
           <plugin>
             <artifactId>maven-javadoc-plugin</artifactId>
-            <version>3.0.0</version>
+            <version>3.0.1</version>
             <configuration>
               <failOnError>false</failOnError>
               <excludePackageNames>zipkin.aws.internal,zipkin.aws.internal.*</excludePackageNames>

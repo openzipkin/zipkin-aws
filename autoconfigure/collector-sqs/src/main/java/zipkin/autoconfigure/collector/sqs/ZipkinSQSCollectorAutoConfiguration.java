@@ -1,5 +1,5 @@
-/**
- * Copyright 2016-2017 The OpenZipkin Authors
+/*
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -24,23 +24,28 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.type.AnnotatedTypeMetadata;
-import zipkin.collector.CollectorMetrics;
-import zipkin.collector.CollectorSampler;
-import zipkin.collector.sqs.SQSCollector;
-import zipkin.storage.StorageComponent;
+import zipkin2.collector.CollectorMetrics;
+import zipkin2.collector.CollectorSampler;
+import zipkin2.collector.sqs.SQSCollector;
+import zipkin2.storage.StorageComponent;
 
 @Configuration
 @EnableConfigurationProperties(ZipkinSQSCollectorProperties.class)
 @Conditional(ZipkinSQSCollectorAutoConfiguration.SQSSetCondition.class)
-public class ZipkinSQSCollectorAutoConfiguration {
+class ZipkinSQSCollectorAutoConfiguration {
 
   @Autowired(required = false)
   EndpointConfiguration endpointConfiguration;
 
   @Bean
-  SQSCollector sqsCollector(ZipkinSQSCollectorProperties properties, AWSCredentialsProvider credentialsProvider,
-      CollectorSampler sampler, CollectorMetrics metrics, StorageComponent storage) {
-    return properties.toBuilder()
+  SQSCollector sqsCollector(
+      ZipkinSQSCollectorProperties properties,
+      AWSCredentialsProvider credentialsProvider,
+      CollectorSampler sampler,
+      CollectorMetrics metrics,
+      StorageComponent storage) {
+    return properties
+        .toBuilder()
         .queueUrl(properties.getQueueUrl())
         .waitTimeSeconds(properties.getWaitTimeSeconds())
         .parallelism(properties.getParallelism())
@@ -68,21 +73,18 @@ public class ZipkinSQSCollectorAutoConfiguration {
 
     private static final String PROPERTY_NAME = "zipkin.collector.sqs.queue-url";
 
-    @Override public ConditionOutcome getMatchOutcome(ConditionContext context,
-        AnnotatedTypeMetadata a) {
+    @Override
+    public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata a) {
 
       String queueUrl = context.getEnvironment().getProperty(PROPERTY_NAME);
 
-      return isEmpty(queueUrl) ?
-          ConditionOutcome.noMatch(PROPERTY_NAME + " isn't set") :
-          ConditionOutcome.match();
+      return isEmpty(queueUrl)
+          ? ConditionOutcome.noMatch(PROPERTY_NAME + " isn't set")
+          : ConditionOutcome.match();
     }
 
     private static boolean isEmpty(String s) {
       return s == null || s.isEmpty();
     }
   }
-
-
-
 }

@@ -1,5 +1,5 @@
-/**
- * Copyright 2016-2017 The OpenZipkin Authors
+/*
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -34,7 +34,7 @@ import org.springframework.core.type.AnnotatedTypeMetadata;
 @Configuration
 @EnableConfigurationProperties(ZipkinKinesisCollectorProperties.class)
 @Conditional(ZipkinKinesisCollectorAutoConfiguration.KinesisSetCondition.class)
-public class ZipkinKinesisCredentialsAutoConfiguration {
+class ZipkinKinesisCredentialsAutoConfiguration {
 
   /** Setup {@link AWSSecurityTokenService} client an IAM role to assume is given. */
   @Bean
@@ -55,8 +55,8 @@ public class ZipkinKinesisCredentialsAutoConfiguration {
   @ConditionalOnMissingBean
   AWSCredentialsProvider credentialsProvider(ZipkinKinesisCollectorProperties properties) {
     if (securityTokenService != null) {
-      return new STSAssumeRoleSessionCredentialsProvider.Builder(properties.awsStsRoleArn,
-          "zipkin-server")
+      return new STSAssumeRoleSessionCredentialsProvider.Builder(
+              properties.awsStsRoleArn, "zipkin-server")
           .withStsClient(securityTokenService)
           .build();
     } else {
@@ -69,10 +69,11 @@ public class ZipkinKinesisCredentialsAutoConfiguration {
     AWSCredentialsProvider provider = new DefaultAWSCredentialsProviderChain();
 
     // Create credentials provider from ID and secret if given.
-    if (!isNullOrEmpty(properties.awsAccessKeyId) && !isNullOrEmpty(
-        properties.awsSecretAccessKey)) {
-      provider = new AWSStaticCredentialsProvider(
-          new BasicAWSCredentials(properties.awsAccessKeyId, properties.awsSecretAccessKey));
+    if (!isNullOrEmpty(properties.awsAccessKeyId)
+        && !isNullOrEmpty(properties.awsSecretAccessKey)) {
+      provider =
+          new AWSStaticCredentialsProvider(
+              new BasicAWSCredentials(properties.awsAccessKeyId, properties.awsSecretAccessKey));
     }
 
     return provider;
@@ -97,14 +98,14 @@ public class ZipkinKinesisCredentialsAutoConfiguration {
 
     private static final String PROPERTY_NAME = "zipkin.collector.kinesis.aws-sts-role-arn";
 
-    @Override public ConditionOutcome getMatchOutcome(ConditionContext context,
-        AnnotatedTypeMetadata a) {
+    @Override
+    public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata a) {
 
       String stsRoleArn = context.getEnvironment().getProperty(PROPERTY_NAME);
 
-      return isEmpty(stsRoleArn) ?
-          ConditionOutcome.noMatch(PROPERTY_NAME + " isn't set") :
-          ConditionOutcome.match();
+      return isEmpty(stsRoleArn)
+          ? ConditionOutcome.noMatch(PROPERTY_NAME + " isn't set")
+          : ConditionOutcome.match();
     }
 
     private static boolean isEmpty(String s) {

@@ -14,7 +14,9 @@
     the License.
 
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 
   <parent>
     <artifactId>zipkin-aws-parent</artifactId>
@@ -37,8 +39,8 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.zipkin.java</groupId>
-      <artifactId>zipkin</artifactId>
+      <groupId>io.zipkin.zipkin2</groupId>
+      <artifactId>zipkin-collector</artifactId>
     </dependency>
     <dependency>
       <groupId>com.amazonaws</groupId>
@@ -66,24 +68,23 @@
     </dependency>
 
     <dependency>
-      <groupId>io.zipkin.java</groupId>
+      <groupId>io.zipkin.zipkin2</groupId>
       <artifactId>zipkin</artifactId>
       <type>test-jar</type>
       <scope>test</scope>
     </dependency>
   </dependencies>
+
   <build>
     <plugins>
       <plugin>
-        <artifactId>maven-shade-plugin</artifactId>
-        <configuration>
-          <relocations>
-            <relocation>
-              <pattern>zipkin.internal</pattern>
-              <shadedPattern>zipkin.collector.sqs.internal.zipkin</shadedPattern>
-            </relocation>
-          </relocations>
-        </configuration>
+        <groupId>net.orfjackal.retrolambda</groupId>
+        <artifactId>retrolambda-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>none</phase>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>

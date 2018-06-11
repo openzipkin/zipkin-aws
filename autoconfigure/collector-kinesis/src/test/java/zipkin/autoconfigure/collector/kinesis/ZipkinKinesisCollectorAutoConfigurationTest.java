@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
@@ -24,11 +24,11 @@ import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoCon
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import zipkin.collector.CollectorMetrics;
-import zipkin.collector.CollectorSampler;
-import zipkin.collector.kinesis.KinesisCollector;
-import zipkin.storage.InMemoryStorage;
-import zipkin.storage.StorageComponent;
+import zipkin2.collector.CollectorMetrics;
+import zipkin2.collector.CollectorSampler;
+import zipkin2.collector.kinesis.KinesisCollector;
+import zipkin2.storage.InMemoryStorage;
+import zipkin2.storage.StorageComponent;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -50,10 +50,12 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
 
   @Test
   public void kinesisCollectorNotCreatedWhenMissingRequiredConfigValue() {
-    context.register(PropertyPlaceholderAutoConfiguration.class, ZipkinKinesisCollectorAutoConfiguration.class);
+    context.register(
+        PropertyPlaceholderAutoConfiguration.class, ZipkinKinesisCollectorAutoConfiguration.class);
     context.refresh();
 
-    assertThatExceptionOfType(NoSuchBeanDefinitionException.class).isThrownBy(() -> context.getBean(KinesisCollector.class));
+    assertThatExceptionOfType(NoSuchBeanDefinitionException.class)
+        .isThrownBy(() -> context.getBean(KinesisCollector.class));
   }
 
   @Test
@@ -61,7 +63,8 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
     addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
     // The yaml file has a default for this
     addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin");
-    context.register(PropertyPlaceholderAutoConfiguration.class,
+    context.register(
+        PropertyPlaceholderAutoConfiguration.class,
         ZipkinKinesisCollectorAutoConfiguration.class,
         ZipkinKinesisCredentialsAutoConfiguration.class,
         InMemoryConfiguration.class);
@@ -78,7 +81,8 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
     addEnvironment(context, "zipkin.collector.kinesis.aws-access-key-id: x");
     addEnvironment(context, "zipkin.collector.kinesis.aws-secret-access-key: x");
     addEnvironment(context, "zipkin.collector.kinesis.aws-sts-role-arn: test");
-    context.register(PropertyPlaceholderAutoConfiguration.class,
+    context.register(
+        PropertyPlaceholderAutoConfiguration.class,
         ZipkinKinesisCollectorAutoConfiguration.class,
         ZipkinKinesisCredentialsAutoConfiguration.class,
         InMemoryConfiguration.class);
@@ -86,7 +90,8 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
 
     assertThat(context.getBean(KinesisCollector.class)).isNotNull();
     assertThat(context.getBean(AWSSecurityTokenService.class)).isNotNull();
-    assertThat(context.getBean(AWSCredentialsProvider.class)).isInstanceOf(STSAssumeRoleSessionCredentialsProvider.class);
+    assertThat(context.getBean(AWSCredentialsProvider.class))
+        .isInstanceOf(STSAssumeRoleSessionCredentialsProvider.class);
   }
 
   @Configuration
@@ -103,7 +108,7 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
 
     @Bean
     StorageComponent storage() {
-      return new InMemoryStorage();
+      return InMemoryStorage.newBuilder().build();
     }
   }
 }
