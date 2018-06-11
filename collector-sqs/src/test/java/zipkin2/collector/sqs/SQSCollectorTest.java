@@ -138,7 +138,8 @@ public class SQSCollectorTest {
     sqsRule.send(new String(SpanBytesEncoder.JSON_V1.encodeList(spans)));
     assertSpansAccepted(spans);
 
-    assertThat(sqsRule.notVisibleCount()).as("corrupt spans are deleted.").isEqualTo(0);
+    // ensure corrupt spans are deleted
+    await().atMost(5, TimeUnit.SECONDS).until(() -> sqsRule.notVisibleCount() == 0);
   }
 
   void assertSpansAccepted(List<Span> spans) throws Exception {
