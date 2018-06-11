@@ -1,5 +1,5 @@
-/**
- * Copyright 2016-2017 The OpenZipkin Authors
+/*
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -34,7 +34,7 @@ import org.springframework.core.type.AnnotatedTypeMetadata;
 @Configuration
 @EnableConfigurationProperties(ZipkinSQSCollectorProperties.class)
 @Conditional(ZipkinSQSCollectorAutoConfiguration.SQSSetCondition.class)
-public class ZipkinSQSCredentialsAutoConfiguration {
+class ZipkinSQSCredentialsAutoConfiguration {
 
   /** Setup {@link AWSSecurityTokenService} client an IAM role to assume is given. */
   @Bean
@@ -55,7 +55,8 @@ public class ZipkinSQSCredentialsAutoConfiguration {
   @ConditionalOnMissingBean
   AWSCredentialsProvider credentialsProvider(ZipkinSQSCollectorProperties properties) {
     if (securityTokenService != null) {
-      return new STSAssumeRoleSessionCredentialsProvider.Builder(properties.awsStsRoleArn, "zipkin-server")
+      return new STSAssumeRoleSessionCredentialsProvider.Builder(
+              properties.awsStsRoleArn, "zipkin-server")
           .withStsClient(securityTokenService)
           .build();
     } else {
@@ -63,13 +64,16 @@ public class ZipkinSQSCredentialsAutoConfiguration {
     }
   }
 
-  private static AWSCredentialsProvider getDefaultCredentialsProvider(ZipkinSQSCollectorProperties properties) {
+  private static AWSCredentialsProvider getDefaultCredentialsProvider(
+      ZipkinSQSCollectorProperties properties) {
     AWSCredentialsProvider provider = new DefaultAWSCredentialsProviderChain();
 
     // Create credentials provider from ID and secret if given.
-    if (!isNullOrEmpty(properties.awsAccessKeyId) && !isNullOrEmpty(properties.awsSecretAccessKey)) {
-      provider = new AWSStaticCredentialsProvider(
-          new BasicAWSCredentials(properties.awsAccessKeyId, properties.awsSecretAccessKey));
+    if (!isNullOrEmpty(properties.awsAccessKeyId)
+        && !isNullOrEmpty(properties.awsSecretAccessKey)) {
+      provider =
+          new AWSStaticCredentialsProvider(
+              new BasicAWSCredentials(properties.awsAccessKeyId, properties.awsSecretAccessKey));
     }
 
     return provider;
@@ -78,7 +82,6 @@ public class ZipkinSQSCredentialsAutoConfiguration {
   private static boolean isNullOrEmpty(String value) {
     return (value == null || value.equals(""));
   }
-
 
   /**
    * This condition passes when {@link ZipkinSQSCollectorProperties#getAwsStsRoleArn()} is set to
@@ -95,14 +98,14 @@ public class ZipkinSQSCredentialsAutoConfiguration {
 
     private static final String PROPERTY_NAME = "zipkin.collector.sqs.aws-sts-role-arn";
 
-    @Override public ConditionOutcome getMatchOutcome(ConditionContext context,
-        AnnotatedTypeMetadata a) {
+    @Override
+    public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata a) {
 
       String queueUrl = context.getEnvironment().getProperty(PROPERTY_NAME);
 
-      return isEmpty(queueUrl) ?
-          ConditionOutcome.noMatch(PROPERTY_NAME + " isn't set") :
-          ConditionOutcome.match();
+      return isEmpty(queueUrl)
+          ? ConditionOutcome.noMatch(PROPERTY_NAME + " isn't set")
+          : ConditionOutcome.match();
     }
 
     private static boolean isEmpty(String s) {

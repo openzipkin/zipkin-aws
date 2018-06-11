@@ -1,5 +1,5 @@
-/**
- * Copyright 2016-2017 The OpenZipkin Authors
+/*
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -30,11 +30,15 @@ final class UDPMessageEncoder {
   static void writeJson(Span span, Buffer buffer) throws IOException {
     JsonWriter writer = JsonWriter.of(buffer);
     writer.beginObject();
-    writer.name("trace_id").value(new StringBuilder()
-        .append("1-")
-        .append(span.traceId(), 0, 8)
-        .append('-')
-        .append(span.traceId(), 8, 32).toString());
+    writer
+        .name("trace_id")
+        .value(
+            new StringBuilder()
+                .append("1-")
+                .append(span.traceId(), 0, 8)
+                .append('-')
+                .append(span.traceId(), 8, 32)
+                .toString());
     if (span.parentId() != null) writer.name("parent_id").value(span.parentId());
     writer.name("id").value(span.id());
     if (span.kind() == null
@@ -43,7 +47,8 @@ final class UDPMessageEncoder {
       if (span.kind() != null) writer.name("namespace").value("remote");
       // some remote service's name can be null, using null names causes invisible subsegment
       // using "unknown" subsegment name will help to detect missing names
-      writer.name("name")
+      writer
+          .name("name")
           .value(span.remoteServiceName() == null ? "unknown" : span.remoteServiceName());
     } else {
       writer.name("name").value(span.localServiceName());
@@ -69,7 +74,10 @@ final class UDPMessageEncoder {
     String sqlUrl = null, sqlPreparation = null, sqlDatabaseType = null, sqlDatabaseVersion = null;
     String sqlDriverVersion = null, sqlUser = null, sqlSanitizedQuery = null;
     // aws section
-    String awsOperation = null, awsAccountId = null, awsRegion = null, awsRequestId = null,
+    String awsOperation = null,
+        awsAccountId = null,
+        awsRegion = null,
+        awsRequestId = null,
         awsQueueUrl = null;
     String awsTableName = null;
     // cause section
@@ -241,8 +249,9 @@ final class UDPMessageEncoder {
     if (!annotations.isEmpty()) {
       writer.name("annotations");
       writer.beginObject();
-      if (httpRequestMethod != null && span.name() != null && !httpRequestMethod.equals(
-          span.name())) {
+      if (httpRequestMethod != null
+          && span.name() != null
+          && !httpRequestMethod.equals(span.name())) {
         writer.name("operation").value(span.name());
       }
       for (Map.Entry<String, String> annotation : annotations.entrySet()) {
@@ -264,7 +273,8 @@ final class UDPMessageEncoder {
 
   static byte[] encode(Span span) {
     try {
-      if (span.traceId().length() != 32) { // TODO: also sanity check first 8 chars are epoch seconds
+      if (span.traceId().length()
+          != 32) { // TODO: also sanity check first 8 chars are epoch seconds
         if (logger.isLoggable(Level.FINE)) {
           logger.fine("span reported without a 128-bit trace ID" + span);
         }

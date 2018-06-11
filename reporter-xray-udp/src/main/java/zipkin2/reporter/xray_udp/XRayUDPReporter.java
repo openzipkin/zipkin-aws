@@ -1,5 +1,5 @@
-/**
- * Copyright 2016-2017 The OpenZipkin Authors
+/*
+ * Copyright 2016-2018 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -27,8 +27,7 @@ public class XRayUDPReporter implements Reporter<Span>, Closeable {
   static final Logger logger = Logger.getLogger(XRayUDPReporter.class.getName());
 
   /**
-   * Creates a reporter defaulting to the env variable "AWS_XRAY_DAEMON_ADDRESS" or
-   * "localhost:2000"
+   * Creates a reporter defaulting to the env variable "AWS_XRAY_DAEMON_ADDRESS" or "localhost:2000"
    */
   public static Reporter<Span> create() {
     return new XRayUDPReporter(XRayUDPStorage.newBuilder().build());
@@ -44,11 +43,13 @@ public class XRayUDPReporter implements Reporter<Span>, Closeable {
     this.delegate = delegate;
   }
 
-  @Override public void close() throws IOException {
+  @Override
+  public void close() throws IOException {
     delegate.close();
   }
 
-  @Override public void report(Span span) {
+  @Override
+  public void report(Span span) {
     Call<Void> call;
     try {
       call = delegate.accept(Collections.singletonList(span));
@@ -67,7 +68,8 @@ public class XRayUDPReporter implements Reporter<Span>, Closeable {
     }
   }
 
-  @Override public String toString() {
+  @Override
+  public String toString() {
     return "XRayUDPReporter(" + delegate + ")";
   }
 }

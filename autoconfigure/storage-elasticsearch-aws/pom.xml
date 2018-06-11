@@ -15,8 +15,8 @@
 
 -->
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <parent>
     <artifactId>zipkin-autoconfigure</artifactId>
     <groupId>io.zipkin.aws</groupId>
@@ -64,7 +64,9 @@
         <artifactId>spring-boot-maven-plugin</artifactId>
         <configuration>
           <!-- https://github.com/spring-projects/spring-boot/issues/3426 transitive exclude doesn't work -->
-          <excludeGroupIds>io.zipkin.java,io.zipkin.zipkin2,org.springframework.boot,org.springframework,commons-codec,com.fasterxml.jackson.core,com.fasterxml.jackson.dataformat,org.apache.httpcomponents,commons-logging,joda-time,software.amazon.ion,com.squareup.okhttp3</excludeGroupIds>
+          <excludeGroupIds>
+            io.zipkin.java,io.zipkin.zipkin2,org.springframework.boot,org.springframework,commons-codec,com.fasterxml.jackson.core,com.fasterxml.jackson.dataformat,org.apache.httpcomponents,commons-logging,joda-time,software.amazon.ion,com.squareup.okhttp3
+          </excludeGroupIds>
         </configuration>
       </plugin>
     </plugins>
