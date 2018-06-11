@@ -31,9 +31,7 @@
     <module>sender-kinesis</module>
     <module>storage-xray-udp</module>
     <module>reporter-xray-udp</module>
-<!--
     <module>brave-instrumentation</module>
--->
     <module>brave-propagation-aws</module>
   </modules>
 
