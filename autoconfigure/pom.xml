@@ -68,6 +68,16 @@
           </execution>
         </executions>
       </plugin>
+      <plugin>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-maven-plugin</artifactId>
+        <configuration>
+          <!-- https://github.com/spring-projects/spring-boot/issues/3426 transitive exclude doesn't work -->
+          <excludeGroupIds>
+            io.zipkin.zipkin2,io.zipkin.reporter2,org.springframework.boot,org.springframework,com.fasterxml.jackson.core,com.google.auto.value,com.google.guava
+          </excludeGroupIds>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

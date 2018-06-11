@@ -24,11 +24,11 @@ For example:
 $ curl -sSL https://zipkin.io/quickstart.sh | bash -s
 $ curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-collector-sqs:LATEST:module sqs.jar
 $ SQS_QUEUE_URL=https://ap-southeast-1.queue.amazonaws.com/012345678901/zipkin \
-    java \
-    -Dloader.path='sqs.jar,sqs.jar!/lib' \
-    -Dspring.profiles.active=sqs \
-    -cp zipkin.jar \
-    org.springframework.boot.loader.PropertiesLauncher
+      java \
+      -Dloader.path='sqs.jar,sqs.jar!/lib' \
+      -Dspring.profiles.active=sqs \
+      -cp zipkin.jar \
+      org.springframework.boot.loader.PropertiesLauncher
 ```
 
 After executing these steps, applications can send spans

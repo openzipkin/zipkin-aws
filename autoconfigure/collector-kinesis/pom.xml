@@ -31,6 +31,17 @@
     <main.basedir>${project.basedir}/../..</main.basedir>
   </properties>
 
+  <dependencyManagement>
+    <dependencies>
+      <!-- makes sure the cbor version aligns with spring-boot's -->
+      <dependency>
+        <groupId>com.fasterxml.jackson.dataformat</groupId>
+        <artifactId>jackson-dataformat-cbor</artifactId>
+        <version>${jackson.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
   <dependencies>
     <dependency>
       <groupId>${project.groupId}</groupId>
@@ -42,6 +53,7 @@
       <artifactId>aws-java-sdk-sts</artifactId>
       <version>${aws-java-sdk.version}</version>
     </dependency>
+
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>zipkin-aws-junit</artifactId>
@@ -49,19 +61,4 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
-
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>org.springframework.boot</groupId>
-        <artifactId>spring-boot-maven-plugin</artifactId>
-        <configuration>
-          <!-- https://github.com/spring-projects/spring-boot/issues/3426 transitive exclude doesn't work -->
-          <excludeGroupIds>
-            io.zipkin.zipkin2,org.springframework.boot,org.springframework,commons-codec,com.fasterxml.jackson.core,com.fasterxml.jackson.dataformat,org.apache.httpcomponents,commons-logging,joda-time,software.amazon.ion
-          </excludeGroupIds>
-        </configuration>
-      </plugin>
-    </plugins>
-  </build>
 </project>
