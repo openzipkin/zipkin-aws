@@ -56,8 +56,16 @@ public class UDPMessageEncoderTest {
   }
 
   @Test
-  public void writeJson_client_isRemoteSubsegment() throws Exception {
+  public void writeJson_client_isRemote() throws Exception {
     Span span = serverSpan.toBuilder().kind(Span.Kind.CLIENT).build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "namespace")).isEqualTo("remote");
+  }
+
+  @Test
+  public void writeJson_client_child_isRemoteSubsegment() throws Exception {
+    Span span = serverSpan.toBuilder().parentId('1').kind(Span.Kind.CLIENT).build();
 
     String json = writeJson(span);
     assertThat(readString(json, "type")).isEqualTo("subsegment");
