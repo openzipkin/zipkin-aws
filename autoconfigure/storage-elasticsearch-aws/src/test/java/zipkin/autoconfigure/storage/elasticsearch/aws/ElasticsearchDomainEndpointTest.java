@@ -46,6 +46,59 @@ public class ElasticsearchDomainEndpointTest {
             "https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
+  @Test
+  public void vpcUrl() throws Exception {
+    es.enqueue(
+        new MockResponse()
+            .setBody(
+                "{\n"
+                    + "  \"DomainStatus\": {\n"
+                    + "    \"Endpoint\": null,\n"
+                    + "    \"Endpoints\": {\n"
+                    + "      \"vpc\":\"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\"\n"
+                    + "    }\n"
+                    + "  }\n"
+                    + "}"));
+
+    assertThat(client.get())
+        .containsExactly(
+            "https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
+  }
+
+  @Test
+  public void vpcPreferred() {
+    es.enqueue(
+        new MockResponse()
+            .setBody(
+                "{\n"
+                    + "  \"DomainStatus\": {\n"
+                    + "    \"Endpoint\": \"isnotvpc\",\n"
+                    + "    \"Endpoints\": {\n"
+                    + "      \"vpc\":\"isvpc\"\n"
+                    + "    }\n"
+                    + "  }\n"
+                    + "}"));
+
+    assertThat(client.get())
+        .containsExactly("https://isvpc");
+  }
+
+  @Test
+  public void vpcMissing() {
+    es.enqueue(
+        new MockResponse()
+            .setBody(
+                "{\n"
+                    + "  \"DomainStatus\": {\n"
+                    + "    \"Endpoint\": \"isnotvpc\",\n"
+                    + "    \"Endpoints\": {}\n"
+                    + "  }\n"
+                    + "}"));
+
+    assertThat(client.get())
+        .containsExactly("https://isnotvpc");
+  }
+
   /** Not quite sure why, but some have reported receiving no URLs at all */
   @Test
   public void noUrl() throws Exception {
@@ -54,7 +107,9 @@ public class ElasticsearchDomainEndpointTest {
     es.enqueue(new MockResponse().setBody(body));
 
     thrown.expect(IllegalStateException.class);
-    thrown.expectMessage("DomainStatus.Endpoint wasn't present in response: " + body);
+    thrown.expectMessage(
+        "Neither DomainStatus.Endpoints.vpc nor DomainStatus.Endpoint were present in response: "
+            + body);
 
     client.get();
   }

@@ -56,16 +56,20 @@ final class ElasticsearchDomainEndpoint implements ElasticsearchStorage.HostsSup
         if (!body.isEmpty()) message += ": " + body;
         throw new IllegalStateException(message);
       }
+      JsonReader endpointReader = JsonReader.of(new Buffer().writeUtf8(body));
+      endpointReader = enterPath(endpointReader, "DomainStatus", "Endpoints");
+      if (endpointReader != null) endpointReader = enterPath(endpointReader, "vpc");
 
-      JsonReader endpointReader =
-          enterPath(JsonReader.of(new Buffer().writeUtf8(body)), "DomainStatus", "Endpoint");
+      if (endpointReader == null) {
+        endpointReader =
+            enterPath(JsonReader.of(new Buffer().writeUtf8(body)), "DomainStatus", "Endpoint");
+      }
 
       if (endpointReader == null) {
         throw new IllegalStateException(
-            "DomainStatus.Endpoint wasn't present in response: " + body);
+            "Neither DomainStatus.Endpoints.vpc nor DomainStatus.Endpoint were present in response: "
+                + body);
       }
-
-      // TODO: DomainStatus.Endpoints which could also be present
 
       String endpoint = endpointReader.nextString();
       if (!endpoint.startsWith("https://")) {
