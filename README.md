@@ -11,7 +11,7 @@ the [zipkin-reporters-java](https://github.com/openzipkin/zipkin-reporter-java) 
 [zipkin](https://github.com/openzipkin/zipkin) projects.
 
 ## Senders
-The component in an traced application that sends timing data (spans)
+The component in a traced application that sends timing data (spans)
 out of process is called a Sender. Senders are called on interval by an
 [async reporter](https://github.com/openzipkin/zipkin-reporter-java#asyncreporter).
 
@@ -20,8 +20,8 @@ only have senders in Java, senders in other languages are welcome.
 
 Sender | Description
 --- | ---
-[SQS](./collector/sqs) | An alternative to Kafka.
-[Kinesis](./collector/kinesis) | An alternative similar to Kafka.
+[SQS](./collector-sqs) | An alternative to Kafka.
+[Kinesis](./collector-kinesis) | An alternative similar to Kafka.
 
 ## Collectors
 The component in a zipkin server that receives trace data is called a
@@ -30,8 +30,8 @@ to a configured storage component.
 
 Collector | Description
 --- | ---
-[SQS](./collector/kinesis) | An alternative to Kafka.
-[Kinesis](./collector/kinesis) | An alternative to Kafka.
+[SQS](./collector-kinesis) | An alternative to Kafka.
+[Kinesis](./collector-kinesis) | An alternative to Kafka.
 
 ## Server integration
 In order to integrate with zipkin-server, you need to use properties
