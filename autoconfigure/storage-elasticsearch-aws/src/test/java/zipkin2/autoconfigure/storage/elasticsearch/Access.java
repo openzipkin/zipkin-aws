@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package zipkin.autoconfigure.storage.elasticsearch.http;
+package zipkin2.autoconfigure.storage.elasticsearch;
 
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
@@ -19,7 +19,7 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 /** opens package access for testing */
 public final class Access {
 
-  public static void registerElasticsearchHttp(AnnotationConfigApplicationContext context) {
+  public static void registerElasticsearch(AnnotationConfigApplicationContext context) {
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
         ZipkinElasticsearchOkHttpAutoConfiguration.class,

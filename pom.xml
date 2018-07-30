@@ -49,14 +49,14 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
-    <zipkin.version>2.10.1</zipkin.version>
-    <zipkin-reporter2.version>2.7.6</zipkin-reporter2.version>
+    <zipkin.version>2.10.4</zipkin.version>
+    <zipkin-reporter2.version>2.7.7</zipkin-reporter2.version>
 
     <slf4j.version>1.7.25</slf4j.version>
     <log4j.version>2.11.0</log4j.version>
 
-    <aws-java-sdk.version>1.11.348</aws-java-sdk.version>
-    <brave.version>5.1.2</brave.version>
+    <aws-java-sdk.version>1.11.375</aws-java-sdk.version>
+    <brave.version>5.1.4</brave.version>
 
     <!-- make sure this matches spring-boot's version -->
     <jackson.version>2.9.5</jackson.version>
@@ -161,12 +161,12 @@
       <dependency>
         <groupId>com.squareup.okhttp3</groupId>
         <artifactId>okhttp</artifactId>
-        <version>3.10.0</version>
+        <version>3.11.0</version>
       </dependency>
       <dependency>
         <groupId>com.squareup.okhttp3</groupId>
         <artifactId>mockwebserver</artifactId>
-        <version>3.10.0</version>
+        <version>3.11.0</version>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>
@@ -215,11 +215,11 @@
   <build>
     <pluginManagement>
       <plugins>
-        <!-- mvn -N io.takari:maven:wrapper -Dmaven=3.5.3 -->
+        <!-- mvn -N io.takari:maven:wrapper -Dmaven=3.5.4 -->
         <plugin>
           <groupId>io.takari</groupId>
           <artifactId>maven</artifactId>
-          <version>0.6.0</version>
+          <version>0.6.1</version>
         </plugin>
         <plugin>
           <groupId>org.springframework.boot</groupId>
@@ -297,7 +297,7 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>animal-sniffer-maven-plugin</artifactId>
-        <version>1.16</version>
+        <version>1.17</version>
         <configuration>
           <signature>
             <groupId>org.codehaus.mojo.signature</groupId>
@@ -372,7 +372,7 @@
 
       <plugin>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>3.0.0-M1</version>
+        <version>3.0.0-M2</version>
         <executions>
           <execution>
             <id>enforce-java</id>
