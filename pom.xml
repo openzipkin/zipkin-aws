@@ -61,6 +61,8 @@
     <!-- make sure this matches spring-boot's version -->
     <jackson.version>2.9.5</jackson.version>
     <spring-boot.version>2.0.3.RELEASE</spring-boot.version>
+
+    <maven-failsafe-plugin.version>2.22.0</maven-failsafe-plugin.version>
   </properties>
 
   <name>Zipkin AWS (Parent)</name>
@@ -292,6 +294,15 @@
             </configuration>
           </execution>
         </executions>
+      </plugin>
+
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${maven-failsafe-plugin.version}</version>
+      </plugin>
+      <plugin>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>${maven-failsafe-plugin.version}</version>
       </plugin>
 
       <plugin>

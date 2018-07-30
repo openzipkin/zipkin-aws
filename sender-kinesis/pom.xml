@@ -27,8 +27,6 @@
 
   <properties>
     <main.basedir>${project.basedir}/..</main.basedir>
-
-    <maven-failsafe-plugin.version>2.21.0</maven-failsafe-plugin.version>
   </properties>
 
   <dependencies>
@@ -91,11 +89,9 @@
       <plugins>
         <plugin>
           <artifactId>maven-surefire-plugin</artifactId>
-          <version>${maven-failsafe-plugin.version}</version>
           <configuration>
             <systemPropertyVariables>
-              <java.util.logging.manager>org.apache.logging.log4j.jul.LogManager
-              </java.util.logging.manager>
+              <java.util.logging.manager>org.apache.logging.log4j.jul.LogManager</java.util.logging.manager>
             </systemPropertyVariables>
           </configuration>
         </plugin>
