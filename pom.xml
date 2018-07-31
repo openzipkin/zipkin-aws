@@ -56,7 +56,7 @@
     <log4j.version>2.11.0</log4j.version>
 
     <aws-java-sdk.version>1.11.375</aws-java-sdk.version>
-    <brave.version>5.1.4</brave.version>
+    <brave.version>5.1.5</brave.version>
 
     <!-- make sure this matches spring-boot's version -->
     <jackson.version>2.9.5</jackson.version>
