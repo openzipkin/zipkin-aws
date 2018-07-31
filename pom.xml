@@ -297,6 +297,11 @@
       </plugin>
 
       <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.1.0</version>
+      </plugin>
+
+      <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${maven-failsafe-plugin.version}</version>
       </plugin>
@@ -447,7 +452,6 @@
             <version>3.0.1</version>
             <configuration>
               <failOnError>false</failOnError>
-              <excludePackageNames>zipkin.aws.internal,zipkin.aws.internal.*</excludePackageNames>
               <!-- hush pedantic warnings: we don't put param and return on everything! -->
               <doclint>none</doclint>
             </configuration>
