@@ -18,6 +18,7 @@ import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcess
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessorFactory;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.KinesisClientLibConfiguration;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.Worker;
+import com.amazonaws.util.StringUtils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -44,6 +45,7 @@ public final class KinesisCollector extends CollectorComponent {
     AWSCredentialsProvider credentialsProvider;
     String appName;
     String streamName;
+    String regionName;
 
     @Override
     public Builder storage(StorageComponent storageComponent) {
@@ -79,6 +81,11 @@ public final class KinesisCollector extends CollectorComponent {
       return this;
     }
 
+    public Builder regionName(String regionName) {
+      this.regionName = regionName;
+      return this;
+    }
+
     @Override
     public KinesisCollector build() {
       return new KinesisCollector(this);
@@ -91,6 +98,7 @@ public final class KinesisCollector extends CollectorComponent {
   private final String appName;
   private final String streamName;
   private final AWSCredentialsProvider credentialsProvider;
+  private final String regionName;
 
   private final Executor executor;
   private Worker worker;
@@ -102,6 +110,7 @@ public final class KinesisCollector extends CollectorComponent {
     this.appName = builder.appName;
     this.streamName = builder.streamName;
     this.credentialsProvider = builder.credentialsProvider;
+    this.regionName = builder.regionName;
 
     executor =
         Executors.newSingleThreadExecutor(
@@ -118,8 +127,14 @@ public final class KinesisCollector extends CollectorComponent {
     } catch (UnknownHostException e) {
       workerId = UUID.randomUUID().toString();
     }
+
     KinesisClientLibConfiguration config =
         new KinesisClientLibConfiguration(appName, streamName, credentialsProvider, workerId);
+
+    if (!StringUtils.isNullOrEmpty(regionName)) {
+      config.withRegionName(regionName);
+    }
+
     processor = new KinesisRecordProcessorFactory(collector);
     worker = new Worker.Builder().recordProcessorFactory(processor).config(config).build();
 

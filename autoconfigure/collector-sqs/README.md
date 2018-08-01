@@ -57,7 +57,7 @@ _Default 10_
 - `SQS_AWS_SECRET_ACCESS_KEY` Optional AWS Secret Access Key.
 - `SQS_AWS_STS_ROLE_ARN` Optional IAM role ARN for cross account role delegation.
 - `SQS_AWS_STS_REGION` Optional AWS region ID when using STS. _Default us-east-1_
-
+- `KINESIS_AWS_REGION` Optional AWS region ID for the associated Kinesis Collector. _Default us-east-1_
 ### Security
 
 The auto configuration library uses the AWS SQS Java SDK and follows credential
