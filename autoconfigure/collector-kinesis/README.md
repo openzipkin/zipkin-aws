@@ -52,6 +52,7 @@ for users that prefer a file based approach.
 - `KINESIS_AWS_SECRET_ACCESS_KEY` Optional AWS Secret Access Key.
 - `KINESIS_AWS_STS_ROLE_ARN` Optional IAM role ARN for cross account role delegation.
 - `KINESIS_AWS_STS_REGION` Optional AWS region ID when using STS. _Default us-east-1_
+- `KINESIS_AWS_REGION` Optional AWS region ID for the associated Kinesis Collector. _Default us-east-1_
 
 ### Security
 
