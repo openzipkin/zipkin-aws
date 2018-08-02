@@ -26,7 +26,7 @@ class ZipkinKinesisCollectorProperties {
   String awsSecretAccessKey;
   String awsStsRoleArn;
   String awsStsRegion = DEFAULT_AWS_REGION;
-  String awsCollectorRegion = DEFAULT_AWS_REGION;
+  String awsRegion = DEFAULT_AWS_REGION;
 
   public String getStreamName() {
     return streamName;
@@ -76,11 +76,11 @@ class ZipkinKinesisCollectorProperties {
     this.awsStsRegion = awsStsRegion;
   }
 
-  public String getAwsCollectorRegion() {
-    return awsCollectorRegion;
+  public String getAwsRegion() {
+    return awsRegion;
   }
 
-  public void setAwsCollectorRegion(String awsCollectorRegion) {
-    this.awsCollectorRegion = awsCollectorRegion;
+  public void setAwsRegion(String awsRegion) {
+    this.awsRegion = awsRegion;
   }
 }

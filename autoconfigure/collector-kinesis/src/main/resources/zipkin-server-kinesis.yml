@@ -16,4 +16,4 @@ zipkin:
       # Optional AWS STS region endpoint to use
       aws-sts-region: ${KINESIS_AWS_STS_REGION:us-east-1}
       # Optional AWS Region, defaults to us-east-1
-      aws-collector-region: ${KINESIS_AWS_REGION:us-west-2}
+      aws-region: ${AWS_REGION:us-east-1}
