@@ -49,7 +49,7 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
-    <zipkin.version>2.10.4</zipkin.version>
+    <zipkin.version>2.11.1</zipkin.version>
     <zipkin-reporter2.version>2.7.7</zipkin-reporter2.version>
 
     <slf4j.version>1.7.25</slf4j.version>
@@ -60,7 +60,7 @@
 
     <!-- make sure this matches spring-boot's version -->
     <jackson.version>2.9.5</jackson.version>
-    <spring-boot.version>2.0.3.RELEASE</spring-boot.version>
+    <spring-boot.version>2.0.4.RELEASE</spring-boot.version>
 
     <maven-failsafe-plugin.version>2.22.0</maven-failsafe-plugin.version>
   </properties>
