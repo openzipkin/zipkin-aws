@@ -11,7 +11,7 @@
  * or implied. See the License for the specific language governing permissions and limitations under
  * the License.
  */
-package zipkin.reporter.kinesis;
+package zipkin2.reporter.kinesis;
 
 import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
@@ -53,7 +53,7 @@ public class KinesisSenderTest {
   KinesisSender sender;
 
   @Before
-  public void setup() throws Exception {
+  public void setup() {
     sender =
         KinesisSender.newBuilder()
             .streamName("test")

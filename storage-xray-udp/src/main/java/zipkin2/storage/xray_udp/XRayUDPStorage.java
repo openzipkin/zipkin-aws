@@ -13,8 +13,6 @@
  */
 package zipkin2.storage.xray_udp;
 
-import com.google.auto.value.AutoValue;
-import com.google.auto.value.extension.memoized.Memoized;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
@@ -32,8 +30,7 @@ import zipkin2.storage.SpanConsumer;
 import zipkin2.storage.SpanStore;
 import zipkin2.storage.StorageComponent;
 
-@AutoValue
-public abstract class XRayUDPStorage extends StorageComponent implements SpanStore, SpanConsumer {
+public final class XRayUDPStorage extends StorageComponent implements SpanStore, SpanConsumer {
 
   static final int PACKET_LENGTH = 256 * 1024;
   static final ThreadLocal<byte[]> BUF =
@@ -43,27 +40,33 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
           return new byte[PACKET_LENGTH];
         }
       };
-  /** get and close are typically called from different threads */
-  volatile boolean provisioned, closeCalled;
-
-  XRayUDPStorage() {}
 
   public static Builder newBuilder() {
     return new Builder();
   }
 
-  abstract InetSocketAddress address();
+  final InetSocketAddress address;
+  /** get and close are typically called from different threads */
+  volatile DatagramSocket socket;
+  volatile boolean closeCalled;
 
-  @Memoized
+  XRayUDPStorage(InetSocketAddress address) {
+    this.address = address;
+  }
+
   DatagramSocket socket() {
-    DatagramSocket result;
-    try {
-      result = new DatagramSocket();
-    } catch (SocketException e) {
-      throw new IllegalStateException(e);
+    if (socket == null) {
+      synchronized (this) {
+        if (socket == null) {
+          try {
+            socket = new DatagramSocket();
+          } catch (SocketException e) {
+            throw new IllegalStateException(e);
+          }
+        }
+      }
     }
-    provisioned = true;
-    return result;
+    return socket;
   }
 
   @Override
@@ -96,47 +99,40 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
   // Synchronous sending eliminates a risk of lost spans when not closing the reporter.
   // TODO: benchmark to see if the overhead is ok
   void send(byte[] message) throws IOException {
-    DatagramPacket packet = new DatagramPacket(BUF.get(), PACKET_LENGTH, address());
+    DatagramPacket packet = new DatagramPacket(BUF.get(), PACKET_LENGTH, address);
     packet.setData(message);
     socket().send(packet);
   }
 
-  @Override
-  public synchronized void close() {
+  @Override public synchronized void close() {
     if (closeCalled) return;
-    if (provisioned) socket().close();
+    DatagramSocket socket = this.socket;
+    if (socket != null) socket.close();
     closeCalled = true;
   }
 
-  @Override
-  public Call<List<List<Span>>> getTraces(QueryRequest queryRequest) {
+  @Override public Call<List<List<Span>>> getTraces(QueryRequest queryRequest) {
     throw new UnsupportedOperationException("This is collector-only at the moment");
   }
 
-  @Override
-  public Call<List<Span>> getTrace(String s) {
+  @Override public Call<List<Span>> getTrace(String s) {
     throw new UnsupportedOperationException("This is collector-only at the moment");
   }
 
-  @Override
-  public Call<List<String>> getServiceNames() {
+  @Override public Call<List<String>> getServiceNames() {
     throw new UnsupportedOperationException("This is collector-only at the moment");
   }
 
-  @Override
-  public Call<List<String>> getSpanNames(String s) {
+  @Override public Call<List<String>> getSpanNames(String s) {
     throw new UnsupportedOperationException("This is collector-only at the moment");
   }
 
-  @Override
-  public Call<List<DependencyLink>> getDependencies(long l, long l1) {
+  @Override public Call<List<DependencyLink>> getDependencies(long l, long l1) {
     throw new UnsupportedOperationException("This is collector-only at the moment");
   }
 
   public static final class Builder extends StorageComponent.Builder {
     String address;
-
-    Builder() {}
 
     /** Ignored as AWS X-Ray doesn't accept 64-bit trace IDs */
     @Override
@@ -157,13 +153,12 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
       return this;
     }
 
-    @Override
-    public XRayUDPStorage build() {
+    @Override public XRayUDPStorage build() {
       String address = this.address;
       if (address == null) {
         address = System.getenv("AWS_XRAY_DAEMON_ADDRESS");
         if (address == null || address.isEmpty()) {
-          return new AutoValue_XRayUDPStorage(new InetSocketAddress("localhost", 2000));
+          return new XRayUDPStorage(new InetSocketAddress("localhost", 2000));
         } // otherwise fall through to parse
       }
       String[] splitAddress = address.split(":");
@@ -173,8 +168,15 @@ public abstract class XRayUDPStorage extends StorageComponent implements SpanSto
         if (splitAddress.length == 2) port = Integer.parseInt(splitAddress[1]);
       } catch (NumberFormatException ignore) {
       }
-      return new AutoValue_XRayUDPStorage(new InetSocketAddress(host, port));
+      return new XRayUDPStorage(new InetSocketAddress(host, port));
     }
+
+    Builder() {
+    }
+  }
+
+  @Override public final String toString() {
+    return "XRayUDPStorage{address=" + address + "}";
   }
 
   class UDPCall extends Call.Base<Void> {
