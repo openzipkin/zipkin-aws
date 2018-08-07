@@ -14,6 +14,8 @@ zipkin:
       # Optional AWS STS assume role ARN
       aws-sts-role-arn: ${KINESIS_AWS_STS_ROLE_ARN:}
       # Optional AWS STS region endpoint to use
-      aws-sts-region: ${KINESIS_AWS_STS_REGION:us-east-1}
-      # Optional AWS Region, defaults to us-east-1
+      aws-sts-region: ${KINESIS_AWS_STS_REGION:}
+      # Optional AWS Kinesis Region
+      aws-kinesis-region: ${KINESIS_AWS_REGION:}
+      # Optional AWS Region, implicitly sets STS and Kinesis regions if not provided, defaults to us-east-1
       aws-region: ${AWS_REGION:us-east-1}

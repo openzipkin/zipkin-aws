@@ -32,6 +32,7 @@ import zipkin2.storage.StorageComponent;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.junit.Assert.assertEquals;
 import static org.springframework.boot.test.util.EnvironmentTestUtils.addEnvironment;
 
 public class ZipkinKinesisCollectorAutoConfigurationTest {
@@ -92,6 +93,27 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
     assertThat(context.getBean(AWSSecurityTokenService.class)).isNotNull();
     assertThat(context.getBean(AWSCredentialsProvider.class))
         .isInstanceOf(STSAssumeRoleSessionCredentialsProvider.class);
+  }
+
+  @Test
+  public void kinesisCollectorConfiguredWithCorrectRegion() {
+    context.register(
+        ZipkinKinesisCollectorProperties.class,
+        InMemoryConfiguration.class);
+    context.refresh();
+
+    ZipkinKinesisCollectorProperties collectorProperties = context.getBean(ZipkinKinesisCollectorProperties.class);
+
+    assertEquals(
+        "STS region inherits from zipkin.collector.kinesis.aws-region",
+        "us-east-1",
+        collectorProperties.getAwsStsRegion()
+    );
+    assertEquals(
+        "Kinesis region inherits from zipkin.collector.kinesis.aws-region",
+        "us-east-1",
+        collectorProperties.getAwsKinesisRegion()
+    );
   }
 
   @Configuration

@@ -46,7 +46,7 @@ class ZipkinKinesisCollectorAutoConfiguration {
         .storage(storage)
         .streamName(properties.getStreamName())
         .appName(properties.getAppName())
-        .regionName(properties.getAwsRegion())
+        .regionName(properties.getAwsKinesisRegion())
         .build()
         .start();
   }

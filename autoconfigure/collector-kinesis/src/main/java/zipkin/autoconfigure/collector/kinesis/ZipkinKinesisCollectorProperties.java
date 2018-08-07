@@ -19,14 +19,15 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 class ZipkinKinesisCollectorProperties {
   private static final String DEFAULT_AWS_REGION = "us-east-1";
 
-  String streamName;
-  String appName;
+  private String streamName;
+  private String appName;
 
-  String awsAccessKeyId;
-  String awsSecretAccessKey;
-  String awsStsRoleArn;
-  String awsStsRegion = DEFAULT_AWS_REGION;
-  String awsRegion = DEFAULT_AWS_REGION;
+  private String awsAccessKeyId;
+  private String awsSecretAccessKey;
+  private String awsStsRoleArn;
+  private String awsStsRegion;
+  private String awsKinesisRegion;
+  private String awsRegion = DEFAULT_AWS_REGION;
 
   public String getStreamName() {
     return streamName;
@@ -69,11 +70,19 @@ class ZipkinKinesisCollectorProperties {
   }
 
   public String getAwsStsRegion() {
-    return awsStsRegion;
+    return awsStsRegion != null ? awsStsRegion : getAwsKinesisRegion();
   }
 
   public void setAwsStsRegion(String awsStsRegion) {
     this.awsStsRegion = awsStsRegion;
+  }
+
+  public String getAwsKinesisRegion() {
+    return awsKinesisRegion != null ? awsKinesisRegion : getAwsRegion();
+  }
+
+  public void setAwsKinesisRegion(String awsKinesisRegion) {
+    this.awsKinesisRegion = awsKinesisRegion;
   }
 
   public String getAwsRegion() {
