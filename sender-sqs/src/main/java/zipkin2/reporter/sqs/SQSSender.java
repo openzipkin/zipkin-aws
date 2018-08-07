@@ -14,7 +14,6 @@
 package zipkin2.reporter.sqs;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import com.amazonaws.handlers.AsyncHandler;
 import com.amazonaws.services.sqs.AmazonSQSAsync;
@@ -22,8 +21,6 @@ import com.amazonaws.services.sqs.AmazonSQSAsyncClientBuilder;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageResult;
 import com.amazonaws.util.Base64;
-import com.google.auto.value.AutoValue;
-import com.google.auto.value.extension.memoized.Memoized;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.util.List;
@@ -46,8 +43,7 @@ import zipkin2.reporter.Sender;
  *
  * <p>This sends (usually TBinaryProtocol big-endian) encoded spans to an SQS queue.
  */
-@AutoValue
-public abstract class SQSSender extends Sender {
+public final class SQSSender extends Sender {
   private static final Charset UTF_8 = Charset.forName("UTF-8");
 
   public static SQSSender create(String url) {
@@ -55,70 +51,124 @@ public abstract class SQSSender extends Sender {
   }
 
   public static Builder newBuilder() {
-    return new AutoValue_SQSSender.Builder()
-        .credentialsProvider(new DefaultAWSCredentialsProviderChain())
-        .encoding(Encoding.JSON)
-        .messageMaxBytes(256 * 1024); // 256KB SQS limit.
+    return new Builder();
   }
 
-  @AutoValue.Builder
-  public interface Builder {
+  public static final class Builder {
+    String queueUrl;
+    EndpointConfiguration endpointConfiguration;
+    AWSCredentialsProvider credentialsProvider;
+    int messageMaxBytes = 256 * 1024; // 256KB SQS limit
+    Encoding encoding = Encoding.JSON;
+
+    Builder(SQSSender sender) {
+      this.queueUrl = sender.queueUrl;
+      this.credentialsProvider = sender.credentialsProvider;
+      this.endpointConfiguration = sender.endpointConfiguration;
+      this.messageMaxBytes = sender.messageMaxBytes;
+      this.encoding = sender.encoding;
+    }
 
     /** SQS queue URL to send spans. */
-    Builder queueUrl(String queueUrl);
-
-    /** Endpoint and signing configuration for SQS. */
-    Builder endpointConfiguration(EndpointConfiguration endpointConfiguration);
+    public Builder queueUrl(String queueUrl) {
+      if (queueUrl == null) throw new NullPointerException("queueUrl == null");
+      this.queueUrl = queueUrl;
+      return this;
+    }
 
     /** AWS credentials for authenticating calls to SQS. */
-    Builder credentialsProvider(AWSCredentialsProvider credentialsProvider);
+    public Builder credentialsProvider(AWSCredentialsProvider credentialsProvider) {
+      if (credentialsProvider == null) {
+        throw new NullPointerException("credentialsProvider == null");
+      }
+      this.credentialsProvider = credentialsProvider;
+      return this;
+    }
+
+    /** Endpoint and signing configuration for SQS. */
+    public Builder endpointConfiguration(EndpointConfiguration endpointConfiguration) {
+      if (endpointConfiguration == null) {
+        throw new NullPointerException("endpointConfiguration == null");
+      }
+      this.endpointConfiguration = endpointConfiguration;
+      return this;
+    }
 
     /** Maximum size of a message. SQS max message size is 256KB including attributes. */
-    Builder messageMaxBytes(int messageMaxBytes);
+    public Builder messageMaxBytes(int messageMaxBytes) {
+      this.messageMaxBytes = messageMaxBytes;
+      return this;
+    }
 
     /**
      * Use this to change the encoding used in messages. Default is {@linkplain Encoding#JSON}
      *
      * <p>Note: If ultimately sending to Zipkin, version 2.8+ is required to process protobuf.
      */
-    Builder encoding(Encoding encoding);
+    public Builder encoding(Encoding encoding) {
+      if (encoding == null) throw new NullPointerException("encoding == null");
+      this.encoding = encoding;
+      return this;
+    }
 
-    SQSSender build();
+    public SQSSender build() {
+      if (queueUrl == null) throw new NullPointerException("queueUrl == null");
+      return new SQSSender(this);
+    }
+
+    Builder() {
+    }
   }
 
-  public abstract Builder toBuilder();
+  public Builder toBuilder() {
+    return new Builder(this);
+  }
 
-  abstract String queueUrl();
+  final String queueUrl;
+  @Nullable final AWSCredentialsProvider credentialsProvider;
+  @Nullable final EndpointConfiguration endpointConfiguration;
+  final int messageMaxBytes;
+  final Encoding encoding;
 
-  @Nullable
-  abstract AWSCredentialsProvider credentialsProvider();
+  SQSSender(Builder builder) {
+    this.queueUrl = builder.queueUrl;
+    this.credentialsProvider = builder.credentialsProvider;
+    this.endpointConfiguration = builder.endpointConfiguration;
+    this.messageMaxBytes = builder.messageMaxBytes;
+    this.encoding = builder.encoding;
+  }
 
-  // Needed to be able to overwrite for tests
-  @Nullable
-  abstract EndpointConfiguration endpointConfiguration();
-
-  @Override
-  public CheckResult check() {
+  @Override public CheckResult check() {
     // TODO need to do something better here.
     return CheckResult.OK;
   }
 
   /** get and close are typically called from different threads */
-  volatile boolean provisioned, closeCalled;
+  volatile AmazonSQSAsync asyncClient;
+  volatile boolean closeCalled;
 
-  @Memoized
   AmazonSQSAsync get() {
-    AmazonSQSAsync result =
-        AmazonSQSAsyncClientBuilder.standard()
-            .withCredentials(credentialsProvider())
-            .withEndpointConfiguration(endpointConfiguration())
-            .build();
-    provisioned = true;
-    return result;
+    if (asyncClient == null) {
+      synchronized (this) {
+        if (asyncClient == null) {
+          asyncClient = AmazonSQSAsyncClientBuilder.standard()
+              .withCredentials(credentialsProvider)
+              .withEndpointConfiguration(endpointConfiguration).build();
+        }
+      }
+    }
+    return asyncClient;
   }
 
-  @Override
-  public int messageSizeInBytes(List<byte[]> encodedSpans) {
+  @Override public Encoding encoding() {
+    return encoding;
+  }
+
+  @Override public int messageMaxBytes() {
+    return messageMaxBytes;
+  }
+
+  @Override public int messageSizeInBytes(List<byte[]> encodedSpans) {
     int listSize = encoding().listSizeInBytes(encodedSpans);
     return (listSize + 2) * 4 / 3; // account for base64 encoding
   }
@@ -133,17 +183,19 @@ public abstract class SQSSender extends Sender {
             ? new String(encodedSpans, UTF_8)
             : Base64.encodeAsString(encodedSpans);
 
-    return new SQSCall(new SendMessageRequest(queueUrl(), body));
+    return new SQSCall(new SendMessageRequest(queueUrl, body));
   }
 
-  @Override
-  public synchronized void close() {
+  @Override public synchronized void close() {
     if (closeCalled) return;
-    if (provisioned) get().shutdown();
+    AmazonSQSAsync asyncClient = this.asyncClient;
+    if (asyncClient != null) asyncClient.shutdown();
     closeCalled = true;
   }
 
-  SQSSender() {}
+  @Override public final String toString() {
+    return "KinesisSender{queueUrl=" + queueUrl + "}";
+  }
 
   static boolean isAscii(byte[] encodedSpans) {
     for (int i = 0; i < encodedSpans.length; i++) {
@@ -156,7 +208,7 @@ public abstract class SQSSender extends Sender {
 
   class SQSCall extends Call.Base<Void> {
     private final SendMessageRequest message;
-    transient Future<SendMessageResult> future;
+    volatile Future<SendMessageResult> future;
 
     SQSCall(SendMessageRequest message) {
       this.message = message;
@@ -168,42 +220,40 @@ public abstract class SQSSender extends Sender {
       return null;
     }
 
-    @Override
-    protected void doEnqueue(Callback<Void> callback) {
-      future =
-          get()
-              .sendMessageAsync(
-                  message,
-                  new AsyncHandler<SendMessageRequest, SendMessageResult>() {
-                    @Override
-                    public void onError(Exception e) {
-                      callback.onError(e);
-                    }
-
-                    @Override
-                    public void onSuccess(
-                        SendMessageRequest request, SendMessageResult sendMessageResult) {
-                      callback.onSuccess(null);
-                    }
-                  });
+    @Override protected void doEnqueue(Callback<Void> callback) {
+      future = get().sendMessageAsync(message, new AsyncHandlerAdapter(callback));
       if (future.isCancelled()) throw new IllegalStateException("cancelled sending spans");
     }
 
-    @Override
-    protected void doCancel() {
+    @Override protected void doCancel() {
       Future<SendMessageResult> maybeFuture = future;
       if (maybeFuture != null) maybeFuture.cancel(true);
     }
 
-    @Override
-    protected boolean doIsCanceled() {
+    @Override protected boolean doIsCanceled() {
       Future<SendMessageResult> maybeFuture = future;
       return maybeFuture != null && maybeFuture.isCancelled();
     }
 
-    @Override
-    public Call<Void> clone() {
+    @Override public Call<Void> clone() {
       return new SQSCall(message.clone());
+    }
+  }
+
+  static final class AsyncHandlerAdapter
+      implements AsyncHandler<SendMessageRequest, SendMessageResult> {
+    final Callback<Void> callback;
+
+    AsyncHandlerAdapter(Callback<Void> callback) {
+      this.callback = callback;
+    }
+
+    @Override public void onError(Exception e) {
+      callback.onError(e);
+    }
+
+    @Override public void onSuccess(SendMessageRequest request, SendMessageResult result) {
+      callback.onSuccess(null);
     }
   }
 }

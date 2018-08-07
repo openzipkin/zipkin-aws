@@ -19,7 +19,7 @@
 
   <groupId>io.zipkin.aws</groupId>
   <artifactId>zipkin-aws-parent</artifactId>
-  <version>0.12.1-SNAPSHOT</version>
+  <version>0.13.1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -49,18 +49,20 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
-    <zipkin.version>2.10.1</zipkin.version>
-    <zipkin-reporter2.version>2.7.6</zipkin-reporter2.version>
+    <zipkin.version>2.11.1</zipkin.version>
+    <zipkin-reporter2.version>2.7.7</zipkin-reporter2.version>
 
     <slf4j.version>1.7.25</slf4j.version>
     <log4j.version>2.11.0</log4j.version>
 
-    <aws-java-sdk.version>1.11.348</aws-java-sdk.version>
-    <brave.version>5.1.2</brave.version>
+    <aws-java-sdk.version>1.11.375</aws-java-sdk.version>
+    <brave.version>5.1.5</brave.version>
 
     <!-- make sure this matches spring-boot's version -->
     <jackson.version>2.9.5</jackson.version>
-    <spring-boot.version>2.0.3.RELEASE</spring-boot.version>
+    <spring-boot.version>2.0.4.RELEASE</spring-boot.version>
+
+    <maven-failsafe-plugin.version>2.22.0</maven-failsafe-plugin.version>
   </properties>
 
   <name>Zipkin AWS (Parent)</name>
@@ -161,12 +163,12 @@
       <dependency>
         <groupId>com.squareup.okhttp3</groupId>
         <artifactId>okhttp</artifactId>
-        <version>3.10.0</version>
+        <version>3.11.0</version>
       </dependency>
       <dependency>
         <groupId>com.squareup.okhttp3</groupId>
         <artifactId>mockwebserver</artifactId>
-        <version>3.10.0</version>
+        <version>3.11.0</version>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>
@@ -182,14 +184,6 @@
     <dependency>
       <groupId>io.zipkin.zipkin2</groupId>
       <artifactId>zipkin</artifactId>
-    </dependency>
-
-    <!-- don't worry. auto-* are source retention, not runtime -->
-    <dependency>
-      <groupId>com.google.auto.value</groupId>
-      <artifactId>auto-value</artifactId>
-      <version>1.5.4</version>
-      <scope>provided</scope>
     </dependency>
 
     <dependency>
@@ -215,11 +209,24 @@
   <build>
     <pluginManagement>
       <plugins>
-        <!-- mvn -N io.takari:maven:wrapper -Dmaven=3.5.3 -->
+        <!-- mvn -N io.takari:maven:wrapper -Dmaven=3.5.4 -->
         <plugin>
           <groupId>io.takari</groupId>
           <artifactId>maven</artifactId>
-          <version>0.6.0</version>
+          <version>0.6.1</version>
+        </plugin>
+        <plugin>
+          <artifactId>maven-compiler-plugin</artifactId>
+          <version>3.7.0</version>
+          <inherited>true</inherited>
+          <configuration>
+            <!-- Retrolambda will rewrite lambdas as Java 6 bytecode -->
+            <source>1.8</source>
+            <target>1.8</target>
+            <!-- or die! com.sun.tools.javac.api.JavacTool -->
+            <fork>true</fork>
+            <showWarnings>true</showWarnings>
+          </configuration>
         </plugin>
         <plugin>
           <groupId>org.springframework.boot</groupId>
@@ -251,32 +258,6 @@
 
     <plugins>
       <plugin>
-        <inherited>true</inherited>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.7.0</version>
-        <configuration>
-          <!-- Retrolambda will rewrite lambdas as Java 6 bytecode -->
-          <source>1.8</source>
-          <target>1.8</target>
-          <compilerId>javac-with-errorprone</compilerId>
-          <forceJavacCompilerUse>true</forceJavacCompilerUse>
-          <showWarnings>true</showWarnings>
-        </configuration>
-        <dependencies>
-          <dependency>
-            <groupId>org.codehaus.plexus</groupId>
-            <artifactId>plexus-compiler-javac-errorprone</artifactId>
-            <version>2.8.4</version>
-          </dependency>
-          <dependency>
-            <groupId>com.google.errorprone</groupId>
-            <artifactId>error_prone_core</artifactId>
-            <version>2.3.1</version>
-          </dependency>
-        </dependencies>
-      </plugin>
-
-      <plugin>
         <groupId>net.orfjackal.retrolambda</groupId>
         <artifactId>retrolambda-maven-plugin</artifactId>
         <version>2.5.4</version>
@@ -295,9 +276,23 @@
       </plugin>
 
       <plugin>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.1.0</version>
+      </plugin>
+
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${maven-failsafe-plugin.version}</version>
+      </plugin>
+      <plugin>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>${maven-failsafe-plugin.version}</version>
+      </plugin>
+
+      <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>animal-sniffer-maven-plugin</artifactId>
-        <version>1.16</version>
+        <version>1.17</version>
         <configuration>
           <signature>
             <groupId>org.codehaus.mojo.signature</groupId>
@@ -323,7 +318,6 @@
         </configuration>
       </plugin>
 
-      <!-- Uploads occur as a last step -->
       <plugin>
         <artifactId>maven-deploy-plugin</artifactId>
         <version>2.8.2</version>
@@ -372,7 +366,7 @@
 
       <plugin>
         <artifactId>maven-enforcer-plugin</artifactId>
-        <version>3.0.0-M1</version>
+        <version>3.0.0-M2</version>
         <executions>
           <execution>
             <id>enforce-java</id>
@@ -382,7 +376,7 @@
             <configuration>
               <rules>
                 <requireJavaVersion>
-                  <version>[1.8,10)</version>
+                  <version>[1.8,11)</version>
                 </requireJavaVersion>
               </rules>
             </configuration>
@@ -414,6 +408,51 @@
 
   <profiles>
     <profile>
+      <id>error-prone</id>
+      <activation>
+        <!-- error-prone isn't happy in jdk 10 yet https://github.com/google/error-prone/issues/860#issuecomment-396154710 -->
+        <jdk>[1.8,10)</jdk>
+        <activeByDefault>false</activeByDefault>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <executions>
+              <execution>
+                <!-- only use errorprone on main source tree -->
+                <id>default-compile</id>
+                <phase>compile</phase>
+                <goals>
+                  <goal>compile</goal>
+                </goals>
+                <configuration>
+                  <compilerId>javac-with-errorprone</compilerId>
+                  <forceJavacCompilerUse>true</forceJavacCompilerUse>
+                  <!-- error-prone doesn't like generated code -->
+                  <compilerArgs>
+                    <arg>-XepDisableWarningsInGeneratedCode</arg>
+                  </compilerArgs>
+                </configuration>
+              </execution>
+            </executions>
+            <dependencies>
+              <dependency>
+                <groupId>org.codehaus.plexus</groupId>
+                <artifactId>plexus-compiler-javac-errorprone</artifactId>
+                <version>2.8.4</version>
+              </dependency>
+              <dependency>
+                <groupId>com.google.errorprone</groupId>
+                <artifactId>error_prone_core</artifactId>
+                <version>2.3.1</version>
+              </dependency>
+            </dependencies>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+    <profile>
       <id>release</id>
       <build>
         <plugins>
@@ -436,7 +475,6 @@
             <version>3.0.1</version>
             <configuration>
               <failOnError>false</failOnError>
-              <excludePackageNames>zipkin.aws.internal,zipkin.aws.internal.*</excludePackageNames>
               <!-- hush pedantic warnings: we don't put param and return on everything! -->
               <doclint>none</doclint>
             </configuration>

@@ -16,7 +16,7 @@ version: 2
 jobs:
   build:
     docker:
-      - image: circleci/openjdk:9-jdk
+      - image: circleci/openjdk:10-jdk
     steps:
       - checkout
 
@@ -106,7 +106,10 @@ workflows:
   version: 2
   build_and_publish:
     jobs:
-      - build
+      - build:
+          filters:
+           tags:
+              only: /\d+\.\d+\.\d+/
       - publish_snapshot:
           requires:
             - build
@@ -122,8 +125,6 @@ workflows:
             tags:
               only: /\d+\.\d+\.\d+/
       - trigger_publish:
-          requires:
-            - build
           filters:
             branches:
               ignore: /.*/
