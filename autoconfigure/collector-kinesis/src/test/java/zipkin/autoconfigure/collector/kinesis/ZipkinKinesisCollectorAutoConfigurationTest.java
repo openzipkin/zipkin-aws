@@ -79,6 +79,7 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
   public void kinesisCollectorConfiguredForAWSWithGivenCredentials() {
     addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
     addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-sts-region: us-east-1");
     addEnvironment(context, "zipkin.collector.kinesis.aws-access-key-id: x");
     addEnvironment(context, "zipkin.collector.kinesis.aws-secret-access-key: x");
     addEnvironment(context, "zipkin.collector.kinesis.aws-sts-role-arn: test");
@@ -97,22 +98,27 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
 
   @Test
   public void kinesisCollectorConfiguredWithCorrectRegion() {
+    addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
+    addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-sts-region: us-east-1");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-kinesis-region: us-east-1");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-access-key-id: x");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-secret-access-key: x");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-sts-role-arn: test");
+
     context.register(
-        ZipkinKinesisCollectorProperties.class,
+        PropertyPlaceholderAutoConfiguration.class,
+        ZipkinKinesisCollectorAutoConfiguration.class,
+        ZipkinKinesisCredentialsAutoConfiguration.class,
         InMemoryConfiguration.class);
     context.refresh();
 
-    ZipkinKinesisCollectorProperties collectorProperties = context.getBean(ZipkinKinesisCollectorProperties.class);
+    KinesisCollector collector = context.getBean(KinesisCollector.class);
 
     assertEquals(
-        "STS region inherits from zipkin.collector.kinesis.aws-region",
+        "Kinesis region is set from zipkin.collector.kinesis.aws-kinesis-region",
         "us-east-1",
-        collectorProperties.getAwsStsRegion()
-    );
-    assertEquals(
-        "Kinesis region inherits from zipkin.collector.kinesis.aws-region",
-        "us-east-1",
-        collectorProperties.getAwsKinesisRegion()
+        collector.getRegionName()
     );
   }
 

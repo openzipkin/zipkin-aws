@@ -18,7 +18,6 @@ import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcess
 import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessorFactory;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.KinesisClientLibConfiguration;
 import com.amazonaws.services.kinesis.clientlibrary.lib.worker.Worker;
-import com.amazonaws.util.StringUtils;
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
@@ -130,10 +129,7 @@ public final class KinesisCollector extends CollectorComponent {
 
     KinesisClientLibConfiguration config =
         new KinesisClientLibConfiguration(appName, streamName, credentialsProvider, workerId);
-
-    if (!StringUtils.isNullOrEmpty(regionName)) {
-      config.withRegionName(regionName);
-    }
+    config.withRegionName(regionName);
 
     processor = new KinesisRecordProcessorFactory(collector);
     worker = new Worker.Builder().recordProcessorFactory(processor).config(config).build();
@@ -153,6 +149,38 @@ public final class KinesisCollector extends CollectorComponent {
     // The executor is a single thread that is tied to this worker. Once the worker shuts down
     // the executor will stop.
     worker.shutdown();
+  }
+
+  public Collector getCollector() {
+    return collector;
+  }
+
+  public String getAppName() {
+    return appName;
+  }
+
+  public String getStreamName() {
+    return streamName;
+  }
+
+  public AWSCredentialsProvider getCredentialsProvider() {
+    return credentialsProvider;
+  }
+
+  public String getRegionName() {
+    return regionName;
+  }
+
+  public Executor getExecutor() {
+    return executor;
+  }
+
+  public Worker getWorker() {
+    return worker;
+  }
+
+  public IRecordProcessorFactory getProcessor() {
+    return processor;
   }
 
   private static final class KinesisRecordProcessorFactory implements IRecordProcessorFactory {

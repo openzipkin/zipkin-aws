@@ -70,7 +70,7 @@ class ZipkinKinesisCollectorProperties {
   }
 
   public String getAwsStsRegion() {
-    return awsStsRegion != null ? awsStsRegion : getAwsKinesisRegion();
+    return awsStsRegion;
   }
 
   public void setAwsStsRegion(String awsStsRegion) {
@@ -78,7 +78,7 @@ class ZipkinKinesisCollectorProperties {
   }
 
   public String getAwsKinesisRegion() {
-    return awsKinesisRegion != null ? awsKinesisRegion : getAwsRegion();
+    return awsKinesisRegion;
   }
 
   public void setAwsKinesisRegion(String awsKinesisRegion) {
