@@ -32,7 +32,6 @@ import zipkin2.storage.StorageComponent;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.junit.Assert.assertEquals;
 import static org.springframework.boot.test.util.EnvironmentTestUtils.addEnvironment;
 
 public class ZipkinKinesisCollectorAutoConfigurationTest {
@@ -115,11 +114,10 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
 
     KinesisCollector collector = context.getBean(KinesisCollector.class);
 
-    assertEquals(
-        "Kinesis region is set from zipkin.collector.kinesis.aws-kinesis-region",
-        "us-east-1",
-        collector.getRegionName()
-    );
+    assertThat(collector)
+        .extracting("regionName")
+        .as("Kinesis region is set from zipkin.collector.kinesis.aws-kinesis-region")
+        .containsExactly("us-east-1");
   }
 
   @Configuration

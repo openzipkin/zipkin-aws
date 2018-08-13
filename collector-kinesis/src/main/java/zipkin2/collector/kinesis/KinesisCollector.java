@@ -151,38 +151,6 @@ public final class KinesisCollector extends CollectorComponent {
     worker.shutdown();
   }
 
-  public Collector getCollector() {
-    return collector;
-  }
-
-  public String getAppName() {
-    return appName;
-  }
-
-  public String getStreamName() {
-    return streamName;
-  }
-
-  public AWSCredentialsProvider getCredentialsProvider() {
-    return credentialsProvider;
-  }
-
-  public String getRegionName() {
-    return regionName;
-  }
-
-  public Executor getExecutor() {
-    return executor;
-  }
-
-  public Worker getWorker() {
-    return worker;
-  }
-
-  public IRecordProcessorFactory getProcessor() {
-    return processor;
-  }
-
   private static final class KinesisRecordProcessorFactory implements IRecordProcessorFactory {
 
     final Collector collector;
