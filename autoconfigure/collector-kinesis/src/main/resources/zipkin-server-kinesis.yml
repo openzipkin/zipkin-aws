@@ -13,5 +13,9 @@ zipkin:
       aws-secret-access-key: ${KINESIS_AWS_SECRET_ACCESS_KEY:}
       # Optional AWS STS assume role ARN
       aws-sts-role-arn: ${KINESIS_AWS_STS_ROLE_ARN:}
-      # Optional AWS STS region endpoint to use
-      aws-sts-region: ${KINESIS_AWS_STS_REGION:us-east-1}
+      # Optional AWS STS region endpoint to use, defaults to KINESIS_AWS_REGION
+      aws-sts-region: ${KINESIS_AWS_STS_REGION:${zipkin.collector.kinesis.aws-kinesis-region}}
+      # Optional AWS Kinesis Region, defaults to AWS_REGION
+      aws-kinesis-region: ${KINESIS_AWS_REGION: ${zipkin.collector.kinesis.aws-region}}
+      # Optional AWS Region, implicitly sets STS and Kinesis regions if not provided, defaults to us-east-1
+      aws-region: ${AWS_REGION:us-east-1}

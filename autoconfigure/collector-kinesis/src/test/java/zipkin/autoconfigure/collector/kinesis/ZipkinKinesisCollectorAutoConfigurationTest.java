@@ -78,6 +78,7 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
   public void kinesisCollectorConfiguredForAWSWithGivenCredentials() {
     addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
     addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-sts-region: us-east-1");
     addEnvironment(context, "zipkin.collector.kinesis.aws-access-key-id: x");
     addEnvironment(context, "zipkin.collector.kinesis.aws-secret-access-key: x");
     addEnvironment(context, "zipkin.collector.kinesis.aws-sts-role-arn: test");
@@ -92,6 +93,31 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
     assertThat(context.getBean(AWSSecurityTokenService.class)).isNotNull();
     assertThat(context.getBean(AWSCredentialsProvider.class))
         .isInstanceOf(STSAssumeRoleSessionCredentialsProvider.class);
+  }
+
+  @Test
+  public void kinesisCollectorConfiguredWithCorrectRegion() {
+    addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
+    addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-sts-region: us-east-1");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-kinesis-region: us-east-1");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-access-key-id: x");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-secret-access-key: x");
+    addEnvironment(context, "zipkin.collector.kinesis.aws-sts-role-arn: test");
+
+    context.register(
+        PropertyPlaceholderAutoConfiguration.class,
+        ZipkinKinesisCollectorAutoConfiguration.class,
+        ZipkinKinesisCredentialsAutoConfiguration.class,
+        InMemoryConfiguration.class);
+    context.refresh();
+
+    KinesisCollector collector = context.getBean(KinesisCollector.class);
+
+    assertThat(collector)
+        .extracting("regionName")
+        .as("Kinesis region is set from zipkin.collector.kinesis.aws-kinesis-region")
+        .containsExactly("us-east-1");
   }
 
   @Configuration

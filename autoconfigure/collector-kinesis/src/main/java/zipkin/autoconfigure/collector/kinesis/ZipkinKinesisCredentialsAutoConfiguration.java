@@ -43,7 +43,7 @@ class ZipkinKinesisCredentialsAutoConfiguration {
   AWSSecurityTokenService securityTokenService(ZipkinKinesisCollectorProperties properties) {
     return AWSSecurityTokenServiceClientBuilder.standard()
         .withCredentials(getDefaultCredentialsProvider(properties))
-        .withRegion(properties.awsStsRegion)
+        .withRegion(properties.getAwsStsRegion())
         .build();
   }
 
@@ -56,7 +56,7 @@ class ZipkinKinesisCredentialsAutoConfiguration {
   AWSCredentialsProvider credentialsProvider(ZipkinKinesisCollectorProperties properties) {
     if (securityTokenService != null) {
       return new STSAssumeRoleSessionCredentialsProvider.Builder(
-              properties.awsStsRoleArn, "zipkin-server")
+              properties.getAwsStsRoleArn(), "zipkin-server")
           .withStsClient(securityTokenService)
           .build();
     } else {
@@ -69,11 +69,11 @@ class ZipkinKinesisCredentialsAutoConfiguration {
     AWSCredentialsProvider provider = new DefaultAWSCredentialsProviderChain();
 
     // Create credentials provider from ID and secret if given.
-    if (!isNullOrEmpty(properties.awsAccessKeyId)
-        && !isNullOrEmpty(properties.awsSecretAccessKey)) {
+    if (!isNullOrEmpty(properties.getAwsAccessKeyId())
+        && !isNullOrEmpty(properties.getAwsSecretAccessKey())) {
       provider =
           new AWSStaticCredentialsProvider(
-              new BasicAWSCredentials(properties.awsAccessKeyId, properties.awsSecretAccessKey));
+              new BasicAWSCredentials(properties.getAwsAccessKeyId(), properties.getAwsSecretAccessKey()));
     }
 
     return provider;
