@@ -36,7 +36,7 @@ The credentials that your service has requires the following permissions in orde
 The message's binary data includes a list of spans. Supported encodings
 are the same as the http [POST /spans](http://zipkin.io/zipkin-api/#/paths/%252Fspans) body.
 
-Encoding defaults to thrift, but can be overridden to use json instead.
+Encoding defaults to json, but can be overridden to PROTO3 if required.
 
 Note: Span encoding happens before Kinesis Base64 data encoding.
 For example, if you look at a raw `PutRecord` request, the `Data` field
