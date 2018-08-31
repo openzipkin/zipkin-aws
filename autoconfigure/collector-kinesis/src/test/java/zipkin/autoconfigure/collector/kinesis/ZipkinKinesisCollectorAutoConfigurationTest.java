@@ -21,6 +21,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
+import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,7 +33,6 @@ import zipkin2.storage.StorageComponent;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.springframework.boot.test.util.EnvironmentTestUtils.addEnvironment;
 
 public class ZipkinKinesisCollectorAutoConfigurationTest {
 
@@ -60,9 +60,11 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
 
   @Test
   public void kinesisCollectorCreatedWhenAllRequiredValuesAreProvided() {
-    addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
-    // The yaml file has a default for this
-    addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin");
+    TestPropertyValues.of(
+        "zipkin.collector.kinesis.stream-name: zipkin-test",
+        // The yaml file has a default for this
+        "zipkin.collector.kinesis.app-name: zipkin")
+        .applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
         ZipkinKinesisCollectorAutoConfiguration.class,
@@ -76,12 +78,14 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
 
   @Test
   public void kinesisCollectorConfiguredForAWSWithGivenCredentials() {
-    addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
-    addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin");
-    addEnvironment(context, "zipkin.collector.kinesis.aws-sts-region: us-east-1");
-    addEnvironment(context, "zipkin.collector.kinesis.aws-access-key-id: x");
-    addEnvironment(context, "zipkin.collector.kinesis.aws-secret-access-key: x");
-    addEnvironment(context, "zipkin.collector.kinesis.aws-sts-role-arn: test");
+    TestPropertyValues.of(
+        "zipkin.collector.kinesis.stream-name: zipkin-test",
+        "zipkin.collector.kinesis.app-name: zipkin",
+        "zipkin.collector.kinesis.aws-sts-region: us-east-1",
+        "zipkin.collector.kinesis.aws-access-key-id: x",
+        "zipkin.collector.kinesis.aws-secret-access-key: x",
+        "zipkin.collector.kinesis.aws-sts-role-arn: test")
+        .applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
         ZipkinKinesisCollectorAutoConfiguration.class,
@@ -97,13 +101,15 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
 
   @Test
   public void kinesisCollectorConfiguredWithCorrectRegion() {
-    addEnvironment(context, "zipkin.collector.kinesis.stream-name: zipkin-test");
-    addEnvironment(context, "zipkin.collector.kinesis.app-name: zipkin");
-    addEnvironment(context, "zipkin.collector.kinesis.aws-sts-region: us-east-1");
-    addEnvironment(context, "zipkin.collector.kinesis.aws-kinesis-region: us-east-1");
-    addEnvironment(context, "zipkin.collector.kinesis.aws-access-key-id: x");
-    addEnvironment(context, "zipkin.collector.kinesis.aws-secret-access-key: x");
-    addEnvironment(context, "zipkin.collector.kinesis.aws-sts-role-arn: test");
+    TestPropertyValues.of(
+        "zipkin.collector.kinesis.stream-name: zipkin-test",
+        "zipkin.collector.kinesis.app-name: zipkin",
+        "zipkin.collector.kinesis.aws-sts-region: us-east-1",
+        "zipkin.collector.kinesis.aws-kinesis-region: us-east-1",
+        "zipkin.collector.kinesis.aws-access-key-id: x",
+        "zipkin.collector.kinesis.aws-secret-access-key: x",
+        "zipkin.collector.kinesis.aws-sts-role-arn: test")
+        .applyTo(context);
 
     context.register(
         PropertyPlaceholderAutoConfiguration.class,

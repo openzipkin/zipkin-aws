@@ -49,14 +49,14 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
-    <zipkin.version>2.11.1</zipkin.version>
+    <zipkin.version>2.11.4</zipkin.version>
     <zipkin-reporter2.version>2.7.7</zipkin-reporter2.version>
 
     <slf4j.version>1.7.25</slf4j.version>
-    <log4j.version>2.11.0</log4j.version>
+    <log4j.version>2.11.1</log4j.version>
 
-    <aws-java-sdk.version>1.11.375</aws-java-sdk.version>
-    <brave.version>5.1.5</brave.version>
+    <aws-java-sdk.version>1.11.400</aws-java-sdk.version>
+    <brave.version>5.2.0</brave.version>
 
     <!-- make sure this matches spring-boot's version -->
     <jackson.version>2.9.5</jackson.version>
@@ -217,7 +217,7 @@
         </plugin>
         <plugin>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.7.0</version>
+          <version>3.8.0</version>
           <inherited>true</inherited>
           <configuration>
             <!-- Retrolambda will rewrite lambdas as Java 6 bytecode -->

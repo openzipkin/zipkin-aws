@@ -19,11 +19,11 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
+import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import zipkin2.storage.xray_udp.XRayUDPStorage;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.boot.test.util.EnvironmentTestUtils.addEnvironment;
 
 public class ZipkinXRayStorageAutoConfigurationTest {
 
@@ -41,7 +41,7 @@ public class ZipkinXRayStorageAutoConfigurationTest {
   @Test
   public void doesntProvideStorageComponent_whenStorageTypeNotXRay() {
     context = new AnnotationConfigApplicationContext();
-    addEnvironment(context, "zipkin.storage.type:elasticsearch");
+    TestPropertyValues.of("zipkin.storage.type:elasticsearch").applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class, ZipkinXRayStorageAutoConfiguration.class);
     context.refresh();
@@ -53,7 +53,7 @@ public class ZipkinXRayStorageAutoConfigurationTest {
   @Test
   public void providesStorageComponent_whenStorageTypeXRay() {
     context = new AnnotationConfigApplicationContext();
-    addEnvironment(context, "zipkin.storage.type:xray");
+    TestPropertyValues.of("zipkin.storage.type:xray").applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class, ZipkinXRayStorageAutoConfiguration.class);
     context.refresh();
@@ -64,8 +64,9 @@ public class ZipkinXRayStorageAutoConfigurationTest {
   @Test
   public void canOverrideProperty_daemonAddress() {
     context = new AnnotationConfigApplicationContext();
-    addEnvironment(
-        context, "zipkin.storage.type:xray", "zipkin.storage.xray.daemon-address:localhost:3000");
+    TestPropertyValues.of(
+        "zipkin.storage.type:xray", "zipkin.storage.xray.daemon-address:localhost:3000"
+    ).applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class, ZipkinXRayStorageAutoConfiguration.class);
     context.refresh();

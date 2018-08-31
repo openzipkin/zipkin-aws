@@ -38,6 +38,7 @@
       <artifactId>zipkin-collector</artifactId>
     </dependency>
 
+    <!-- TODO: See if 'software.amazon.kinesis:amazon-kinesis-client:2.0.1' replaces this? -->
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>amazon-kinesis-client</artifactId>
