@@ -22,6 +22,7 @@ import org.junit.Test;
 import org.junit.rules.ExpectedException;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
+import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -35,7 +36,6 @@ import zipkin2.storage.StorageComponent;
 import static com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
-import static org.springframework.boot.test.util.EnvironmentTestUtils.addEnvironment;
 
 public class ZipkinSQSCollectorAutoConfigurationTest {
   /** Don't crash if CI box doesn't have .aws directory defined */
@@ -76,10 +76,12 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
   @Test
   public void provideCollectorComponent_whenSqsQueueUrlIsSet() {
     context = new AnnotationConfigApplicationContext();
-    addEnvironment(context, "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl());
-    addEnvironment(context, "zipkin.collector.sqs.wait-time-seconds:1");
-    addEnvironment(context, "zipkin.collector.sqs.aws-access-key-id: x");
-    addEnvironment(context, "zipkin.collector.sqs.aws-secret-access-key: x");
+    TestPropertyValues.of(
+        "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl(),
+        "zipkin.collector.sqs.wait-time-seconds:1",
+        "zipkin.collector.sqs.aws-access-key-id: x",
+        "zipkin.collector.sqs.aws-secret-access-key: x")
+        .applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
         Region.class,
@@ -97,11 +99,13 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
   @Test
   public void provideCollectorComponent_setsZipkinSqsCollectorProperties() {
     context = new AnnotationConfigApplicationContext();
-    addEnvironment(context, "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl());
-    addEnvironment(context, "zipkin.collector.sqs.wait-time-seconds:1");
-    addEnvironment(context, "zipkin.collector.sqs.parallelism:3");
-    addEnvironment(context, "zipkin.collector.sqs.aws-access-key-id: x");
-    addEnvironment(context, "zipkin.collector.sqs.aws-secret-access-key: x");
+    TestPropertyValues.of(
+        "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl(),
+        "zipkin.collector.sqs.wait-time-seconds:1",
+        "zipkin.collector.sqs.parallelism:3",
+        "zipkin.collector.sqs.aws-access-key-id: x",
+        "zipkin.collector.sqs.aws-secret-access-key: x")
+        .applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
         Region.class,
@@ -120,11 +124,13 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
   @Test
   public void provideSecurityTokenService_whenAwsStsRoleArnIsSet() {
     context = new AnnotationConfigApplicationContext();
-    addEnvironment(context, "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl());
-    addEnvironment(context, "zipkin.collector.sqs.wait-time-seconds:1");
-    addEnvironment(context, "zipkin.collector.sqs.aws-access-key-id: x");
-    addEnvironment(context, "zipkin.collector.sqs.aws-secret-access-key: x");
-    addEnvironment(context, "zipkin.collector.sqs.aws-sts-role-arn: test");
+    TestPropertyValues.of(
+        "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl(),
+        "zipkin.collector.sqs.wait-time-seconds:1",
+        "zipkin.collector.sqs.aws-access-key-id: x",
+        "zipkin.collector.sqs.aws-secret-access-key: x",
+        "zipkin.collector.sqs.aws-sts-role-arn: test")
+        .applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
         Region.class,

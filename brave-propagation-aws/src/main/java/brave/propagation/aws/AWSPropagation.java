@@ -374,10 +374,11 @@ public final class AWSPropagation<K> implements Propagation<K> {
       }
 
       if (traceIdHigh == 0L) { // traceIdHigh cannot be null, so just return sampled
-        return TraceContextOrSamplingFlags.newBuilder()
-            .extra(extra)
-            .samplingFlags(SamplingFlags.Builder.build(sampled))
-            .build();
+        SamplingFlags samplingFlags = SamplingFlags.EMPTY;
+        if (sampled != null) {
+          samplingFlags = sampled ? SamplingFlags.SAMPLED : SamplingFlags.NOT_SAMPLED;
+        }
+        return TraceContextOrSamplingFlags.newBuilder().samplingFlags(samplingFlags).extra(extra).build();
       } else if (parent == null) {
         return TraceContextOrSamplingFlags.newBuilder()
             .extra(extra)

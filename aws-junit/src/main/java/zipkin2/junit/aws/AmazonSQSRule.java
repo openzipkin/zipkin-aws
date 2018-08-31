@@ -13,8 +13,11 @@
  */
 package zipkin2.junit.aws;
 
+import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.services.sqs.AmazonSQSClient;
+import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
+import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.DeleteMessageRequest;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.PurgeQueueRequest;
@@ -37,7 +40,7 @@ import static java.util.Collections.singletonList;
 public class AmazonSQSRule extends ExternalResource {
 
   private SQSRestServer server;
-  private AmazonSQSClient client;
+  private AmazonSQS client;
   private String queueUrl;
 
   public AmazonSQSRule() {}
@@ -49,8 +52,10 @@ public class AmazonSQSRule extends ExternalResource {
     }
 
     if (client == null) {
-      client = new AmazonSQSClient(new BasicAWSCredentials("x", "x"));
-      client.setEndpoint(String.format("http://localhost:%d", httpPort));
+      client = AmazonSQSClientBuilder.standard()
+          .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
+          .withEndpointConfiguration(new EndpointConfiguration(String.format("http://localhost:%d", httpPort), null))
+          .build();
       queueUrl = client.createQueue("zipkin").getQueueUrl();
     }
     return this;
