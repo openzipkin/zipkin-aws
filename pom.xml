@@ -289,6 +289,10 @@
       <plugin>
         <artifactId>maven-failsafe-plugin</artifactId>
         <version>${maven-failsafe-plugin.version}</version>
+        <!-- Try to prevent flakes in circleci -->
+        <configuration>
+          <reuseForks>false</reuseForks>
+        </configuration>
       </plugin>
 
       <plugin>

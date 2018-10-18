@@ -38,7 +38,7 @@ import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-public class SQSCollectorTest {
+public class ITSQSCollector {
 
   @Rule public AmazonSQSRule sqsRule = new AmazonSQSRule().start(9324);
 
