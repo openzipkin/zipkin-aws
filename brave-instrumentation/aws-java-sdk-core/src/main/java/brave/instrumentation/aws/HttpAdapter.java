@@ -16,13 +16,8 @@ package brave.instrumentation.aws;
 import brave.http.HttpClientAdapter;
 import com.amazonaws.Request;
 import com.amazonaws.Response;
-import zipkin2.Endpoint;
 
 final class HttpAdapter extends HttpClientAdapter<Request<?>, Response<?>> {
-  @Override public boolean parseServerAddress(Request<?> request, Endpoint.Builder builder) {
-    return false;
-  }
-
   @Override public String method(Request<?> request) {
     return request.getHttpMethod().name();
   }

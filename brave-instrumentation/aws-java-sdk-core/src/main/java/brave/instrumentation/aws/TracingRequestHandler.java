@@ -28,7 +28,6 @@ import com.amazonaws.ResponseMetadata;
 import com.amazonaws.handlers.HandlerAfterAttemptContext;
 import com.amazonaws.handlers.HandlerContextKey;
 import com.amazonaws.handlers.RequestHandler2;
-import zipkin2.Endpoint;
 
 /**
  * Traces AWS Java SDK calls. Adds on the standard zipkin/brave http tags, as well as tags that
@@ -44,16 +43,19 @@ public final class TracingRequestHandler extends RequestHandler2 {
     return new TracingRequestHandler(HttpTracing.create(tracing));
   }
 
-  static final HandlerContextKey<Span> SPAN = new HandlerContextKey<>(Span.class.getCanonicalName());
-  static final HandlerContextKey<TracingRequestHandler> TRACING_REQUEST_HANDLER_CONTEXT_KEY = new HandlerContextKey<>(TracingRequestHandler.class.getCanonicalName());
+  static final HandlerContextKey<Span> SPAN =
+      new HandlerContextKey<>(Span.class.getCanonicalName());
+  static final HandlerContextKey<TracingRequestHandler> TRACING_REQUEST_HANDLER_CONTEXT_KEY =
+      new HandlerContextKey<>(TracingRequestHandler.class.getCanonicalName());
 
   static final HttpClientAdapter<Request<?>, Response<?>> ADAPTER = new HttpAdapter();
 
-  static final Propagation.Setter<Request<?>, String> SETTER = new Propagation.Setter<Request<?>, String>() {
-    @Override public void put(Request<?> carrier, String key, String value) {
-      carrier.addHeader(key, value);
-    }
-  };
+  static final Propagation.Setter<Request<?>, String> SETTER =
+      new Propagation.Setter<Request<?>, String>() {
+        @Override public void put(Request<?> carrier, String key, String value) {
+          carrier.addHeader(key, value);
+        }
+      };
 
   final HttpClientHandler<Request<?>, Response<?>> handler;
   final TraceContext.Injector<Request<?>> injector;
@@ -65,8 +67,7 @@ public final class TracingRequestHandler extends RequestHandler2 {
 
   @Override public final void beforeRequest(Request<?> request) {
     Span span = handler.handleSend(injector, request);
-    span.remoteEndpoint(
-        Endpoint.newBuilder().serviceName(request.getServiceName()).build());
+    span.remoteServiceName(request.getServiceName());
     span.tag("aws.service_name", request.getServiceName());
     span.tag("aws.operation", getAwsOperationFromRequest(request));
     request.addHandlerContext(SPAN, span);
@@ -108,7 +109,6 @@ public final class TracingRequestHandler extends RequestHandler2 {
     handler.handleReceive(response, e, span);
   }
 
-
   private String getAwsOperationFromRequest(Request<?> request) {
     // EX: ListBucketsRequest
     String operation = request.getOriginalRequest().getClass().getSimpleName();
@@ -119,7 +119,8 @@ public final class TracingRequestHandler extends RequestHandler2 {
   private void tagSpanWithRequestId(Span span, Response response) {
     String requestId = null;
     if (response.getAwsResponse() instanceof AmazonWebServiceResult<?>) {
-      ResponseMetadata metadata = ((AmazonWebServiceResult<?>) response.getAwsResponse()).getSdkResponseMetadata();
+      ResponseMetadata metadata =
+          ((AmazonWebServiceResult<?>) response.getAwsResponse()).getSdkResponseMetadata();
       if (null != metadata) {
         requestId = metadata.getRequestId();
       }

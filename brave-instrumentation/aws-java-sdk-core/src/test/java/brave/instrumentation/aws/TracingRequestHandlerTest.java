@@ -14,8 +14,9 @@
 package brave.instrumentation.aws;
 
 import brave.Tracing;
-import brave.context.log4j2.ThreadContextCurrentTraceContext;
-import brave.propagation.StrictCurrentTraceContext;
+import brave.context.log4j2.ThreadContextScopeDecorator;
+import brave.propagation.StrictScopeDecorator;
+import brave.propagation.ThreadLocalCurrentTraceContext;
 import brave.sampler.Sampler;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
@@ -52,8 +53,10 @@ public class TracingRequestHandlerTest {
     Tracing tracing = tracingBuilder().build();
     TracingRequestHandler tracingRequestHandler = TracingRequestHandler.create(tracing);
     client = AmazonDynamoDBClientBuilder.standard()
-        .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
-        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
+        .withCredentials(
+            new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
+        .withEndpointConfiguration(
+            new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
         .withRequestHandlers(tracingRequestHandler)
         .build();
   }
@@ -92,15 +95,18 @@ public class TracingRequestHandlerTest {
   private MockResponse createDeleteItemResponse() {
     MockResponse response = new MockResponse();
     response.setBody("{}");
-    response.addHeader("x-amzn-RequestId","abcd");
+    response.addHeader("x-amzn-RequestId", "abcd");
     return response;
   }
 
   private Tracing.Builder tracingBuilder() {
     return Tracing.newBuilder()
         .spanReporter(spans::add)
-        .currentTraceContext( // connect to log4j
-            ThreadContextCurrentTraceContext.create(new StrictCurrentTraceContext()))
+        .currentTraceContext(
+            ThreadLocalCurrentTraceContext.newBuilder()
+                .addScopeDecorator(ThreadContextScopeDecorator.create()) // connect to log4j
+                .addScopeDecorator(StrictScopeDecorator.create())
+                .build())
         .sampler(Sampler.ALWAYS_SAMPLE);
   }
 }
