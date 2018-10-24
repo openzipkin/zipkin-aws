@@ -92,7 +92,6 @@ final class TracingRequestHandler extends RequestHandler2 {
       applicationSpan = context.getRequest().getHandlerContext(APPLICATION_SPAN);
     }
     Span clientSpan = nextClientSpan(context.getRequest(), applicationSpan);
-    clientSpan.name(context.getRequest().getServiceName());
     context.getRequest().addHandlerContext(CLIENT_SPAN, clientSpan);
   }
 
@@ -119,9 +118,13 @@ final class TracingRequestHandler extends RequestHandler2 {
   }
 
   private Span nextClientSpan(Request<?> request, Span applicationSpan) {
-    Span span = handler.handleSend(injector, request, applicationSpan);
+    Span span = tracer.newChild(applicationSpan.context());
+    handler.handleSend(injector, request, span);
+    String operation = getAwsOperationFromRequest(request);
+    span.name(operation);
+    span.remoteServiceName(request.getServiceName());
     span.tag("aws.service_name", request.getServiceName());
-    span.tag("aws.operation", getAwsOperationFromRequest(request));
+    span.tag("aws.operation", operation);
     return span;
   }
 
@@ -136,15 +139,17 @@ final class TracingRequestHandler extends RequestHandler2 {
 
   static void tagSpanWithRequestId(Span span, Response response) {
     String requestId = null;
-    if (response.getAwsResponse() instanceof AmazonWebServiceResult<?>) {
-      ResponseMetadata metadata =
-          ((AmazonWebServiceResult<?>) response.getAwsResponse()).getSdkResponseMetadata();
-      if (null != metadata) {
-        requestId = metadata.getRequestId();
-      }
-    } else if (response.getHttpResponse() != null) {
-      if (response.getHttpResponse().getHeader("x-amz-request-id") != null) {
-        requestId = response.getHttpResponse().getHeader("x-amz-request-id");
+    if (response != null) {
+      if (response.getAwsResponse() instanceof AmazonWebServiceResult<?>) {
+        ResponseMetadata metadata =
+            ((AmazonWebServiceResult<?>) response.getAwsResponse()).getSdkResponseMetadata();
+        if (null != metadata) {
+          requestId = metadata.getRequestId();
+        }
+      } else if (response.getHttpResponse() != null) {
+        if (response.getHttpResponse().getHeader("x-amz-request-id") != null) {
+          requestId = response.getHttpResponse().getHeader("x-amz-request-id");
+        }
       }
     }
     if (requestId != null) {

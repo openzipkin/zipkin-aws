@@ -21,8 +21,13 @@ import com.amazonaws.ClientConfiguration;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.List;
 import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.SocketPolicy;
+import org.junit.Test;
 import zipkin2.Span;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -62,7 +67,7 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
 
   /** Span name doesn't conform to expectation */
   @Override public void supportsPortableCustomization() throws Exception {
-    String uri = "";
+    String uri = "/"; // Always '/'
     close();
     httpTracing = httpTracing.toBuilder()
         .clientParser(new HttpClientParser() {
@@ -90,11 +95,48 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
 
     assertThat(span.remoteServiceName())
         .isEqualTo("amazondynamodbv2");
+    assertThat(span.name()).isEqualTo("getitem");
 
     assertThat(span.tags())
         .containsEntry("http.url", url(uri))
         .containsEntry("request_customizer.is_span", "false")
         .containsEntry("response_customizer.is_span", "false");
+  }
+
+  /** We retry twice so we would need to get 3 errors + the application span */
+  @Override public void addsErrorTagOnTransportException() throws Exception {
+    List<Span> spans = getWithRetries();
+    for (Span span : spans) {
+      assertThat(span.tags())
+          .containsKey("error");
+    }
+  }
+
+  @Test public void retriesAreChildrenOfApplicationSpan() throws Exception {
+    List<Span> spans = getWithRetries();
+    assertThat(spans.stream().anyMatch(s -> s.parentId() == null)).isTrue();
+    Span parent = spans.stream().filter(s -> s.parentId() == null).findFirst().get();
+    assertThat(parent.kind()).isNull();
+
+    spans.stream().filter(s -> s.parentId() != null).forEach(s -> {
+      assertThat(s.parentId()).isEqualTo(parent.id());
+      assertThat(s.kind()).isEqualTo(Span.Kind.CLIENT);
+    });
+  }
+
+  private List<Span> getWithRetries() throws InterruptedException {
+    server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
+    server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
+    server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
+    server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
+
+    try {
+      get(client, "");
+    } catch (Exception e) {
+      // Span will have error
+    }
+
+    return new ArrayList<>(Arrays.asList(takeSpan(), takeSpan(), takeSpan(), takeSpan()));
   }
 
   /** Body's inherently have a structure */
