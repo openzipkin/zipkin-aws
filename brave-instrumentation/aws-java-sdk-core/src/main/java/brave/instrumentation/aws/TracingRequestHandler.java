@@ -92,6 +92,7 @@ final class TracingRequestHandler extends RequestHandler2 {
       applicationSpan = context.getRequest().getHandlerContext(APPLICATION_SPAN);
     }
     Span clientSpan = nextClientSpan(context.getRequest(), applicationSpan);
+    clientSpan.name(context.getRequest().getServiceName());
     context.getRequest().addHandlerContext(CLIENT_SPAN, clientSpan);
   }
 
@@ -108,15 +109,11 @@ final class TracingRequestHandler extends RequestHandler2 {
 
   @Override public final void afterResponse(Request<?> request, Response<?> response) {
     Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
-    // TODO: why are we setting the name late?
-    applicationSpan.name(request.getServiceName());
     applicationSpan.finish();
   }
 
   @Override public final void afterError(Request<?> request, Response<?> response, Exception e) {
     Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
-    // TODO: why are we setting the name late?
-    applicationSpan.name(request.getServiceName());
     applicationSpan.error(e);
     applicationSpan.finish();
   }
