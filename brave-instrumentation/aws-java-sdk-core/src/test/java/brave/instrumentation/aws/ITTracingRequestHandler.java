@@ -13,9 +13,14 @@
  */
 package brave.instrumentation.aws;
 
+import brave.ScopedSpan;
 import brave.SpanCustomizer;
+import brave.Tracer;
 import brave.http.HttpAdapter;
 import brave.http.HttpClientParser;
+import brave.http.HttpTracing;
+import brave.internal.HexCodec;
+import brave.sampler.Sampler;
 import brave.test.http.ITHttpAsyncClient;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.client.builder.AwsClientBuilder;
@@ -26,10 +31,12 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.RecordedRequest;
 import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.Test;
 import zipkin2.Span;
 
+import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
@@ -91,19 +98,75 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
     server.enqueue(new MockResponse());
     get(client, uri);
 
-    Span span = takeSpan();
+    List<Span> spans = Arrays.asList(takeSpan(), takeSpan());
+    spans.stream().filter(s -> s.parentId() != null).forEach(s -> {
+      assertThat(s.remoteServiceName())
+          .isEqualTo("amazondynamodbv2");
+      assertThat(s.name()).isEqualTo("getitem");
 
-    assertThat(span.remoteServiceName())
-        .isEqualTo("amazondynamodbv2");
-    assertThat(span.name()).isEqualTo("getitem");
-
-    assertThat(span.tags())
-        .containsEntry("http.url", url(uri))
-        .containsEntry("request_customizer.is_span", "false")
-        .containsEntry("response_customizer.is_span", "false");
+      assertThat(s.tags())
+          .containsEntry("http.url", url(uri))
+          .containsEntry("request_customizer.is_span", "false")
+          .containsEntry("response_customizer.is_span", "false");
+    });
   }
 
-  /** We retry twice so we would need to get 3 errors + the application span */
+  /*
+   * Tests overriden due to the multi-span implementation of the client, application and client
+   */
+
+  /** Modified to check hierarchy from parent->application->client */
+  @Override public void makesChildOfCurrentSpan() throws Exception {
+    Tracer tracer = httpTracing.tracing().tracer();
+    server.enqueue(new MockResponse());
+
+    ScopedSpan parent = tracer.startScopedSpan("test");
+    try {
+      get(client, "/foo");
+    } finally {
+      parent.finish();
+    }
+
+    List<Span> spans = Arrays.asList(takeSpan(), takeSpan(), takeSpan());
+    Span applicationSpan = spans.stream().filter(s -> s.parentId().equals(HexCodec.toLowerHex(parent.context().spanId()))).findFirst().get();
+    Span clientSpan = spans.stream().filter(s -> s.parentId().equals(applicationSpan.id())).findFirst().get();
+
+    RecordedRequest request = server.takeRequest();
+    assertThat(request.getHeader("x-b3-traceId"))
+        .isEqualTo(parent.context().traceIdString());
+    assertThat(request.getHeader("x-b3-parentspanid"))
+        .isEqualTo(applicationSpan.id());
+    assertThat(request.getHeader("x-b3-spanid"))
+        .isEqualTo(clientSpan.id());
+
+    assertThat(spans)
+        .extracting(Span::kind)
+        .containsOnly(null, Span.Kind.CLIENT, null);
+  }
+
+  @Override public void propagatesSpan() throws Exception {
+    super.propagatesSpan();
+    takeSpan();
+  }
+
+  @Override public void reportsSpanOnTransportException() throws Exception {
+    getWithRetries(); // Our new impl of this method
+  }
+
+  @Override public void propagates_sampledFalse() throws Exception {
+    close();
+    httpTracing = HttpTracing.create(tracingBuilder(Sampler.NEVER_SAMPLE).build());
+    client = newClient(server.getPort());
+
+    server.enqueue(new MockResponse());
+    get(client, "/foo");
+
+    RecordedRequest request = server.takeRequest();
+    assertThat(request.getHeaders().toMultimap())
+        .containsKeys("x-b3-traceId", "x-b3-spanId")
+        .containsEntry("x-b3-sampled", asList("0"));
+  }
+
   @Override public void addsErrorTagOnTransportException() throws Exception {
     List<Span> spans = getWithRetries();
     for (Span span : spans) {
@@ -139,7 +202,7 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
     return new ArrayList<>(Arrays.asList(takeSpan(), takeSpan(), takeSpan(), takeSpan()));
   }
 
-  /** Body's inherently have a structure */
+  /** Body's inherently have a structure, and we use the operation name as the span name */
   @Override public void post() throws Exception {
     String path = "table";
     String body = "{\"TableName\":\"table\",\"Key\":{}}";
@@ -152,7 +215,21 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
 
     Span span = takeSpan();
     assertThat(span.name())
-        .isEqualTo("post");
+        .isEqualTo("getitem");
+    assertThat(span.remoteServiceName())
+        .isEqualTo("amazondynamodbv2");
+
+    takeSpan();
+  }
+
+  @Override public void propagatesExtra_newTrace() throws Exception {
+    super.propagatesExtra_newTrace();
+    takeSpan();
+  }
+
+  @Override public void reportsClientKindToZipkin() throws Exception {
+    super.reportsClientKindToZipkin();
+    takeSpan();
   }
 
   /*
