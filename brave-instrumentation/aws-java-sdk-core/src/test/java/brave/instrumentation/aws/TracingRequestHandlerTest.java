@@ -15,88 +15,61 @@ package brave.instrumentation.aws;
 
 import brave.Tracing;
 import brave.context.log4j2.ThreadContextScopeDecorator;
+import brave.http.HttpTracing;
 import brave.propagation.StrictScopeDecorator;
 import brave.propagation.ThreadLocalCurrentTraceContext;
 import brave.sampler.Sampler;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
-import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import java.util.Collections;
+import com.amazonaws.AmazonServiceException;
+import com.amazonaws.DefaultRequest;
+import com.amazonaws.handlers.HandlerAfterAttemptContext;
+import com.amazonaws.handlers.HandlerContextKey;
+import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughputExceededException;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
-import okhttp3.mockwebserver.MockResponse;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.TestRule;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
 import zipkin2.Span;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class TracingRequestHandlerTest {
-
-  @Rule
-  public MockDynamoDBServer dynamoDBServer = new MockDynamoDBServer();
-
   private BlockingQueue<Span> spans = new LinkedBlockingQueue<>();
-  private AmazonDynamoDB client;
+
+  Tracing tracing;
+  TracingRequestHandler handler;
 
   @Before
   public void setup() {
-    Tracing tracing = tracingBuilder().build();
-    TracingRequestHandler tracingRequestHandler = TracingRequestHandler.create(tracing);
-    client = AmazonDynamoDBClientBuilder.standard()
-        .withCredentials(
-            new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
-        .withEndpointConfiguration(
-            new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"))
-        .withRequestHandlers(tracingRequestHandler)
-        .build();
+    tracing = tracingBuilder().build();
+    handler = new TracingRequestHandler(HttpTracing.create(tracing));
   }
 
   @After
   public void cleanup() {
-    Tracing.current().close();
+    tracing.close();
   }
-
-  // See brave.http.ITHttp for rationale on polling after tests complete
-  @Rule public TestRule assertSpansEmpty = new TestWatcher() {
-    // only check success path to avoid masking assertion errors or exceptions
-    @Override protected void succeeded(Description description) {
-      try {
-        assertThat(spans.poll(100, TimeUnit.MILLISECONDS))
-            .withFailMessage("Span remaining in queue. Check for redundant reporting")
-            .isNull();
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      }
-    }
-  };
 
   @Test
-  public void testSpanCreatedAndTagsApplied() throws InterruptedException {
-    dynamoDBServer.enqueue(createDeleteItemResponse());
+  public void handlesAmazonServiceExceptions() throws Exception {
+    brave.Span braveSpan = tracing.tracer().nextSpan();
+    AmazonServiceException exception = new ProvisionedThroughputExceededException("test");
+    exception.setRequestId("abcd");
 
-    client.deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
+    DefaultRequest request = new DefaultRequest("test");
+    request.addHandlerContext(new HandlerContextKey<>(brave.Span.class.getCanonicalName()), braveSpan);
+    HandlerAfterAttemptContext context = HandlerAfterAttemptContext.builder()
+        .withRequest(request)
+        .withException(exception)
+        .build();
 
-    Span span = spans.poll(100, TimeUnit.MILLISECONDS);
-    assertThat(span.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
-    assertThat(span.tags().get("aws.operation")).isEqualToIgnoringCase("deleteitem");
-    assertThat(span.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
-  }
+    handler.afterAttempt(context);
+    Span reportedSpan = spans.take();
+    assertThat(reportedSpan.traceId()).isEqualToIgnoringCase(braveSpan.context().traceIdString());
+    assertThat(reportedSpan.tags()).containsKey("error");
+    assertThat(reportedSpan.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
 
-  private MockResponse createDeleteItemResponse() {
-    MockResponse response = new MockResponse();
-    response.setBody("{}");
-    response.addHeader("x-amzn-RequestId", "abcd");
-    return response;
+    assertThat(spans.isEmpty()).isTrue();
   }
 
   private Tracing.Builder tracingBuilder() {

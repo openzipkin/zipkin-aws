@@ -14,39 +14,45 @@
 package brave.instrumentation.aws;
 
 import brave.Span;
-import brave.Tracing;
+import brave.Tracer;
 import brave.http.HttpClientAdapter;
 import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
 import brave.propagation.Propagation;
 import brave.propagation.TraceContext;
 import com.amazonaws.AmazonServiceException;
+import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.AmazonWebServiceResult;
 import com.amazonaws.Request;
 import com.amazonaws.Response;
 import com.amazonaws.ResponseMetadata;
 import com.amazonaws.handlers.HandlerAfterAttemptContext;
+import com.amazonaws.handlers.HandlerBeforeAttemptContext;
 import com.amazonaws.handlers.HandlerContextKey;
 import com.amazonaws.handlers.RequestHandler2;
 
 /**
  * Traces AWS Java SDK calls. Adds on the standard zipkin/brave http tags, as well as tags that
  * align with the XRay data model.
+ *
+ * This implementation creates 2 types of spans to allow for better error visibility.
+ *
+ * The outer span, "Application Span", wraps the whole SDK operation. This span uses the AWS service
+ * as it's name and will NOT have a remoteService configuration, making it a local span. If the
+ * entire operation results in an error then this span will have an error tag with the cause.
+ *
+ * The inner span, "Client Span", is created for each outgoing HTTP request. This span will be of
+ * type CLIENT. The remoteService will be the name of the AWS service, and the span name will be the
+ * name of the operation being done. If the request results in an error then the span will be
+ * tagged with the error. The AWS request ID is added when available.
  */
-public final class TracingRequestHandler extends RequestHandler2 {
-
-  public static TracingRequestHandler create(HttpTracing httpTracing) {
-    return new TracingRequestHandler(httpTracing);
-  }
-
-  public static TracingRequestHandler create(Tracing tracing) {
-    return new TracingRequestHandler(HttpTracing.create(tracing));
-  }
-
-  static final HandlerContextKey<Span> SPAN =
+final class TracingRequestHandler extends RequestHandler2 {
+  static final HandlerContextKey<Span> APPLICATION_SPAN =
+      new HandlerContextKey<>("APPLICATION_SPAN");
+  static final HandlerContextKey<TraceContext> DEFERRED_ROOT_SPAN =
+      new HandlerContextKey<>("DEFERRED_ROOT_SPAN");
+  static final HandlerContextKey<Span> CLIENT_SPAN =
       new HandlerContextKey<>(Span.class.getCanonicalName());
-  static final HandlerContextKey<TracingRequestHandler> TRACING_REQUEST_HANDLER_CONTEXT_KEY =
-      new HandlerContextKey<>(TracingRequestHandler.class.getCanonicalName());
 
   static final HttpClientAdapter<Request<?>, Response<?>> ADAPTER = new HttpAdapter();
 
@@ -57,76 +63,105 @@ public final class TracingRequestHandler extends RequestHandler2 {
         }
       };
 
+  final HttpTracing httpTracing;
+  final Tracer tracer;
   final HttpClientHandler<Request<?>, Response<?>> handler;
   final TraceContext.Injector<Request<?>> injector;
 
   TracingRequestHandler(HttpTracing httpTracing) {
-    handler = HttpClientHandler.create(httpTracing, ADAPTER);
-    injector = httpTracing.tracing().propagation().injector(SETTER);
+    this.httpTracing = httpTracing;
+    this.tracer = httpTracing.tracing().tracer();
+    this.injector = httpTracing.tracing().propagation().injector(SETTER);
+    this.handler = HttpClientHandler.create(httpTracing, ADAPTER);
   }
 
-  @Override public final void beforeRequest(Request<?> request) {
-    Span span = handler.handleSend(injector, request);
-    span.remoteServiceName(request.getServiceName());
-    span.tag("aws.service_name", request.getServiceName());
-    span.tag("aws.operation", getAwsOperationFromRequest(request));
-    request.addHandlerContext(SPAN, span);
-    request.addHandlerContext(TRACING_REQUEST_HANDLER_CONTEXT_KEY, this);
+  @Override public AmazonWebServiceRequest beforeExecution(AmazonWebServiceRequest request) {
+    Span applicationSpan = tracer.nextSpan();
+    // new root span, but we don't yet know if we should sample it
+    if (applicationSpan.context().parentIdAsLong() == 0) {
+      request.addHandlerContext(
+          DEFERRED_ROOT_SPAN,
+          applicationSpan.context().toBuilder().sampled(null).build()
+      );
+    } else {
+      request.addHandlerContext(APPLICATION_SPAN, applicationSpan.start());
+    }
+    return request;
+  }
+
+  @Override public void beforeAttempt(HandlerBeforeAttemptContext context) {
+    TraceContext deferredRootSpan = context.getRequest().getHandlerContext(DEFERRED_ROOT_SPAN);
+    Span applicationSpan;
+    if (deferredRootSpan != null) {
+      Boolean sampled = httpTracing.clientSampler().trySample(ADAPTER, context.getRequest());
+      if (sampled == null) {
+        sampled = httpTracing.tracing().sampler().isSampled(deferredRootSpan.traceId());
+      }
+      applicationSpan = tracer.toSpan(deferredRootSpan.toBuilder().sampled(sampled).build());
+      context.getRequest().addHandlerContext(APPLICATION_SPAN, applicationSpan.start());
+    } else {
+      applicationSpan = context.getRequest().getHandlerContext(APPLICATION_SPAN);
+    }
+    applicationSpan.name(context.getRequest().getServiceName());
+    Span clientSpan = nextClientSpan(context.getRequest(), applicationSpan);
+    context.getRequest().addHandlerContext(CLIENT_SPAN, clientSpan);
   }
 
   @Override public final void afterAttempt(HandlerAfterAttemptContext context) {
-    if (context.getException() != null) {
-      Span span = context.getRequest().getHandlerContext(SPAN);
-      if (span == null) {
-        return;
-      }
-      span.error(context.getException());
+    Span clientSpan = context.getRequest().getHandlerContext(CLIENT_SPAN);
+    if (context.getException() != null
+        && context.getException() instanceof AmazonServiceException) {
+      tagSpanWithRequestId(clientSpan, (AmazonServiceException) context.getException());
+    } else {
+      tagSpanWithRequestId(clientSpan, context.getResponse());
     }
+    handler.handleReceive(context.getResponse(), context.getException(), clientSpan);
   }
 
   @Override public final void afterResponse(Request<?> request, Response<?> response) {
-    Span span = request.getHandlerContext(SPAN);
-    if (span == null) {
-      return;
-    }
-    tagSpanWithRequestId(span, response);
-    handler.handleReceive(response, null, span);
+    Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
+    applicationSpan.finish();
   }
 
   @Override public final void afterError(Request<?> request, Response<?> response, Exception e) {
-    Span span = request.getHandlerContext(SPAN);
-    if (span == null) {
-      return;
-    }
-    if (response != null) {
-      tagSpanWithRequestId(span, response);
-    } else if (e != null) {
-      if (e instanceof AmazonServiceException) {
-        tagSpanWithRequestId(span, (AmazonServiceException) e);
-        span.tag("http.status_code", String.valueOf(((AmazonServiceException) e).getStatusCode()));
-      }
-    }
-    handler.handleReceive(response, e, span);
+    Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
+    applicationSpan.error(e);
+    applicationSpan.finish();
+  }
+
+  private Span nextClientSpan(Request<?> request, Span applicationSpan) {
+    Span span = tracer.newChild(applicationSpan.context());
+    handler.handleSend(injector, request, span);
+    String operation = getAwsOperationFromRequest(request);
+    span.name(operation);
+    span.remoteServiceName(request.getServiceName());
+    span.tag("aws.service_name", request.getServiceName());
+    span.tag("aws.operation", operation);
+    return span;
   }
 
   private String getAwsOperationFromRequest(Request<?> request) {
     // EX: ListBucketsRequest
     String operation = request.getOriginalRequest().getClass().getSimpleName();
-    operation = operation.substring(0, operation.length() - 7); // Drop the "Request"
+    if (operation.endsWith("Request")) {
+      return operation.substring(0, operation.length() - 7);
+    }
     return operation;
   }
 
-  private void tagSpanWithRequestId(Span span, Response response) {
+  static void tagSpanWithRequestId(Span span, Response response) {
     String requestId = null;
-    if (response.getAwsResponse() instanceof AmazonWebServiceResult<?>) {
-      ResponseMetadata metadata =
-          ((AmazonWebServiceResult<?>) response.getAwsResponse()).getSdkResponseMetadata();
-      if (null != metadata) {
-        requestId = metadata.getRequestId();
-      }
-    } else if (response.getHttpResponse() != null) {
-      if (response.getHttpResponse().getHeader("x-amz-request-id") != null) {
-        requestId = response.getHttpResponse().getHeader("x-amz-request-id");
+    if (response != null) {
+      if (response.getAwsResponse() instanceof AmazonWebServiceResult<?>) {
+        ResponseMetadata metadata =
+            ((AmazonWebServiceResult<?>) response.getAwsResponse()).getSdkResponseMetadata();
+        if (null != metadata) {
+          requestId = metadata.getRequestId();
+        }
+      } else if (response.getHttpResponse() != null) {
+        if (response.getHttpResponse().getHeader("x-amz-request-id") != null) {
+          requestId = response.getHttpResponse().getHeader("x-amz-request-id");
+        }
       }
     }
     if (requestId != null) {
@@ -134,11 +169,8 @@ public final class TracingRequestHandler extends RequestHandler2 {
     }
   }
 
-  private void tagSpanWithRequestId(Span span, AmazonServiceException exception) {
-    String requestId = null;
-    if (exception.getRequestId() != null) {
-      requestId = exception.getRequestId();
-    }
+  static void tagSpanWithRequestId(Span span, AmazonServiceException exception) {
+    String requestId = exception.getRequestId();
     if (requestId != null) {
       span.tag("aws.request_id", requestId);
     }
