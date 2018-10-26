@@ -91,6 +91,7 @@ final class TracingRequestHandler extends RequestHandler2 {
     } else {
       applicationSpan = context.getRequest().getHandlerContext(APPLICATION_SPAN);
     }
+    applicationSpan.name(context.getRequest().getServiceName());
     Span clientSpan = nextClientSpan(context.getRequest(), applicationSpan);
     context.getRequest().addHandlerContext(CLIENT_SPAN, clientSpan);
   }

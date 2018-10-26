@@ -37,7 +37,7 @@ public class ITAwsClientTracing_SyncClient extends ITHttpClient<FakeSyncClient> 
   }
 
   @Override protected void closeClient(FakeSyncClient client) {
-    // TODO
+    client.shutdown();
   }
 
   @Override protected void get(FakeSyncClient client, String pathIncludingQuery) {

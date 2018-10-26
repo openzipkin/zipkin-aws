@@ -87,6 +87,7 @@ public class TracingRequestHandlerTest {
 
     Span httpSpan = spans.poll(100, TimeUnit.MILLISECONDS);
     assertThat(httpSpan.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
+    assertThat(httpSpan.name()).isEqualToIgnoringCase("deleteitem");
     assertThat(httpSpan.tags().get("aws.operation")).isEqualToIgnoringCase("deleteitem");
     assertThat(httpSpan.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
 

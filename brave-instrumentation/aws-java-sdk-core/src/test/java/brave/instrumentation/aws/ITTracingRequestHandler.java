@@ -30,6 +30,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.RecordedRequest;
 import okhttp3.mockwebserver.SocketPolicy;
@@ -114,6 +116,49 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
   /*
    * Tests overriden due to the multi-span implementation of the client, application and client
    */
+
+  @Override public void usesParentFromInvocationTime() throws Exception {
+    Tracer tracer = httpTracing.tracing().tracer();
+    server.enqueue(new MockResponse().setBodyDelay(300, TimeUnit.MILLISECONDS));
+    server.enqueue(new MockResponse());
+
+    ScopedSpan parent = tracer.startScopedSpan("test");
+    try {
+      getAsync(client, "/items/1");
+      getAsync(client, "/items/2");
+    } finally {
+      parent.finish();
+    }
+
+    ScopedSpan otherSpan = tracer.startScopedSpan("test2");
+    List<String> requestSpanIds = new ArrayList<>();
+    try {
+      for (int i = 0; i < 2; i++) {
+        RecordedRequest request = server.takeRequest();
+        assertThat(request.getHeader("x-b3-traceId"))
+            .isEqualTo(parent.context().traceIdString());
+        requestSpanIds.add(request.getHeader("x-b3-spanId"));
+      }
+    } finally {
+      otherSpan.finish();
+    }
+
+    // Check we reported 2 in-process spans, 2 sdk spans, and 2 RPC client spans
+    List<Span> spans = Arrays.asList(takeSpan(), takeSpan(), takeSpan(), takeSpan(), takeSpan(), takeSpan());
+
+    // Get request spans, then get their parents (sdk spans), then make sure the sdk spans have the
+    // correct parent
+    List<String> sdkSpanIds = spans.stream().filter(s -> requestSpanIds.contains(s.id()))
+        .map(Span::parentId).collect(Collectors.toList());
+    spans.stream().filter(s -> sdkSpanIds.contains(s.id())).forEach(s -> {
+      assertThat(s.parentId()).isEqualToIgnoringCase(HexCodec.toLowerHex(parent.context().spanId()));
+    });
+
+
+    assertThat(spans)
+        .extracting(Span::kind)
+        .containsOnly(null, Span.Kind.CLIENT);
+  }
 
   /** Modified to check hierarchy from parent->application->client */
   @Override public void makesChildOfCurrentSpan() throws Exception {
