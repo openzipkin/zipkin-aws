@@ -209,6 +209,7 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
     RecordedRequest request = server.takeRequest();
     assertThat(request.getHeaders().toMultimap())
         .containsKeys("x-b3-traceId", "x-b3-spanId")
+        // .doesNotContainKey("x-b3-parentSpanId") AWS SDK tracing uses 2 spans, so there is a parent
         .containsEntry("x-b3-sampled", asList("0"));
   }
 
