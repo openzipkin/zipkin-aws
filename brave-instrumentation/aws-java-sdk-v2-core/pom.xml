@@ -47,6 +47,16 @@
       <artifactId>sdk-core</artifactId>
       <version>${aws-sdk-java-v2.version}</version>
     </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>s3</artifactId>
+      <version>${aws-sdk-java-v2.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>apache-client</artifactId>
+      <version>${aws-sdk-java-v2.version}</version>
+    </dependency>
 
     <dependency>
       <groupId>io.zipkin.brave</groupId>
