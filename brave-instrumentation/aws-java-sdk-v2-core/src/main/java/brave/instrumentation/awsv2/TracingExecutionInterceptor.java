@@ -33,6 +33,8 @@ import software.amazon.awssdk.http.SdkHttpResponse;
  * tagged with the error. The AWS request ID is added when available.
  */
 public class TracingExecutionInterceptor implements ExecutionInterceptor {
+  static final ExecutionAttribute<TraceContext> DEFERRED_ROOT_CONTEXT =
+      new ExecutionAttribute<>("DEFERRED_ROOT_CONTEXT");
   static final ExecutionAttribute<TraceContext> DEFERRED_ROOT_SPAN =
       new ExecutionAttribute<>("DEFERRED_ROOT_SPAN");
   static final ExecutionAttribute<Span> APPLICATION_SPAN =
@@ -68,6 +70,9 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
   ) {
     Span maybeDeferredRootSpan = tracer.nextSpan();
     if (maybeDeferredRootSpan.context().parentIdAsLong() == 0) { // Deferred to sampling when we have http context
+      // When we rebuild the context in the 2nd put, we lose the reference here which is the one put
+      // into the PendingSpans list, so we need to save it to keep the span finishable
+      executionAttributes.putAttribute(DEFERRED_ROOT_CONTEXT, maybeDeferredRootSpan.context());
       executionAttributes.putAttribute(
           DEFERRED_ROOT_SPAN,
           maybeDeferredRootSpan.context().toBuilder().sampled(null).build()
