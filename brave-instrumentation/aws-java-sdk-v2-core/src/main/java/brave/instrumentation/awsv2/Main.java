@@ -11,15 +11,13 @@ import software.amazon.awssdk.services.s3.S3Client;
 public class Main {
   public static final void main(String[] args) throws InterruptedException {
     Tracing tracing = Tracing.newBuilder().build();
-    TracingExecutionInterceptor interceptor = new TracingExecutionInterceptor(HttpTracing.create(tracing));
+    HttpTracing httpTracing = HttpTracing.create(tracing);
 
     SdkHttpClient client = ApacheHttpClient.builder().build();
     S3Client s3 = S3Client.builder()
         .httpClient(client)
         .region(Region.US_EAST_1)
-        .overrideConfiguration(ClientOverrideConfiguration.builder()
-            .addExecutionInterceptor(interceptor)
-            .build())
+        .overrideConfiguration(TracingClientOverrideConfiguration.create(httpTracing).build(ClientOverrideConfiguration.builder()))
         .build();
 
     s3.listBuckets();
