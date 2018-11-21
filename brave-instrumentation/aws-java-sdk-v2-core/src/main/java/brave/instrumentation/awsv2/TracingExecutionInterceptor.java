@@ -33,13 +33,17 @@ import software.amazon.awssdk.http.SdkHttpResponse;
  * tagged with the error. The AWS request ID is added when available.
  */
 public class TracingExecutionInterceptor implements ExecutionInterceptor {
-  static final ExecutionAttribute<TraceContext> DEFERRED_ROOT_SPAN = new ExecutionAttribute<>("DEFERRED_ROOT_SPAN");
-  static final ExecutionAttribute<Span> APPLICATION_SPAN = new ExecutionAttribute<>("APPLICATION_SPAN");
-  static final ExecutionAttribute<Span> CLIENT_SPAN = new ExecutionAttribute<>(Span.class.getCanonicalName());
+  static final ExecutionAttribute<TraceContext> DEFERRED_ROOT_SPAN =
+      new ExecutionAttribute<>("DEFERRED_ROOT_SPAN");
+  static final ExecutionAttribute<Span> APPLICATION_SPAN =
+      new ExecutionAttribute<>("APPLICATION_SPAN");
+  static final ExecutionAttribute<Span> CLIENT_SPAN =
+      new ExecutionAttribute<>(Span.class.getCanonicalName());
 
   static final ExecutionAttribute<String> SERVICE_NAME = SdkExecutionAttribute.SERVICE_NAME;
 
-  static final HttpClientAdapter<SdkHttpRequest.Builder, SdkHttpResponse> ADAPTER = new HttpAdapter();
+  static final HttpClientAdapter<SdkHttpRequest.Builder, SdkHttpResponse> ADAPTER =
+      new HttpAdapter();
   static final Propagation.Setter<SdkHttpRequest.Builder, String> SETTER =
       SdkHttpRequest.Builder::appendHeader;
 
@@ -58,11 +62,16 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
   /**
    * Before the SDK request leaves the calling thread
    */
-  @Override public void beforeExecution(Context.BeforeExecution context,
-      ExecutionAttributes executionAttributes) {
+  @Override public void beforeExecution(
+      Context.BeforeExecution context,
+      ExecutionAttributes executionAttributes
+  ) {
     Span maybeDeferredRootSpan = tracer.nextSpan();
     if (maybeDeferredRootSpan.context().parentIdAsLong() == 0) { // Deferred to sampling when we have http context
-      executionAttributes.putAttribute(DEFERRED_ROOT_SPAN, maybeDeferredRootSpan.context().toBuilder().sampled(null).build());
+      executionAttributes.putAttribute(
+          DEFERRED_ROOT_SPAN,
+          maybeDeferredRootSpan.context().toBuilder().sampled(null).build()
+      );
     } else {
       executionAttributes.putAttribute(APPLICATION_SPAN, maybeDeferredRootSpan.start());
     }
@@ -71,12 +80,17 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
   /**
    * Before an individual http request happens, may be run multiple times if retries occur
    */
-  @Override public SdkHttpRequest modifyHttpRequest(Context.ModifyHttpRequest context,
-      ExecutionAttributes executionAttributes) {
+  @Override public SdkHttpRequest modifyHttpRequest(
+      Context.ModifyHttpRequest context,
+      ExecutionAttributes executionAttributes
+  ) {
     TraceContext maybeDeferredRootSpan = executionAttributes.getAttribute(DEFERRED_ROOT_SPAN);
     Span applicationSpan;
     if (context != null) {
-      Boolean sampled = httpTracing.clientSampler().trySample(ADAPTER, context.httpRequest().toBuilder());
+      Boolean sampled = httpTracing.clientSampler().trySample(
+          ADAPTER,
+          context.httpRequest().toBuilder()
+      );
       if (sampled == null) {
         sampled = httpTracing.tracing().sampler().isSampled(maybeDeferredRootSpan.traceId());
       }
@@ -89,7 +103,6 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
     applicationSpan.name(serviceName);
 
     return context.httpRequest().copy(builder -> {
-      tracer.withSpanInScope(applicationSpan);
       Span clientSpan = nextClientSpan(applicationSpan, serviceName, context.request(), builder);
       executionAttributes.putAttribute(CLIENT_SPAN, clientSpan);
     });
@@ -99,19 +112,30 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
    * After individual http response, may run multiple times if retries occur
    */
   @Override
-  public void beforeUnmarshalling(Context.BeforeUnmarshalling context, ExecutionAttributes executionAttributes) {
+  public void beforeUnmarshalling(
+      Context.BeforeUnmarshalling context,
+      ExecutionAttributes executionAttributes
+  ) {
     Span clientSpan = executionAttributes.getAttribute(CLIENT_SPAN);
     if (!context.httpResponse().isSuccessful()) {
-      clientSpan.error(new ErrorMessageThrowable(context.httpResponse().statusText().orElse("Unknown AWS service error")));
+      clientSpan.error( // They don't attach an exception to the context here. Maybe a later hook does?
+          new ErrorMessageThrowable(context.httpResponse().statusText()
+              .orElse("Unknown AWS service error"))
+      );
     }
     handler.handleReceive(context.httpResponse(), null, clientSpan);
+    executionAttributes.putAttribute(CLIENT_SPAN, null);
   }
+
+
 
   /**
    * After a SDK request has been executed
    */
-  @Override public void afterExecution(Context.AfterExecution context,
-                                       ExecutionAttributes executionAttributes) {
+  @Override public void afterExecution(
+      Context.AfterExecution context,
+      ExecutionAttributes executionAttributes
+  ) {
     Span applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
     applicationSpan.finish();
   }
@@ -119,13 +143,20 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
   /**
    * After a SDK request has failed
    */
-  @Override public void onExecutionFailure(Context.FailedExecution context,
-      ExecutionAttributes executionAttributes) {
+  @Override public void onExecutionFailure(
+      Context.FailedExecution context,
+      ExecutionAttributes executionAttributes
+  ) {
     Span applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
     applicationSpan.error(context.exception());
   }
 
-  private Span nextClientSpan(Span applicationSpan, String serviceName, SdkRequest sdkRequest, SdkHttpRequest.Builder sdkHttpRequestBuilder) {
+  private Span nextClientSpan(
+      Span applicationSpan,
+      String serviceName,
+      SdkRequest sdkRequest,
+      SdkHttpRequest.Builder sdkHttpRequestBuilder
+  ) {
     Span span = tracer.newChild(applicationSpan.context());
     // Set up http, this starts the span
     handler.handleSend(injector, sdkHttpRequestBuilder, span);
