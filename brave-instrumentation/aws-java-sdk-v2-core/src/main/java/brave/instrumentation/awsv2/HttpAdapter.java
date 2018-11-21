@@ -32,7 +32,9 @@ public class HttpAdapter extends HttpClientAdapter<SdkHttpRequest.Builder, SdkHt
   @Override public String url(SdkHttpRequest.Builder request) {
     StringBuilder url = new StringBuilder(request.protocol())
         .append("://")
-        .append(request.host());
+        .append(request.host())
+        .append(":")
+        .append(request.port());
     if (request.encodedPath() != null) url.append(request.encodedPath());
     if (request.rawQueryParameters().isEmpty()) return url.toString();
     url.append('?');

@@ -50,7 +50,7 @@ public class ITTracingExecutionInterceptor extends ITHttpAsyncClient<DynamoDbAsy
 
   @Override protected void getAsync(DynamoDbAsyncClient dynamoDbClient, String s) throws Exception {
     dynamoDbClient.getItem(
-        GetItemRequest.builder().tableName(s).key(Collections.EMPTY_MAP).build());
+        GetItemRequest.builder().tableName(s).build());
   }
 
   @Override protected DynamoDbAsyncClient newClient(int i) {
@@ -59,7 +59,7 @@ public class ITTracingExecutionInterceptor extends ITHttpAsyncClient<DynamoDbAsy
             .build(
                 ClientOverrideConfiguration.builder()
                     .retryPolicy(RetryPolicy.builder().numRetries(2).build())
-                    .apiCallTimeout(Duration.ofSeconds(1)));
+                    .apiCallTimeout(Duration.ofMillis(100)));
 
     return DynamoDbAsyncClient.builder()
         .credentialsProvider(DefaultCredentialsProvider.create())
@@ -252,7 +252,7 @@ public class ITTracingExecutionInterceptor extends ITHttpAsyncClient<DynamoDbAsy
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
 
     try {
-      get(client, "");
+      get(client, "table");
     } catch (Exception e) {
       // Span will have error
     }

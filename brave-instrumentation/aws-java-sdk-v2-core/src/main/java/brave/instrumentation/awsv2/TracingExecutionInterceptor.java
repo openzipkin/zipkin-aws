@@ -20,7 +20,6 @@ import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
 import brave.propagation.Propagation;
 import brave.propagation.TraceContext;
-import java.util.Collections;
 import software.amazon.awssdk.core.SdkRequest;
 import software.amazon.awssdk.core.interceptor.Context;
 import software.amazon.awssdk.core.interceptor.ExecutionAttribute;
@@ -48,8 +47,6 @@ import software.amazon.awssdk.http.SdkHttpResponse;
 public class TracingExecutionInterceptor implements ExecutionInterceptor {
   static final ExecutionAttribute<TraceContext> DEFERRED_ROOT_CONTEXT =
       new ExecutionAttribute<>("DEFERRED_ROOT_CONTEXT");
-  static final ExecutionAttribute<TraceContext> DEFERRED_ROOT_SPAN =
-      new ExecutionAttribute<>("DEFERRED_ROOT_SPAN");
   static final ExecutionAttribute<Span> APPLICATION_SPAN =
       new ExecutionAttribute<>("APPLICATION_SPAN");
   static final ExecutionAttribute<Span> CLIENT_SPAN =
@@ -86,10 +83,6 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
       // When we rebuild the context in the 2nd put, we lose the reference here which is the one put
       // into the PendingSpans list, so we need to save it to keep the span finishable
       executionAttributes.putAttribute(DEFERRED_ROOT_CONTEXT, maybeDeferredRootSpan.context());
-      executionAttributes.putAttribute(
-          DEFERRED_ROOT_SPAN,
-          maybeDeferredRootSpan.context().toBuilder().sampled(null).build()
-      );
     } else {
       executionAttributes.putAttribute(APPLICATION_SPAN, maybeDeferredRootSpan.start());
     }
@@ -102,7 +95,7 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
       Context.ModifyHttpRequest context,
       ExecutionAttributes executionAttributes
   ) {
-    TraceContext maybeDeferredRootSpan = executionAttributes.getAttribute(DEFERRED_ROOT_SPAN);
+    TraceContext maybeDeferredRootSpan = executionAttributes.getAttribute(DEFERRED_ROOT_CONTEXT);
     Span applicationSpan;
     if (maybeDeferredRootSpan != null) {
       Boolean sampled = httpTracing.clientSampler().trySample(
