@@ -86,7 +86,7 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
   ) {
     TraceContext maybeDeferredRootSpan = executionAttributes.getAttribute(DEFERRED_ROOT_SPAN);
     Span applicationSpan;
-    if (context != null) {
+    if (maybeDeferredRootSpan != null) {
       Boolean sampled = httpTracing.clientSampler().trySample(
           ADAPTER,
           context.httpRequest().toBuilder()
