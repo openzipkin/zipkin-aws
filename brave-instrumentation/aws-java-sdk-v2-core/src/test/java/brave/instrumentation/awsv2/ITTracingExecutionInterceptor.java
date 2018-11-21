@@ -262,7 +262,7 @@ public class ITTracingExecutionInterceptor extends ITHttpAsyncClient<DynamoDbAsy
     assertThat(span.name())
         .isEqualTo("getitem");
     assertThat(span.remoteServiceName())
-        .isEqualTo("amazondynamodbv2");
+        .isEqualTo("dynamodb");
 
     takeSpan();
   }
