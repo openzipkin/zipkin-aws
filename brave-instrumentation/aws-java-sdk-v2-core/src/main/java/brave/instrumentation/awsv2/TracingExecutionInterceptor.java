@@ -129,10 +129,8 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
   ) {
     Span clientSpan = executionAttributes.getAttribute(CLIENT_SPAN);
     if (!context.httpResponse().isSuccessful()) {
-      clientSpan.error( // They don't attach an exception to the context here. Maybe a later hook does?
-          new ErrorMessageThrowable(context.httpResponse().statusText()
-              .orElse("Unknown AWS service error"))
-      );
+      clientSpan.tag("error", context.httpResponse().statusText()
+          .orElse("Unknown AWS service error"));
     }
     handler.handleReceive(context.httpResponse(), null, clientSpan);
     executionAttributes.putAttribute(CLIENT_SPAN, null);
@@ -185,16 +183,5 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
       return operation.substring(0, operation.length() - 7);
     }
     return operation;
-  }
-
-  private class ErrorMessageThrowable extends Exception {
-    ErrorMessageThrowable(String message) {
-      super(message);
-    }
-
-    // Doesn't fill in the stack frames so doesn't have the same overhead
-    @Override public synchronized Throwable fillInStackTrace() {
-      return null;
-    }
   }
 }
