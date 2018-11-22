@@ -185,8 +185,8 @@ public class ITTracingExecutionInterceptor extends ITHttpAsyncClient<DynamoDbAsy
     }
 
     List<Span> spans = asList(takeSpan(), takeSpan(), takeSpan());
-    Span applicationSpan = spans.stream().filter(s -> s.parentId().equals(HexCodec.toLowerHex(parent.context().spanId()))).findFirst().get();
-    Span clientSpan = spans.stream().filter(s -> s.parentId().equals(applicationSpan.id())).findFirst().get();
+    Span applicationSpan = spans.stream().filter(s -> HexCodec.toLowerHex(parent.context().spanId()).equals(s.parentId())).findFirst().get();
+    Span clientSpan = spans.stream().filter(s -> applicationSpan.id().equals(s.parentId())).findFirst().get();
 
     RecordedRequest request = server.takeRequest();
     assertThat(request.getHeader("x-b3-traceId"))
