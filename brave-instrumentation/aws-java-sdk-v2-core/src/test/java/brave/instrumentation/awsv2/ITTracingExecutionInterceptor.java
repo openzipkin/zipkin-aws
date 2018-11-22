@@ -50,7 +50,7 @@ public class ITTracingExecutionInterceptor extends ITHttpAsyncClient<DynamoDbAsy
 
   @Override protected void getAsync(DynamoDbAsyncClient dynamoDbClient, String s) throws Exception {
     dynamoDbClient.getItem(
-        GetItemRequest.builder().tableName(s).build());
+        GetItemRequest.builder().tableName(s).key(Collections.EMPTY_MAP).build());
   }
 
   @Override protected DynamoDbAsyncClient newClient(int i) {
