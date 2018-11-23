@@ -63,7 +63,7 @@ public class ITTracingExecutionInterceptor extends ITHttpAsyncClient<DynamoDbAsy
 
     return DynamoDbAsyncClient.builder()
         .credentialsProvider(DefaultCredentialsProvider.create())
-        .httpClient(NettyNioAsyncHttpClient.builder().buildWithDefaults(AttributeMap.empty()))
+        .httpClient(NettyNioAsyncHttpClient.builder().maxConcurrency(10).buildWithDefaults(AttributeMap.empty()))
         .region(Region.US_EAST_1)
         .overrideConfiguration(configuration)
         .endpointOverride(URI.create("http://127.0.0.1:" + i))
@@ -179,7 +179,7 @@ public class ITTracingExecutionInterceptor extends ITHttpAsyncClient<DynamoDbAsy
 
     ScopedSpan parent = tracer.startScopedSpan("test");
     try {
-      get(client, "/foo");
+      getAsync(client, "/foo");
     } finally {
       parent.finish();
     }
