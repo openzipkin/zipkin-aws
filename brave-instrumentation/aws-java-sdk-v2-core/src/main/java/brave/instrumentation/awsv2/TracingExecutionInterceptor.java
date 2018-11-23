@@ -80,8 +80,8 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
   ) {
     Span maybeDeferredRootSpan = tracer.nextSpan();
     if (maybeDeferredRootSpan.context().parentIdAsLong() == 0) { // Deferred to sampling when we have http context
-      // When we rebuild the context in the 2nd put, we lose the reference here which is the one put
-      // into the PendingSpans list, so we need to save it to keep the span finishable
+      // When we rebuild the context in the 2nd put, we lose the reference here which is the one
+      // inserted into the PendingSpans list, so we need to save it to keep the span finishable
       executionAttributes.putAttribute(DEFERRED_ROOT_CONTEXT, maybeDeferredRootSpan.context());
     } else {
       executionAttributes.putAttribute(APPLICATION_SPAN, maybeDeferredRootSpan.start());
@@ -111,10 +111,13 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
       applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
     }
     String serviceName = executionAttributes.getAttribute(SERVICE_NAME);
-    applicationSpan.name(serviceName);
+    String operation = getAwsOperationNameFromRequestClass(context.request());
+    applicationSpan.name("aws-sdk")
+        .tag("aws.service_name", serviceName)
+        .tag("aws.operation", operation);
 
     return context.httpRequest().copy(builder -> {
-      Span clientSpan = nextClientSpan(applicationSpan, serviceName, context.request(), builder);
+      Span clientSpan = nextClientSpan(applicationSpan, serviceName, operation, builder);
       executionAttributes.putAttribute(CLIENT_SPAN, clientSpan);
     });
   }
@@ -163,18 +166,13 @@ public class TracingExecutionInterceptor implements ExecutionInterceptor {
   private Span nextClientSpan(
       Span applicationSpan,
       String serviceName,
-      SdkRequest sdkRequest,
+      String operation,
       SdkHttpRequest.Builder sdkHttpRequestBuilder
   ) {
     Span span = tracer.newChild(applicationSpan.context());
-    // Set up http, this starts the span
     handler.handleSend(injector, sdkHttpRequestBuilder, span);
-    // Don't start the span here
-    String operation = getAwsOperationNameFromRequestClass(sdkRequest);
     return span.name(operation)
-        .remoteServiceName(serviceName)
-        .tag("aws.service_name", operation)
-        .tag("aws.operation", serviceName);
+        .remoteServiceName(serviceName);
   }
 
   private String getAwsOperationNameFromRequestClass(SdkRequest request) {

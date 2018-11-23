@@ -272,12 +272,33 @@ public class ITTracingExecutionInterceptor extends ITHttpAsyncClient<DynamoDbAsy
         .isEqualTo(body);
 
     Span span = takeSpan();
-    assertThat(span.name())
-        .isEqualTo("getitem");
     assertThat(span.remoteServiceName())
         .isEqualTo("dynamodb");
+    assertThat(span.name())
+        .isEqualTo("getitem");
 
     takeSpan();
+  }
+
+  @Test
+  public void applicationSpanIncludesAwsTags() throws Exception {
+    String path = "table";
+    String body = "{\"TableName\":\"table\",\"Key\":{}}";
+    server.enqueue(new MockResponse());
+
+    post(client, path, body);
+
+    assertThat(server.takeRequest().getBody().readUtf8())
+        .isEqualTo(body);
+
+    takeSpan();
+
+    Span span = takeSpan();
+    assertThat(span.name()).isEqualTo("aws-sdk");
+    assertThat(span.tags().get("aws.service_name"))
+        .isEqualTo("DynamoDb");
+    assertThat(span.tags().get("aws.operation"))
+        .isEqualTo("GetItem");
   }
 
   @Override public void propagatesExtra_newTrace() throws Exception {
