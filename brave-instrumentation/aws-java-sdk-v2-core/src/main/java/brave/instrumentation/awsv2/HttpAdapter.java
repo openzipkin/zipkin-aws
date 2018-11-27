@@ -20,7 +20,7 @@ import java.util.Map;
 import software.amazon.awssdk.http.SdkHttpRequest;
 import software.amazon.awssdk.http.SdkHttpResponse;
 
-public class HttpAdapter extends HttpClientAdapter<SdkHttpRequest.Builder, SdkHttpResponse> {
+class HttpAdapter extends HttpClientAdapter<SdkHttpRequest.Builder, SdkHttpResponse> {
   @Override public String method(SdkHttpRequest.Builder builder) {
     return builder.method().name();
   }

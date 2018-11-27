@@ -55,6 +55,7 @@
     <log4j.version>2.11.1</log4j.version>
 
     <aws-java-sdk.version>1.11.431</aws-java-sdk.version>
+    <aws-java-sdk-v2.version>2.1.0</aws-java-sdk-v2.version>
 
     <!-- make sure this matches spring-boot's version -->
     <jackson.version>2.9.6</jackson.version>

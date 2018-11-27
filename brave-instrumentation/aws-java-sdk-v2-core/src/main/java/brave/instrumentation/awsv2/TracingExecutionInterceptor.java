@@ -44,7 +44,7 @@ import software.amazon.awssdk.http.SdkHttpResponse;
  * name of the operation being done. If the request results in an error then the span will be
  * tagged with the error. The AWS request ID is added when available.
  */
-public class TracingExecutionInterceptor implements ExecutionInterceptor {
+final class TracingExecutionInterceptor implements ExecutionInterceptor {
   static final ExecutionAttribute<TraceContext> DEFERRED_ROOT_CONTEXT =
       new ExecutionAttribute<>("DEFERRED_ROOT_CONTEXT");
   static final ExecutionAttribute<Span> APPLICATION_SPAN =
