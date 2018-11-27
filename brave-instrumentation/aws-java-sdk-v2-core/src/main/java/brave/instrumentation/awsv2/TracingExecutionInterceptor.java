@@ -79,9 +79,9 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       ExecutionAttributes executionAttributes
   ) {
     Span maybeDeferredRootSpan = tracer.nextSpan();
-    if (maybeDeferredRootSpan.context().parentIdAsLong() == 0) { // Deferred to sampling when we have http context
-      // When we rebuild the context in the 2nd put, we lose the reference here which is the one
-      // inserted into the PendingSpans list, so we need to save it to keep the span finishable
+    if (maybeDeferredRootSpan.context().parentIdAsLong() == 0) {
+      // Deferred to sampling when we have http context
+      // We will build a new span with this context later when we can make the sampling decision
       executionAttributes.putAttribute(DEFERRED_ROOT_CONTEXT, maybeDeferredRootSpan.context());
     } else {
       executionAttributes.putAttribute(APPLICATION_SPAN, maybeDeferredRootSpan.start());
