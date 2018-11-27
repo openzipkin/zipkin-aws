@@ -47,19 +47,19 @@
 
     <license-maven-plugin.version>2.11</license-maven-plugin.version>
 
-    <zipkin.version>2.11.7</zipkin.version>
+    <zipkin.version>2.11.8</zipkin.version>
     <zipkin-reporter2.version>2.7.10</zipkin-reporter2.version>
     <brave.version>5.5.1</brave.version>
 
     <slf4j.version>1.7.25</slf4j.version>
     <log4j.version>2.11.1</log4j.version>
 
-    <aws-java-sdk.version>1.11.431</aws-java-sdk.version>
+    <aws-java-sdk.version>1.11.444</aws-java-sdk.version>
     <aws-java-sdk-v2.version>2.1.0</aws-java-sdk-v2.version>
 
     <!-- make sure this matches spring-boot's version -->
-    <jackson.version>2.9.6</jackson.version>
-    <spring-boot.version>2.0.5.RELEASE</spring-boot.version>
+    <jackson.version>2.9.7</jackson.version>
+    <spring-boot.version>2.1.0.RELEASE</spring-boot.version>
 
     <!-- override to set exclusions per-project -->
     <errorprone.args />
@@ -252,7 +252,7 @@
             <dependency>
               <groupId>io.zipkin.layout</groupId>
               <artifactId>zipkin-layout-factory</artifactId>
-              <version>0.0.2</version>
+              <version>0.0.3</version>
             </dependency>
           </dependencies>
         </plugin>
