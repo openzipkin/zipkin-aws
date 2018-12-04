@@ -37,9 +37,9 @@ import com.amazonaws.handlers.RequestHandler2;
  *
  * This implementation creates 2 types of spans to allow for better error visibility.
  *
- * The outer span, "Application Span", wraps the whole SDK operation. This span uses the AWS service
- * as it's name and will NOT have a remoteService configuration, making it a local span. If the
- * entire operation results in an error then this span will have an error tag with the cause.
+ * The outer span, "Application Span", wraps the whole SDK operation. This span uses aws-sdk as it's
+ * name and will NOT have a remoteService configuration, making it a local span. If the entire
+ * operation results in an error then this span will have an error tag with the cause.
  *
  * The inner span, "Client Span", is created for each outgoing HTTP request. This span will be of
  * type CLIENT. The remoteService will be the name of the AWS service, and the span name will be the
@@ -49,8 +49,8 @@ import com.amazonaws.handlers.RequestHandler2;
 final class TracingRequestHandler extends RequestHandler2 {
   static final HandlerContextKey<Span> APPLICATION_SPAN =
       new HandlerContextKey<>("APPLICATION_SPAN");
-  static final HandlerContextKey<TraceContext> DEFERRED_ROOT_SPAN =
-      new HandlerContextKey<>("DEFERRED_ROOT_SPAN");
+  static final HandlerContextKey<TraceContext> DEFERRED_ROOT_CONTEXT =
+      new HandlerContextKey<>("DEFERRED_ROOT_CONTEXT");
   static final HandlerContextKey<Span> CLIENT_SPAN =
       new HandlerContextKey<>(Span.class.getCanonicalName());
 
@@ -79,10 +79,7 @@ final class TracingRequestHandler extends RequestHandler2 {
     Span applicationSpan = tracer.nextSpan();
     // new root span, but we don't yet know if we should sample it
     if (applicationSpan.context().parentIdAsLong() == 0) {
-      request.addHandlerContext(
-          DEFERRED_ROOT_SPAN,
-          applicationSpan.context().toBuilder().sampled(null).build()
-      );
+      request.addHandlerContext(DEFERRED_ROOT_CONTEXT, applicationSpan.context());
     } else {
       request.addHandlerContext(APPLICATION_SPAN, applicationSpan.start());
     }
@@ -90,20 +87,23 @@ final class TracingRequestHandler extends RequestHandler2 {
   }
 
   @Override public void beforeAttempt(HandlerBeforeAttemptContext context) {
-    TraceContext deferredRootSpan = context.getRequest().getHandlerContext(DEFERRED_ROOT_SPAN);
+    TraceContext deferredRootContext = context.getRequest().getHandlerContext(DEFERRED_ROOT_CONTEXT);
     Span applicationSpan;
-    if (deferredRootSpan != null) {
+    if (deferredRootContext != null) {
       Boolean sampled = httpTracing.clientSampler().trySample(ADAPTER, context.getRequest());
       if (sampled == null) {
-        sampled = httpTracing.tracing().sampler().isSampled(deferredRootSpan.traceId());
+        sampled = httpTracing.tracing().sampler().isSampled(deferredRootContext.traceId());
       }
-      applicationSpan = tracer.toSpan(deferredRootSpan.toBuilder().sampled(sampled).build());
+      applicationSpan = tracer.toSpan(deferredRootContext.toBuilder().sampled(sampled).build());
       context.getRequest().addHandlerContext(APPLICATION_SPAN, applicationSpan.start());
     } else {
       applicationSpan = context.getRequest().getHandlerContext(APPLICATION_SPAN);
     }
-    applicationSpan.name(context.getRequest().getServiceName());
-    Span clientSpan = nextClientSpan(context.getRequest(), applicationSpan);
+    String operation = getAwsOperationFromRequest(context.getRequest());
+    applicationSpan.name("aws-sdk")
+        .tag("aws.service_name", context.getRequest().getServiceName())
+        .tag("aws.operation", operation);
+    Span clientSpan = nextClientSpan(context.getRequest(), applicationSpan, operation);
     context.getRequest().addHandlerContext(CLIENT_SPAN, clientSpan);
   }
 
@@ -129,15 +129,11 @@ final class TracingRequestHandler extends RequestHandler2 {
     applicationSpan.finish();
   }
 
-  private Span nextClientSpan(Request<?> request, Span applicationSpan) {
+  private Span nextClientSpan(Request<?> request, Span applicationSpan, String operation) {
     Span span = tracer.newChild(applicationSpan.context());
     handler.handleSend(injector, request, span);
-    String operation = getAwsOperationFromRequest(request);
-    span.name(operation);
-    span.remoteServiceName(request.getServiceName());
-    span.tag("aws.service_name", request.getServiceName());
-    span.tag("aws.operation", operation);
-    return span;
+    return span.name(operation)
+        .remoteServiceName(request.getServiceName());
   }
 
   private String getAwsOperationFromRequest(Request<?> request) {
