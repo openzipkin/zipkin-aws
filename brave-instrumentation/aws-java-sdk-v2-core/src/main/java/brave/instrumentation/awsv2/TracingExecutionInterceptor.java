@@ -52,8 +52,6 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
   static final ExecutionAttribute<Span> CLIENT_SPAN =
       new ExecutionAttribute<>(Span.class.getCanonicalName());
 
-  static final ExecutionAttribute<String> SERVICE_NAME = SdkExecutionAttribute.SERVICE_NAME;
-
   static final HttpClientAdapter<SdkHttpRequest.Builder, SdkHttpResponse> ADAPTER =
       new HttpAdapter();
   static final Propagation.Setter<SdkHttpRequest.Builder, String> SETTER =
@@ -110,16 +108,18 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
     } else {
       applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
     }
-    String serviceName = executionAttributes.getAttribute(SERVICE_NAME);
-    String operation = getAwsOperationNameFromRequestClass(context.request());
-    applicationSpan.name("aws-sdk")
-        .tag("aws.service_name", serviceName)
-        .tag("aws.operation", operation);
+    try (Tracer.SpanInScope ignored = tracer.withSpanInScope(applicationSpan)) {
+      String serviceName = executionAttributes.getAttribute(SdkExecutionAttribute.SERVICE_NAME);
+      String operation = getAwsOperationNameFromRequestClass(context.request());
+      applicationSpan.name("aws-sdk")
+          .tag("aws.service_name", serviceName)
+          .tag("aws.operation", operation);
 
-    return context.httpRequest().copy(builder -> {
-      Span clientSpan = nextClientSpan(applicationSpan, serviceName, operation, builder);
-      executionAttributes.putAttribute(CLIENT_SPAN, clientSpan);
-    });
+      return context.httpRequest().copy(builder -> {
+        Span clientSpan = nextClientSpan(applicationSpan, serviceName, operation, builder);
+        executionAttributes.putAttribute(CLIENT_SPAN, clientSpan);
+      });
+    }
   }
 
   /**
@@ -131,11 +131,13 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       ExecutionAttributes executionAttributes
   ) {
     Span clientSpan = executionAttributes.getAttribute(CLIENT_SPAN);
-    if (!context.httpResponse().isSuccessful()) {
-      clientSpan.tag("error", context.httpResponse().statusText()
-          .orElse("Unknown AWS service error"));
+    try (Tracer.SpanInScope ignored = tracer.withSpanInScope(clientSpan)) {
+      if (!context.httpResponse().isSuccessful()) {
+        clientSpan.tag("error", context.httpResponse().statusText()
+            .orElse("Unknown AWS service error"));
+      }
+      handler.handleReceive(context.httpResponse(), null, clientSpan);
     }
-    handler.handleReceive(context.httpResponse(), null, clientSpan);
     executionAttributes.putAttribute(CLIENT_SPAN, null);
   }
 
@@ -149,7 +151,9 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       ExecutionAttributes executionAttributes
   ) {
     Span applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
-    applicationSpan.finish();
+    try (Tracer.SpanInScope ignored = tracer.withSpanInScope(applicationSpan)) {
+      applicationSpan.finish();
+    }
   }
 
   /**
@@ -160,7 +164,9 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       ExecutionAttributes executionAttributes
   ) {
     Span applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
-    applicationSpan.error(context.exception());
+    try (Tracer.SpanInScope ignored = tracer.withSpanInScope(applicationSpan)) {
+      applicationSpan.error(context.exception());
+    }
   }
 
   private Span nextClientSpan(
