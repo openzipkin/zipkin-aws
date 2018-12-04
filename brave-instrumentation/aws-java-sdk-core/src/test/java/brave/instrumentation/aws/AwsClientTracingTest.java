@@ -88,11 +88,10 @@ public class AwsClientTracingTest {
     Span httpSpan = spans.poll(100, TimeUnit.MILLISECONDS);
     assertThat(httpSpan.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
     assertThat(httpSpan.name()).isEqualToIgnoringCase("deleteitem");
-    assertThat(httpSpan.tags().get("aws.operation")).isEqualToIgnoringCase("deleteitem");
     assertThat(httpSpan.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
 
     Span sdkSpan = spans.poll(100, TimeUnit.MILLISECONDS);
-    assertThat(sdkSpan.name()).isEqualToIgnoringCase("amazondynamodbv2");
+    assertThat(sdkSpan.name()).isEqualToIgnoringCase("aws-sdk");
   }
 
   private MockResponse createDeleteItemResponse() {
