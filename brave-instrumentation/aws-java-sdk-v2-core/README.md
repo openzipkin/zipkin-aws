@@ -28,11 +28,12 @@ error. The AWS request ID is added when available.
 // Set up brave
 Tracing tracing = Tracing.currentTracer();
 HttpTracing httpTracing = HttpTracing.create(tracing);
+AwsSdkTracing awsSdkTracing = AwsSdkTracing.create(httpTracing);
 
 // Create your client
 ClientOverrideConfiguration configuration = ClientOverrideConfiguration.builder()
         // Any other options you'd like to set
-        .addExecutionInterceptor(AwsSdkTracing.create(httpTracing).executionInterceptor())
+        .addExecutionInterceptor(awsSdkTracing.executionInterceptor())
         .build();
 DynamoDbAsyncClient client = DynamoDbAsyncClient.builder()
         .overrideConfiguration(configuration)
