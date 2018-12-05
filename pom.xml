@@ -49,12 +49,13 @@
 
     <zipkin.version>2.11.8</zipkin.version>
     <zipkin-reporter2.version>2.7.10</zipkin-reporter2.version>
-    <brave.version>5.5.0</brave.version>
+    <brave.version>5.5.1</brave.version>
 
     <slf4j.version>1.7.25</slf4j.version>
     <log4j.version>2.11.1</log4j.version>
 
     <aws-java-sdk.version>1.11.444</aws-java-sdk.version>
+    <aws-java-sdk-v2.version>2.1.0</aws-java-sdk-v2.version>
 
     <!-- make sure this matches spring-boot's version -->
     <jackson.version>2.9.7</jackson.version>
