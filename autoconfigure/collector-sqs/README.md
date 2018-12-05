@@ -74,7 +74,7 @@ The following IAM permissions are required by the SQSCollector
 
 Once your collector is enabled, verify it is running:
 ```bash
-curl -s localhost:9411/health|jq .zipkin.SQSCollector
+curl -s localhost:9411/health|jq .zipkin.details.SQSCollector
 {
   "status": "UP"
 }
