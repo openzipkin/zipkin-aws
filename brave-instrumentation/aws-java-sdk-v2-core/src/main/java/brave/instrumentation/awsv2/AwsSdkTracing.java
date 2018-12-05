@@ -14,9 +14,9 @@
 package brave.instrumentation.awsv2;
 
 import brave.http.HttpTracing;
-import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
 
-public class AwsSdkTracing {
+public final class AwsSdkTracing {
   public static AwsSdkTracing create(HttpTracing httpTracing) {
     return new AwsSdkTracing(httpTracing);
   }
@@ -28,10 +28,7 @@ public class AwsSdkTracing {
     this.httpTracing = httpTracing;
   }
 
-  public ClientOverrideConfiguration build(ClientOverrideConfiguration.Builder builder) {
-    if (builder == null) throw new NullPointerException("builder == null");
-    builder.addExecutionInterceptor(new TracingExecutionInterceptor(httpTracing));
-
-    return builder.build();
+  public ExecutionInterceptor executionInterceptor() {
+    return new TracingExecutionInterceptor(httpTracing);
   }
 }

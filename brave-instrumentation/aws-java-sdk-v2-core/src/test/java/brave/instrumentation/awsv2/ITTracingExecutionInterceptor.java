@@ -54,12 +54,11 @@ public class ITTracingExecutionInterceptor extends ITHttpAsyncClient<DynamoDbAsy
   }
 
   @Override protected DynamoDbAsyncClient newClient(int i) {
-    ClientOverrideConfiguration configuration =
-        AwsSdkTracing.create(httpTracing)
-            .build(
-                ClientOverrideConfiguration.builder()
-                    .retryPolicy(RetryPolicy.builder().numRetries(2).build())
-                    .apiCallTimeout(Duration.ofMillis(100)));
+    ClientOverrideConfiguration configuration = ClientOverrideConfiguration.builder()
+        .retryPolicy(RetryPolicy.builder().numRetries(2).build())
+        .apiCallTimeout(Duration.ofMillis(100))
+        .addExecutionInterceptor(AwsSdkTracing.create(httpTracing).executionInterceptor())
+        .build();
 
     return DynamoDbAsyncClient.builder()
         .credentialsProvider(DefaultCredentialsProvider.create())

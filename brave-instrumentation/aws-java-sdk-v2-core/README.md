@@ -30,9 +30,13 @@ Tracing tracing = Tracing.currentTracer();
 HttpTracing httpTracing = HttpTracing.create(tracing);
 
 // Create your client
-ClientOverrideConfiguration configuration =
-    AwsSdkTracing.create(httpTracing).build(ClientOverrideConfiguration.builder());
-DynamoDbAsyncClient client = DynamoDbAsyncClient.builder().overrideConfiguration(configuration).build();
+ClientOverrideConfiguration configuration = ClientOverrideConfiguration.builder()
+        // Any other options you'd like to set
+        .addExecutionInterceptor(AwsSdkTracing.create(httpTracing).executionInterceptor())
+        .build();
+DynamoDbAsyncClient client = DynamoDbAsyncClient.builder()
+        .overrideConfiguration(configuration)
+        .build();
 
 // Now use you client like usual
 ```
