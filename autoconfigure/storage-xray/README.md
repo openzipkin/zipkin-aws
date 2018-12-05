@@ -59,7 +59,7 @@ for users that prefer a file based approach.
 
 Once your storage is enabled, verify it is running:
 ```bash
-$ curl -s localhost:9411/health|jq .zipkin.XrayStorage
+$ curl -s localhost:9411/health|jq .zipkin.details.XRayUDPStorage
 {
   "status": "UP"
 }

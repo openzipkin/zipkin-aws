@@ -80,7 +80,7 @@ The following IAM permissions are required by the KinesisCollector
 
 Once your collector is enabled, verify it is running:
 ```bash
-$ curl -s localhost:9411/health|jq .zipkin.KinesisCollector
+$ curl -s localhost:9411/health|jq .zipkin.details.KinesisCollector
 {
   "status": "UP"
 }
