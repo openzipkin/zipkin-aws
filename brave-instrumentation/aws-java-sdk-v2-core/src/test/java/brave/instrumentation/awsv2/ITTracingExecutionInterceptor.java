@@ -55,7 +55,7 @@ public class ITTracingExecutionInterceptor extends ITHttpAsyncClient<DynamoDbAsy
 
   @Override protected DynamoDbAsyncClient newClient(int i) {
     ClientOverrideConfiguration configuration =
-        TracingClientOverrideConfiguration.create(httpTracing)
+        AwsSdkTracing.create(httpTracing)
             .build(
                 ClientOverrideConfiguration.builder()
                     .retryPolicy(RetryPolicy.builder().numRetries(2).build())

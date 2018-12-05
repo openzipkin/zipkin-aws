@@ -31,7 +31,7 @@ HttpTracing httpTracing = HttpTracing.create(tracing);
 
 // Create your client
 ClientOverrideConfiguration configuration =
-    TracingClientOverrideConfiguration.create(httpTracing).build(ClientOverrideConfiguration.builder());
+    AwsSdkTracing.create(httpTracing).build(ClientOverrideConfiguration.builder());
 DynamoDbAsyncClient client = DynamoDbAsyncClient.builder().overrideConfiguration(configuration).build();
 
 // Now use you client like usual

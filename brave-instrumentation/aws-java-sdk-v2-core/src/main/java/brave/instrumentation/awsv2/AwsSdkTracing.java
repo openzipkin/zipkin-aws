@@ -16,14 +16,14 @@ package brave.instrumentation.awsv2;
 import brave.http.HttpTracing;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 
-public class TracingClientOverrideConfiguration {
-  public static TracingClientOverrideConfiguration create(HttpTracing httpTracing) {
-    return new TracingClientOverrideConfiguration(httpTracing);
+public class AwsSdkTracing {
+  public static AwsSdkTracing create(HttpTracing httpTracing) {
+    return new AwsSdkTracing(httpTracing);
   }
 
   final HttpTracing httpTracing;
 
-  TracingClientOverrideConfiguration(HttpTracing httpTracing) {
+  AwsSdkTracing(HttpTracing httpTracing) {
     if (httpTracing == null) throw new NullPointerException("httpTracing == null");
     this.httpTracing = httpTracing;
   }
