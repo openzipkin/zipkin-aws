@@ -3,8 +3,8 @@
 This module contains instrumentation for [AWS](https://github.com/aws/aws-sdk-java-v2) clients that
 extend `SdkClient`.
 
-The `TracingClientOverrideConfiguration` class finalizes your `ClientOverrideConfiguration`
-instances by adding a `ExecutionInterceptor` instance to your client configuration.
+The `AwsSdkTracing` class produces an `ExecutionInterceptor` that you will add to your
+`ClientOverrideConfiguration` instances in order to trace them.
 
 ## Span Model
 
@@ -19,8 +19,7 @@ operation results in an error then this span will have an error tag with the cau
 
 The inner span, "Client Span", is created for each outgoing HTTP request. This span will be of type
 CLIENT. The remoteService will be the name of the AWS service, and the span name will be the name of
-the operation being done. If the request results in an error then the span will be tagged with the
-error. The AWS request ID is added when available.
+the operation being done.
 
 ## Wiring it up
 
