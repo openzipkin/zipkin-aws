@@ -24,8 +24,8 @@ import brave.propagation.TraceIdContext;
 import java.util.Collections;
 import java.util.List;
 
-import static brave.internal.HexCodec.writeHexByte;
-import static brave.internal.HexCodec.writeHexLong;
+import static brave.propagation.aws.HexCodec.writeHexByte;
+import static brave.propagation.aws.HexCodec.writeHexLong;
 
 /**
  * Utility for working with Amazon Web Services Trace IDs, for example reading from headers or
