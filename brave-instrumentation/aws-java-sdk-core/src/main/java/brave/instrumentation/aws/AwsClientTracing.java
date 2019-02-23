@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -16,6 +16,7 @@ package brave.instrumentation.aws;
 import brave.http.HttpTracing;
 import brave.propagation.CurrentTraceContext;
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.ClientConfigurationFactory;
 import com.amazonaws.client.builder.AwsAsyncClientBuilder;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.client.builder.ExecutorFactory;
@@ -26,6 +27,9 @@ public final class AwsClientTracing {
   public static AwsClientTracing create(HttpTracing httpTracing) {
     return new AwsClientTracing(httpTracing); // no builder yet as we don't need it yet.
   }
+
+  static final ClientConfigurationFactory defaultClientConfigurationFactory =
+      new ClientConfigurationFactory();
 
   final HttpTracing httpTracing;
   final CurrentTraceContext currentTraceContext;
@@ -43,8 +47,12 @@ public final class AwsClientTracing {
     if (builder instanceof AwsAsyncClientBuilder) {
       ExecutorFactory executorFactory = ((AwsAsyncClientBuilder) builder).getExecutorFactory();
       if (executorFactory == null) {
+        ClientConfiguration clientConfiguration = builder.getClientConfiguration();
+        if (clientConfiguration == null) {
+          clientConfiguration = defaultClientConfigurationFactory.getConfig();
+        }
         ((AwsAsyncClientBuilder) builder).setExecutorFactory(
-            new TracingExecutorFactory(currentTraceContext, builder.getClientConfiguration())
+            new TracingExecutorFactory(currentTraceContext, clientConfiguration)
         );
       } else {
         ((AwsAsyncClientBuilder) builder).setExecutorFactory(

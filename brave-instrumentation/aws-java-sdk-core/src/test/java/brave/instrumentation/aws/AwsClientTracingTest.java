@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -23,6 +23,8 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import java.util.Collections;
@@ -34,6 +36,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.contrib.java.lang.system.EnvironmentVariables;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
 import org.junit.runner.Description;
@@ -46,6 +49,9 @@ public class AwsClientTracingTest {
   @Rule
   public MockDynamoDBServer dynamoDBServer = new MockDynamoDBServer();
 
+  @Rule
+  public EnvironmentVariables environmentVariables = new EnvironmentVariables();
+
   private BlockingQueue<Span> spans = new LinkedBlockingQueue<>();
   private AmazonDynamoDB client;
 
@@ -54,8 +60,10 @@ public class AwsClientTracingTest {
     Tracing tracing = tracingBuilder().build();
     HttpTracing httpTracing = HttpTracing.create(tracing);
     AmazonDynamoDBClientBuilder clientBuilder = AmazonDynamoDBClientBuilder.standard()
-        .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
-        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"));
+        .withCredentials(
+            new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
+        .withEndpointConfiguration(
+            new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"));
 
     client = AwsClientTracing.create(httpTracing).build(clientBuilder);
   }
@@ -92,6 +100,16 @@ public class AwsClientTracingTest {
 
     Span sdkSpan = spans.poll(100, TimeUnit.MILLISECONDS);
     assertThat(sdkSpan.name()).isEqualToIgnoringCase("aws-sdk");
+  }
+
+  @Test
+  public void buildingAsyncClientWithEmptyConfigDoesNotThrowExceptions() {
+    Tracing tracing = tracingBuilder().build();
+    HttpTracing httpTracing = HttpTracing.create(tracing);
+    environmentVariables.set("AWS_REGION", "us-east-1");
+
+    AmazonDynamoDBAsync asyncClient =
+        AwsClientTracing.create(httpTracing).build(AmazonDynamoDBAsyncClientBuilder.standard());
   }
 
   private MockResponse createDeleteItemResponse() {
