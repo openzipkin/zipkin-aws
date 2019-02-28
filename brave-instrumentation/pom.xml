@@ -32,6 +32,7 @@
   <modules>
     <module>aws-java-sdk-core</module>
     <module>aws-java-sdk-v2-core</module>
+      <module>aws-java-sdk-sqs</module>
   </modules>
 
   <dependencyManagement>
