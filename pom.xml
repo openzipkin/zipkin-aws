@@ -52,7 +52,7 @@
     <brave.version>5.6.1</brave.version>
 
     <slf4j.version>1.7.25</slf4j.version>
-    <log4j.version>2.11.1</log4j.version>
+    <log4j.version>2.11.2</log4j.version>
 
     <aws-java-sdk.version>1.11.486</aws-java-sdk.version>
     <aws-java-sdk-v2.version>2.3.5</aws-java-sdk-v2.version>
