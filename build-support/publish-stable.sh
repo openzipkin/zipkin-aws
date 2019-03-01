@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Copyright 2016 The OpenZipkin Authors
+# Copyright 2016-2019 The OpenZipkin Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
 # in compliance with the License. You may obtain a copy of the License at
@@ -17,5 +17,5 @@ set -euo pipefail
 set -x
 
 ./mvnw -DskipTests install -nsu
-./mvnw --batch-mode -s ./.settings.xml -Prelease -nsu -DskipTests deploy
-./mvnw --batch-mode -s ./.settings.xml -nsu -N io.zipkin.centralsync-maven-plugin:centralsync-maven-plugin:sync
+./mvnw --batch-mode -s ./.settings.xml -Prelease -nsu -DskipTests -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn deploy
+./mvnw --batch-mode -s ./.settings.xml -nsu -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn -N io.zipkin.centralsync-maven-plugin:centralsync-maven-plugin:sync

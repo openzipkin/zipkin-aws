@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Copyright 2016 The OpenZipkin Authors
+# Copyright 2016-2019 The OpenZipkin Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
 # in compliance with the License. You may obtain a copy of the License at
@@ -31,4 +31,4 @@ for f in $(find . -name 'pom.xml'); do
 done
 
 cd go-offline-builddir
-../mvnw dependency:go-offline
+../mvnw --batch-mode -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn dependency:go-offline
