@@ -17,7 +17,7 @@ set -euo pipefail
 set -x
 
 if ./mvnw help:evaluate -N -Dexpression=project.version | grep -v '\['  | grep -q SNAPSHOT; then
-    ./mvnw --batch-mode -s ./.settings.xml -Prelease -nsu -DskipTests -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn deploy
+    ./mvnw --batch-mode -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn -s ./.settings.xml -Prelease -nsu -DskipTests deploy
 else
     echo "Not building release versions, those are built by the tag builder using the publish-stable.sh script"
 fi

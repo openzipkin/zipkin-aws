@@ -17,5 +17,5 @@ set -euo pipefail
 set -x
 
 ./mvnw -DskipTests install -nsu
-./mvnw --batch-mode -s ./.settings.xml -Prelease -nsu -DskipTests -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn deploy
-./mvnw --batch-mode -s ./.settings.xml -nsu -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn -N io.zipkin.centralsync-maven-plugin:centralsync-maven-plugin:sync
+./mvnw --batch-mode -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn -s ./.settings.xml -Prelease -nsu -DskipTests deploy
+./mvnw --batch-mode -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=warn -s ./.settings.xml -nsu -N io.zipkin.centralsync-maven-plugin:centralsync-maven-plugin:sync
