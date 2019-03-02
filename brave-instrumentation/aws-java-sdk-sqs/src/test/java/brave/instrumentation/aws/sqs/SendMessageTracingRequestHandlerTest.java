@@ -126,7 +126,8 @@ public class SendMessageTracingRequestHandlerTest {
   private void verifyReportedPublishSpan(Span span) {
     assertThat(span.kind()).isEqualTo(Span.Kind.PRODUCER);
     assertThat(span.name()).isEqualTo("publish");
-    assertThat(span.remoteServiceName()).isEqualToIgnoringCase("amazon-sqs/queueUrl");
+    assertThat(span.remoteServiceName()).isEqualToIgnoringCase("amazon-sqs");
+    assertThat(span.tags().get("queue.url")).isEqualToIgnoringCase("queueUrl");
     assertThat(span.duration()).isEqualTo(1);
   }
 

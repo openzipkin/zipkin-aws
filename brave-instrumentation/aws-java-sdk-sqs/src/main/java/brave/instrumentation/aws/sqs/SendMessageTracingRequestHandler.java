@@ -85,7 +85,7 @@ final class SendMessageTracingRequestHandler extends RequestHandler2 {
       span = tracer.newChild(maybeParent);
     }
 
-    span.name("publish-batch").start();
+    span.name("publish-batch").remoteServiceName("amazon-sqs").start();
     try (Tracer.SpanInScope scope = tracer.withSpanInScope(span)) {
       for (SendMessageBatchRequestEntry entry : request.getEntries()) {
         injectPerMessage(request.getQueueUrl(), entry.getMessageAttributes());
@@ -109,7 +109,8 @@ final class SendMessageTracingRequestHandler extends RequestHandler2 {
 
     if (!span.isNoop()) {
       span.kind(Span.Kind.PRODUCER).name("publish");
-      span.remoteServiceName("amazon-sqs/" + queueUrl);
+      span.remoteServiceName("amazon-sqs");
+      span.tag("queue.url", queueUrl);
       // incur timestamp overhead only once
       long timestamp = tracing.clock(span.context()).currentTimeMicroseconds();
       span.start(timestamp).finish(timestamp);
