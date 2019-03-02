@@ -4,7 +4,6 @@
 .mtj.tmp/
 
 # Package Files #
-*.jar
 *.war
 *.ear
 
@@ -20,3 +19,11 @@ target/
 
 # macOS
 .DS_Store
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# Maven Wrapper
+.mvn/wrapper/maven-wrapper.jar
