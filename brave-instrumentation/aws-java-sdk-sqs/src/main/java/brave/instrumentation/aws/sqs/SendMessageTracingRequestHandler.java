@@ -32,8 +32,7 @@ final class SendMessageTracingRequestHandler extends RequestHandler2 {
 
   static final Propagation.Setter<Map<String, MessageAttributeValue>, String> SETTER =
       new Propagation.Setter<Map<String, MessageAttributeValue>, String>() {
-        @Override
-        public void put(Map<String, MessageAttributeValue> carrier, String key, String value) {
+        @Override public void put(Map<String, MessageAttributeValue> carrier, String key, String value) {
           carrier.put(key,
               new MessageAttributeValue().withDataType("String").withStringValue(value));
         }
