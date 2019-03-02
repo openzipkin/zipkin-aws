@@ -27,7 +27,7 @@ public class SqsMessageTracing {
     this.requestHandler = new SendMessageTracingRequestHandler(tracing);
   }
 
-  public RequestHandler2 getRequestHandler() {
+  public RequestHandler2 requestHandler() {
     return requestHandler;
   }
 }
