@@ -18,34 +18,39 @@
     xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
     xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
+
   <parent>
+    <artifactId>brave-instrumentation-parent</artifactId>
     <groupId>io.zipkin.aws</groupId>
-    <artifactId>zipkin-aws-parent</artifactId>
     <version>0.15.6-SNAPSHOT</version>
   </parent>
 
-  <artifactId>brave-instrumentation-parent</artifactId>
-  <packaging>pom</packaging>
+  <artifactId>brave-instrumentation-aws-java-sdk-sqs</artifactId>
 
   <properties>
-    <main.basedir>${project.basedir}/..</main.basedir>
+    <main.basedir>${project.basedir}/../..</main.basedir>
   </properties>
 
-  <modules>
-    <module>aws-java-sdk-core</module>
-    <module>aws-java-sdk-v2-core</module>
-    <module>aws-java-sdk-sqs</module>
-  </modules>
+  <dependencies>
+    <dependency>
+      <groupId>io.zipkin.brave</groupId>
+      <artifactId>brave</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-sqs</artifactId>
+    </dependency>
 
-  <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>io.zipkin.brave</groupId>
-        <artifactId>brave-bom</artifactId>
-        <version>${brave.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-    </dependencies>
-  </dependencyManagement>
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-core</artifactId>
+      <version>${log4j.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.zipkin.brave</groupId>
+      <artifactId>brave-context-log4j2</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
 </project>
