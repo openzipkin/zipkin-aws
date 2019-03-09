@@ -20,7 +20,7 @@
   <parent>
     <artifactId>brave-instrumentation-parent</artifactId>
     <groupId>io.zipkin.aws</groupId>
-    <version>0.16.1-SNAPSHOT</version>
+    <version>0.16.1</version>
   </parent>
 
   <artifactId>brave-instrumentation-aws-java-sdk-v2-core</artifactId>
