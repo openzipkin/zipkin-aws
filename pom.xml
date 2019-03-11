@@ -33,6 +33,7 @@
     <module>reporter-xray-udp</module>
     <module>brave-instrumentation</module>
     <module>brave-propagation-aws</module>
+    <module>storage-dynamodb</module>
   </modules>
 
   <properties>
