@@ -21,6 +21,7 @@ import com.amazonaws.services.dynamodbv2.model.PutRequest;
 import com.amazonaws.services.dynamodbv2.model.UpdateItemRequest;
 import com.amazonaws.services.dynamodbv2.model.WriteRequest;
 import java.nio.ByteBuffer;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -61,6 +62,7 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
 
   private final List<String> autocompleteKeys;
   private final AmazonDynamoDB dynamoDB;
+  private final long dataTtlSeconds;
   private final String spansTableName;
   private final String serviceSpanNamesTableName;
   private final String autocompleteTagsTableName;
@@ -68,6 +70,7 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
   DynamoDBSpanConsumer(DynamoDBStorage.Builder builder) {
     this.autocompleteKeys = builder.autocompleteKeys;
     this.dynamoDB = builder.dynamoDB;
+    this.dataTtlSeconds = builder.dataTtl.toMillis() / 1000;
 
     this.spansTableName = builder.tablePrefix + SPANS_TABLE_BASE_NAME;
     this.serviceSpanNamesTableName = builder.tablePrefix + SERVICE_SPAN_NAMES_TABLE_BASE_NAME;
@@ -232,7 +235,11 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
   }
 
   private AttributeValue ttlForSpan(Span span) {
-    return new AttributeValue().withN(String.valueOf(span.timestampAsLong()));
+    if (span.timestampAsLong() > 0) {
+      return new AttributeValue().withN(String.valueOf(span.timestampAsLong() / 1000000 + dataTtlSeconds));
+    } else {
+      return new AttributeValue().withN(String.valueOf(Instant.now().getEpochSecond() + dataTtlSeconds));
+    }
   }
 
   private static class PairWithTTL {
