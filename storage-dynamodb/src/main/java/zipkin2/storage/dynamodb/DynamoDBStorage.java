@@ -15,6 +15,7 @@ package zipkin2.storage.dynamodb;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import java.math.BigInteger;
+import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -81,6 +82,7 @@ public final class DynamoDBStorage extends StorageComponent {
     AmazonDynamoDBAsync dynamoDB;
     String tablePrefix = "zipkin-";
     ExecutorService executorService = Executors.newCachedThreadPool();
+    Duration dataTtl = Duration.ofDays(7);
 
     /** {@inheritDoc} */
     @Override
@@ -114,6 +116,11 @@ public final class DynamoDBStorage extends StorageComponent {
 
     public DynamoDBStorage.Builder executorService(ExecutorService executorService) {
       this.executorService = executorService;
+      return this;
+    }
+
+    public DynamoDBStorage.Builder dataTtl(Duration dataTtl) {
+      this.dataTtl = dataTtl;
       return this;
     }
 
