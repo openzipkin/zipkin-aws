@@ -21,3 +21,5 @@ AmazonSQSAsync client = AmazonSQSAsyncClientBuilder.standard()
 ```
 
 Now use your SQS client as you normally would and spans will be attached to outgoing messages.
+
+**Note:** This does not support `AmazonSQSBufferedAsyncClient` because that class does not respect `RequestHandler2` due to it's implementation buffering individual `sendMessage()` calls and batching them as a single `sendMessageBatch()` call.
