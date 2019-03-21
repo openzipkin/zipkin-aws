@@ -36,6 +36,7 @@ import zipkin2.storage.SpanConsumer;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.AUTOCOMPLETE_TAGS_TABLE_BASE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.AutocompleteTags.TAG;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.AutocompleteTags.VALUE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.FIELD_DELIMITER;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.SERVICE_SPAN_NAMES_TABLE_BASE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.SPANS_TABLE_BASE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.ServiceSpanNames.SERVICE;
@@ -123,12 +124,12 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
 
         if (span.localServiceName() != null && !span.localServiceName().isEmpty()) {
           spanPut.addItemEntry(LOCAL_SERVICE_NAME_SPAN_NAME,
-              new AttributeValue().withS(span.localServiceName() + "###" + span.name()));
+              new AttributeValue().withS(span.localServiceName() + FIELD_DELIMITER + span.name()));
         }
 
         if (span.remoteServiceName() != null && !span.remoteServiceName().isEmpty()) {
           spanPut.addItemEntry(REMOTE_SERVICE_NAME_SPAN_NAME,
-              new AttributeValue().withS(span.remoteServiceName() + "###" + span.name()));
+              new AttributeValue().withS(span.remoteServiceName() + FIELD_DELIMITER + span.name()));
         }
       }
 

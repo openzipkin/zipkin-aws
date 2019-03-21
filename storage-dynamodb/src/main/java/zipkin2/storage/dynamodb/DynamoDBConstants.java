@@ -18,6 +18,8 @@ final class DynamoDBConstants {
   static final String SERVICE_SPAN_NAMES_TABLE_BASE_NAME = "service-span-names";
   static final String AUTOCOMPLETE_TAGS_TABLE_BASE_NAME = "autocomplete-tags";
 
+  static final String FIELD_DELIMITER = "░";
+
   static final String WILDCARD_FOR_INVERTED_INDEX_LOOKUP = "__ANY__";
 
   static final String TTL_COLUMN = "ttl";
