@@ -13,19 +13,19 @@
  */
 package zipkin2.storage.dynamodb;
 
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import zipkin2.Call;
 import zipkin2.Callback;
 
 abstract class DynamoDBCall<T> extends Call.Base<T> {
-  private final ExecutorService executorService;
+  private final Executor executor;
 
-  DynamoDBCall(ExecutorService executorService) {
-    this.executorService = executorService;
+  DynamoDBCall(Executor executor) {
+    this.executor = executor;
   }
 
   @Override final protected void doEnqueue(Callback<T> callback) {
-    executorService.submit(() -> {
+    executor.execute(() -> {
       try {
         callback.onSuccess(doExecute());
       } catch (Throwable t) {

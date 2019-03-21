@@ -27,21 +27,21 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import zipkin2.Call;
 import zipkin2.DependencyLink;
 
 final class GetDependenciesCall extends DynamoDBCall<List<DependencyLink>> {
-  private final ExecutorService executorService;
+  private final Executor executor;
   private final AmazonDynamoDBAsync dynamoDB;
   private final long endTs;
   private final long lookback;
 
-  GetDependenciesCall(ExecutorService executorService, AmazonDynamoDBAsync dynamoDB, long endTs,
+  GetDependenciesCall(Executor executor, AmazonDynamoDBAsync dynamoDB, long endTs,
       long lookback) {
-    super(executorService);
-    this.executorService = executorService;
+    super(executor);
+    this.executor = executor;
     this.dynamoDB = dynamoDB;
     this.endTs = endTs;
     this.lookback = lookback;
@@ -81,7 +81,7 @@ final class GetDependenciesCall extends DynamoDBCall<List<DependencyLink>> {
   }
 
   @Override public Call<List<DependencyLink>> clone() {
-    return new GetDependenciesCall(executorService, dynamoDB, endTs, lookback);
+    return new GetDependenciesCall(executor, dynamoDB, endTs, lookback);
   }
 
   private DependencyLink fromMap(Map<String, AttributeValue> map) {

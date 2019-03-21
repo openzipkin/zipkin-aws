@@ -15,7 +15,7 @@ package zipkin2.storage.dynamodb;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import zipkin2.Call;
 import zipkin2.DependencyLink;
 import zipkin2.Span;
@@ -30,7 +30,7 @@ final class DynamoDBSpanStore implements SpanStore {
   private final boolean strictTraceId;
   private final boolean searchEnabled;
   private final AmazonDynamoDBAsync dynamoDB;
-  private final ExecutorService executorService;
+  private final Executor executor;
   private final String spansTableName;
   private final String serviceSpanNamesTableName;
 
@@ -38,7 +38,7 @@ final class DynamoDBSpanStore implements SpanStore {
     this.strictTraceId = builder.strictTraceId;
     this.searchEnabled = builder.searchEnabled;
     this.dynamoDB = builder.dynamoDB;
-    this.executorService = builder.executorService;
+    this.executor = builder.executor;
 
     this.spansTableName = builder.tablePrefix + SPANS_TABLE_BASE_NAME;
     this.serviceSpanNamesTableName = builder.tablePrefix + SERVICE_SPAN_NAMES_TABLE_BASE_NAME;
@@ -48,7 +48,7 @@ final class DynamoDBSpanStore implements SpanStore {
     if (!searchEnabled) {
       return Call.emptyList();
     }
-    return new GetTracesForQueryCall(executorService, strictTraceId, dynamoDB, spansTableName,
+    return new GetTracesForQueryCall(executor, strictTraceId, dynamoDB, spansTableName,
         queryRequest);
   }
 
@@ -56,21 +56,21 @@ final class DynamoDBSpanStore implements SpanStore {
     if (!searchEnabled) {
       return Call.emptyList();
     }
-    return new GetTraceByIdCall(executorService, dynamoDB, spansTableName, strictTraceId, s);
+    return new GetTraceByIdCall(executor, dynamoDB, spansTableName, strictTraceId, s);
   }
 
   @Override public Call<List<String>> getServiceNames() {
     if (!searchEnabled) {
       return Call.emptyList();
     }
-    return new GetServiceNamesCall(executorService, dynamoDB, serviceSpanNamesTableName);
+    return new GetServiceNamesCall(executor, dynamoDB, serviceSpanNamesTableName);
   }
 
   @Override public Call<List<String>> getSpanNames(String s) {
     if (!searchEnabled) {
       return Call.emptyList();
     }
-    return new GetSpanNamesCall(executorService, dynamoDB, serviceSpanNamesTableName,
+    return new GetSpanNamesCall(executor, dynamoDB, serviceSpanNamesTableName,
         s.toLowerCase());
   }
 
@@ -83,6 +83,6 @@ final class DynamoDBSpanStore implements SpanStore {
     } else if (lookback <= 0) {
       throw new IllegalArgumentException("lookback <= 0");
     }
-    return new GetDependenciesCall(executorService, dynamoDB, endTs, lookback);
+    return new GetDependenciesCall(executor, dynamoDB, endTs, lookback);
   }
 }

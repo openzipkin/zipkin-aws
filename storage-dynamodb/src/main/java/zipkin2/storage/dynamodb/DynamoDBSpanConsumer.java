@@ -78,8 +78,10 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
   }
 
   @Override public Call<Void> accept(List<Span> list) {
-    List<WriteRequest> spanWriteRequests = new ArrayList<>(createWriteSpans(list));
+    AttributeValue ttlForBatch = new AttributeValue().withN(
+        String.valueOf(Instant.now().getEpochSecond() + dataTtlSeconds));
 
+    List<WriteRequest> spanWriteRequests = createWriteSpans(list, ttlForBatch);
     while (!spanWriteRequests.isEmpty()) {
       int maxIndex = Math.min(spanWriteRequests.size(), 25);
       BatchWriteItemRequest request = new BatchWriteItemRequest();
@@ -89,12 +91,12 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
       spanWriteRequests.subList(0, maxIndex).clear();
     }
 
-    List<UpdateItemRequest> names = createUpdateNames(list);
+    List<UpdateItemRequest> names = createUpdateNames(list, ttlForBatch);
     for (UpdateItemRequest request : names) {
       dynamoDB.updateItem(request.withTableName(serviceSpanNamesTableName));
     }
 
-    List<UpdateItemRequest> autocompleteTags = createAutocompleteTags(list);
+    List<UpdateItemRequest> autocompleteTags = createAutocompleteTags(list, ttlForBatch);
     for (UpdateItemRequest request : autocompleteTags) {
       dynamoDB.updateItem(request.withTableName(autocompleteTagsTableName));
     }
@@ -102,7 +104,7 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
     return Call.create(null);
   }
 
-  private List<WriteRequest> createWriteSpans(List<Span> spans) {
+  private List<WriteRequest> createWriteSpans(List<Span> spans, AttributeValue ttl) {
     List<WriteRequest> result = new ArrayList<>(spans.size());
     for (Span span : spans) {
       PutRequest spanPut = new PutRequest();
@@ -167,45 +169,40 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
             new AttributeValue().withN(String.valueOf(span.durationAsLong())));
       }
 
-      spanPut.addItemEntry(TTL_COLUMN, ttlForSpan(span));
+      spanPut.addItemEntry(TTL_COLUMN, ttl);
 
       result.add(new WriteRequest(spanPut));
     }
     return result;
   }
 
-  private List<UpdateItemRequest> createUpdateNames(List<Span> spans) {
+  private List<UpdateItemRequest> createUpdateNames(List<Span> spans, AttributeValue ttl) {
     PairWithTTL.PairWithTTLBuilder reusableBuilder = PairWithTTL.newBuilder(SERVICE, SPAN);
     List<PairWithTTL> pairs = new ArrayList<>();
 
     for (Span span : spans) {
-      AttributeValue ttlForSpan = ttlForSpan(span);
       PairWithTTL.PairWithTTLBuilder localServiceBuilder = PairWithTTL.newBuilder(SERVICE, SPAN);
 
       if (span.localServiceName() != null && !span.localServiceName().isEmpty()) {
-        pairs.add(reusableBuilder.build(span.localServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP,
-            ttlForSpan));
+        pairs.add(reusableBuilder.build(span.localServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP, ttl));
 
-        localServiceBuilder.keyValue(span.localServiceName());
+        localServiceBuilder.key(span.localServiceName());
       } else {
-        localServiceBuilder.keyValue(UNKNOWN);
+        localServiceBuilder.key(UNKNOWN);
       }
 
       if (span.name() != null && !span.name().isEmpty()) {
-        localServiceBuilder.valueValue(span.name());
+        localServiceBuilder.value(span.name());
       } else {
-        localServiceBuilder.valueValue(UNKNOWN);
+        localServiceBuilder.value(UNKNOWN);
       }
 
       if (span.remoteServiceName() != null && !span.remoteServiceName().isEmpty()) {
-        pairs.add(
-            reusableBuilder.build(span.remoteServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP,
-                ttlForSpan));
-        pairs.add(reusableBuilder.build(span.remoteServiceName(), localServiceBuilder.valueValue,
-            ttlForSpan));
+        pairs.add(reusableBuilder.build(span.remoteServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP, ttl));
+        pairs.add(reusableBuilder.build(span.remoteServiceName(), localServiceBuilder.value, ttl));
       }
 
-      localServiceBuilder.ttl(ttlForSpan);
+      localServiceBuilder.ttl(ttl);
 
       pairs.add(localServiceBuilder.build());
     }
@@ -215,17 +212,16 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
     return pairs.stream().map(PairWithTTL::asUpdateItemRequest).collect(Collectors.toList());
   }
 
-  private List<UpdateItemRequest> createAutocompleteTags(List<Span> spans) {
+  private List<UpdateItemRequest> createAutocompleteTags(List<Span> spans, AttributeValue ttl) {
     PairWithTTL.PairWithTTLBuilder builder = PairWithTTL.newBuilder(TAG, VALUE);
     List<PairWithTTL> pairs = new ArrayList<>();
 
     for (Span span : spans) {
-      AttributeValue ttlForSpan = ttlForSpan(span);
       for (Map.Entry<String, String> tag : span.tags().entrySet()) {
         if (autocompleteKeys.contains(tag.getKey())) {
-          pairs.add(builder.build(tag.getKey(), tag.getValue(), ttlForSpan));
+          pairs.add(builder.build(tag.getKey(), tag.getValue(), ttl));
           pairs.add(
-              builder.build(tag.getKey(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP, ttlForSpan));
+              builder.build(tag.getKey(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP, ttl));
         }
       }
     }
@@ -234,27 +230,19 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
     return pairs.stream().map(PairWithTTL::asUpdateItemRequest).collect(Collectors.toList());
   }
 
-  private AttributeValue ttlForSpan(Span span) {
-    if (span.timestampAsLong() > 0) {
-      return new AttributeValue().withN(String.valueOf(span.timestampAsLong() / 1000000 + dataTtlSeconds));
-    } else {
-      return new AttributeValue().withN(String.valueOf(Instant.now().getEpochSecond() + dataTtlSeconds));
-    }
-  }
-
   private static class PairWithTTL {
-    private final String key_column;
-    private final String key_value;
-    private final String value_column;
-    private final String value_value;
+    private final String keyColumn;
+    private final String key;
+    private final String valueColumn;
+    private final String value;
     private final AttributeValue ttl;
 
-    private PairWithTTL(String key_column, String key_value, String value_column,
-        String value_value, AttributeValue ttl) {
-      this.key_column = key_column;
-      this.key_value = key_value;
-      this.value_column = value_column;
-      this.value_value = value_value;
+    private PairWithTTL(String keyColumn, String key, String valueColumn,
+        String value, AttributeValue ttl) {
+      this.keyColumn = keyColumn;
+      this.key = key;
+      this.valueColumn = valueColumn;
+      this.value = value;
       this.ttl = ttl;
     }
 
@@ -266,19 +254,19 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
       Map<String, Map<String, PairWithTTL>> found = new HashMap<>();
       List<PairWithTTL> toRemove = new ArrayList<>();
       for (PairWithTTL pair : input) {
-        if (found.containsKey(pair.key_value)) {
-          if (found.get(pair.key_value).containsKey(pair.value_value)) {
-            PairWithTTL toMergeWith = found.get(pair.key_value).get(pair.value_value);
+        if (found.containsKey(pair.key)) {
+          if (found.get(pair.key).containsKey(pair.value)) {
+            PairWithTTL toMergeWith = found.get(pair.key).get(pair.value);
             if (Long.valueOf(pair.ttl.getN()) > Long.valueOf(toMergeWith.ttl.getN())) {
               toMergeWith.ttl.withN(pair.ttl.getN());
             }
             toRemove.add(pair);
           } else {
-            found.get(pair.key_value).put(pair.value_value, pair);
+            found.get(pair.key).put(pair.value, pair);
           }
         } else {
-          found.put(pair.key_value, new HashMap<>());
-          found.get(pair.key_value).put(pair.value_value, pair);
+          found.put(pair.key, new HashMap<>());
+          found.get(pair.key).put(pair.value, pair);
         }
       }
       input.removeAll(toRemove);
@@ -287,31 +275,31 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
     private UpdateItemRequest asUpdateItemRequest() {
       return new UpdateItemRequest()
           .withKey(new HashMap<String, AttributeValue>() {{
-            put(key_column, new AttributeValue().withS(key_value));
-            put(value_column, new AttributeValue().withS(value_value));
+            put(keyColumn, new AttributeValue().withS(key));
+            put(valueColumn, new AttributeValue().withS(value));
           }})
           .addAttributeUpdatesEntry(TTL_COLUMN, new AttributeValueUpdate().withValue(ttl));
     }
 
     private static class PairWithTTLBuilder {
-      private final String key_column;
-      private final String value_column;
-      private String keyValue;
-      private String valueValue;
+      private final String keyColumn;
+      private final String valueColumn;
+      private String key;
+      private String value;
       private AttributeValue ttl;
 
-      private PairWithTTLBuilder(String key_column, String value_column) {
-        this.key_column = key_column;
-        this.value_column = value_column;
+      private PairWithTTLBuilder(String keyColumn, String valueColumn) {
+        this.keyColumn = keyColumn;
+        this.valueColumn = valueColumn;
       }
 
-      PairWithTTLBuilder keyValue(String keyValue) {
-        this.keyValue = keyValue;
+      PairWithTTLBuilder key(String keyValue) {
+        this.key = keyValue;
         return this;
       }
 
-      PairWithTTLBuilder valueValue(String valueValue) {
-        this.valueValue = valueValue;
+      PairWithTTLBuilder value(String valueValue) {
+        this.value = valueValue;
         return this;
       }
 
@@ -321,11 +309,11 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
       }
 
       PairWithTTL build(String key, String value, AttributeValue ttl) {
-        return new PairWithTTL(key_column, key, value_column, value, ttl);
+        return new PairWithTTL(keyColumn, key, valueColumn, value, ttl);
       }
 
       PairWithTTL build() {
-        return new PairWithTTL(key_column, keyValue, value_column, valueValue, ttl);
+        return new PairWithTTL(keyColumn, key, valueColumn, value, ttl);
       }
     }
   }
