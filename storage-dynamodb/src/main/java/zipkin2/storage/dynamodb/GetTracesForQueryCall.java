@@ -48,7 +48,7 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID_64;
 
 final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
-  private static final BigInteger LAST_SPAN_ID = new BigInteger("ffffffffffffffff", 16);
+  private static final BigInteger MAX_TIMESTAMP_ID = new BigInteger("ffffffffffffffff", 16);
 
   private final Executor executor;
   private final boolean strictTraceId;
@@ -68,9 +68,9 @@ final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
   }
 
   @Override protected List<List<Span>> doExecute() {
-    BigInteger timestampSpanIdUpperBound =
-        BigInteger.valueOf(queryRequest.endTs()).shiftLeft(64).add(LAST_SPAN_ID);
-    BigInteger timestampSpanIdLowerBound =
+    BigInteger timestampIdUpperBound =
+        BigInteger.valueOf(queryRequest.endTs()).shiftLeft(64).add(MAX_TIMESTAMP_ID);
+    BigInteger timestampIdLowerBound =
         BigInteger.valueOf(queryRequest.endTs() - queryRequest.lookback()).shiftLeft(64);
 
     List<Map<String, AttributeValue>> rows = new ArrayList<>();
@@ -80,9 +80,9 @@ final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
 
     expressionAttributeNames.put("#timestamp", TIMESTAMP);
     filterExpressionAttributes.put(":timestamp_upper",
-        new AttributeValue().withN(timestampSpanIdUpperBound.toString()));
+        new AttributeValue().withN(timestampIdUpperBound.toString()));
     filterExpressionAttributes.put(":timestamp_lower",
-        new AttributeValue().withN(timestampSpanIdLowerBound.toString()));
+        new AttributeValue().withN(timestampIdLowerBound.toString()));
 
     if (queryRequest.minDuration() != null) {
       expressionAttributeNames.put("#dur", DURATION);
