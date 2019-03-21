@@ -105,6 +105,9 @@ public final class DynamoDBStorage extends StorageComponent {
     }
 
     @Override public StorageComponent build() {
+      if (dynamoDB == null) {
+        throw new IllegalStateException("A AmazonDynamoDBAsync client is required");
+      }
       return new DynamoDBStorage(this);
     }
   }
