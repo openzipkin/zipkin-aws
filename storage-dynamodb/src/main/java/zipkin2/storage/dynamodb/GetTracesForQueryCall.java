@@ -32,6 +32,7 @@ import zipkin2.Call;
 import zipkin2.Span;
 import zipkin2.codec.SpanBytesDecoder;
 
+import static zipkin2.storage.dynamodb.DynamoDBConstants.FIELD_DELIMITER;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.ANNOTATIONS;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.DURATION;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_NAME;
@@ -121,14 +122,14 @@ final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
       if (queryRequest.serviceName() != null) {
         if (queryRequest.spanName() != null) {
           QueryRequest query = getQueryForGlobalSecondaryIndex(LOCAL_SERVICE_NAME_SPAN_NAME,
-              queryRequest.serviceName() + "###" + queryRequest.spanName(),
+              queryRequest.serviceName() + FIELD_DELIMITER + queryRequest.spanName(),
               expressionAttributeNames, filterExpressionAttributes, filters);
           QueryResult result = dynamoDB.query(query);
           rows.addAll(result.getItems());
           filterExpressionAttributes.remove(":" + LOCAL_SERVICE_NAME_SPAN_NAME);
 
           query = getQueryForGlobalSecondaryIndex(REMOTE_SERVICE_NAME_SPAN_NAME,
-              queryRequest.serviceName() + "###" + queryRequest.spanName(),
+              queryRequest.serviceName() + FIELD_DELIMITER + queryRequest.spanName(),
               expressionAttributeNames, filterExpressionAttributes, filters);
           result = dynamoDB.query(query);
           rows.addAll(result.getItems());
