@@ -20,12 +20,14 @@ import com.amazonaws.services.dynamodbv2.model.BatchWriteItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutRequest;
 import com.amazonaws.services.dynamodbv2.model.UpdateItemRequest;
 import com.amazonaws.services.dynamodbv2.model.WriteRequest;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.stream.Collectors;
 import zipkin2.Annotation;
 import zipkin2.Call;
@@ -60,6 +62,7 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.TTL_COLUMN;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.WILDCARD_FOR_INVERTED_INDEX_LOOKUP;
 
 final class DynamoDBSpanConsumer implements SpanConsumer {
+  private static Random random = new Random();
 
   private final List<String> autocompleteKeys;
   private final AmazonDynamoDB dynamoDB;
@@ -92,6 +95,8 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
       spanWriteRequests.subList(0, maxIndex).clear();
     }
 
+    // We use update requests for the next two entities because we want to update the TTL if they
+    // exist already. Updates in DynamoDB are treated as upserts
     List<UpdateItemRequest> names = createUpdateNames(list, ttlForBatch);
     for (UpdateItemRequest request : names) {
       dynamoDB.updateItem(request.withTableName(serviceSpanNamesTableName));
@@ -114,8 +119,7 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
           new AttributeValue(span.traceId().substring(Math.max(0, span.traceId().length() - 16))));
 
       spanPut.addItemEntry(TIMESTAMP_SPAN_ID,
-          new AttributeValue().withN(
-              DynamoDBStorage.timestampId(span.timestampAsLong() / 1000, span.id())));
+          new AttributeValue().withN(timestampId(span.timestampAsLong() / 1000)));
 
       spanPut.addItemEntry(SPAN_ID, new AttributeValue().withS(span.id()));
 
@@ -177,6 +181,11 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
     return result;
   }
 
+  private String timestampId(long timestamp) {
+    return BigInteger.valueOf(timestamp).shiftLeft(Long.SIZE).add(new BigInteger(Long.SIZE, random))
+        .toString();
+  }
+
   private List<UpdateItemRequest> createUpdateNames(List<Span> spans, AttributeValue ttl) {
     PairWithTTL.PairWithTTLBuilder reusableBuilder = PairWithTTL.newBuilder(SERVICE, SPAN);
     List<PairWithTTL> pairs = new ArrayList<>();
@@ -221,8 +230,7 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
       for (Map.Entry<String, String> tag : span.tags().entrySet()) {
         if (autocompleteKeys.contains(tag.getKey())) {
           pairs.add(builder.build(tag.getKey(), tag.getValue(), ttl));
-          pairs.add(
-              builder.build(tag.getKey(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP, ttl));
+          pairs.add(builder.build(tag.getKey(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP, ttl));
         }
       }
     }
