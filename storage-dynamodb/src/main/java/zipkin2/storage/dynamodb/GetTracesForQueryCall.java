@@ -19,7 +19,6 @@ import com.amazonaws.services.dynamodbv2.model.QueryRequest;
 import com.amazonaws.services.dynamodbv2.model.QueryResult;
 import com.amazonaws.services.dynamodbv2.model.ScanRequest;
 import com.amazonaws.services.dynamodbv2.model.ScanResult;
-import com.amazonaws.services.dynamodbv2.model.Select;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -27,7 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import zipkin2.Call;
 import zipkin2.Span;
@@ -50,17 +49,17 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID_64;
 final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
   private static final BigInteger LAST_SPAN_ID = new BigInteger("ffffffffffffffff", 16);
 
-  private final ExecutorService executorService;
+  private final Executor executor;
   private final boolean strictTraceId;
   private final AmazonDynamoDBAsync dynamoDB;
   private final String spansTableName;
   private final zipkin2.storage.QueryRequest queryRequest;
 
-  GetTracesForQueryCall(ExecutorService executorService, boolean strictTraceId,
+  GetTracesForQueryCall(Executor executor, boolean strictTraceId,
       AmazonDynamoDBAsync dynamoDB, String spansTableName,
       zipkin2.storage.QueryRequest queryRequest) {
-    super(executorService);
-    this.executorService = executorService;
+    super(executor);
+    this.executor = executor;
     this.strictTraceId = strictTraceId;
     this.dynamoDB = dynamoDB;
     this.spansTableName = spansTableName;
@@ -185,7 +184,7 @@ final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
   }
 
   @Override public Call<List<List<Span>>> clone() {
-    return new GetTracesForQueryCall(executorService, strictTraceId, dynamoDB, spansTableName,
+    return new GetTracesForQueryCall(executor, strictTraceId, dynamoDB, spansTableName,
         queryRequest);
   }
 
@@ -241,7 +240,7 @@ final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
 
   private List<Span> getSpansForTraceId(String traceId) {
     QueryRequest request = new QueryRequest(spansTableName)
-        .withSelect(Select.ALL_ATTRIBUTES)
+        .withAttributesToGet(TRACE_ID, TRACE_ID_64, SPAN_BLOB)
         .withExpressionAttributeValues(
             Collections.singletonMap(":" + TRACE_ID, new AttributeValue().withS(traceId)));
 

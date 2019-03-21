@@ -20,7 +20,7 @@ import com.amazonaws.services.dynamodbv2.model.Select;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import zipkin2.Call;
 
@@ -29,15 +29,15 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.AutocompleteTags.VALUE;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.WILDCARD_FOR_INVERTED_INDEX_LOOKUP;
 
 final class GetAutocompleteValuesCall extends DynamoDBCall<List<String>> {
-  private final ExecutorService executorService;
+  private final Executor executor;
   private final AmazonDynamoDBAsync dynamoDB;
   private final String autocompleteTagsTableName;
   private final String key;
 
-  GetAutocompleteValuesCall(ExecutorService executorService, AmazonDynamoDBAsync dynamoDB,
+  GetAutocompleteValuesCall(Executor executor, AmazonDynamoDBAsync dynamoDB,
       String autocompleteTagsTableName, String key) {
-    super(executorService);
-    this.executorService = executorService;
+    super(executor);
+    this.executor = executor;
     this.dynamoDB = dynamoDB;
     this.autocompleteTagsTableName = autocompleteTagsTableName;
     this.key = key;
@@ -59,6 +59,6 @@ final class GetAutocompleteValuesCall extends DynamoDBCall<List<String>> {
   }
 
   @Override public Call<List<String>> clone() {
-    return new GetAutocompleteValuesCall(executorService, dynamoDB, autocompleteTagsTableName, key);
+    return new GetAutocompleteValuesCall(executor, dynamoDB, autocompleteTagsTableName, key);
   }
 }

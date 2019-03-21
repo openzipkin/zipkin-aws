@@ -19,7 +19,7 @@ import com.amazonaws.services.dynamodbv2.model.QueryResult;
 import com.amazonaws.services.dynamodbv2.model.Select;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import zipkin2.Call;
 
@@ -29,15 +29,15 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.ServiceSpanNames.UNKNOW
 import static zipkin2.storage.dynamodb.DynamoDBConstants.WILDCARD_FOR_INVERTED_INDEX_LOOKUP;
 
 final class GetSpanNamesCall extends DynamoDBCall<List<String>> {
-  private final ExecutorService executorService;
+  private final Executor executor;
   private final AmazonDynamoDBAsync dynamoDB;
   private final String serviceSpanNamesTableName;
   private final String serviceName;
 
-  GetSpanNamesCall(ExecutorService executorService, AmazonDynamoDBAsync dynamoDB,
+  GetSpanNamesCall(Executor executor, AmazonDynamoDBAsync dynamoDB,
       String serviceSpanNamesTableName, String serviceName) {
-    super(executorService);
-    this.executorService = executorService;
+    super(executor);
+    this.executor = executor;
     this.dynamoDB = dynamoDB;
     this.serviceSpanNamesTableName = serviceSpanNamesTableName;
     this.serviceName = serviceName;
@@ -59,6 +59,6 @@ final class GetSpanNamesCall extends DynamoDBCall<List<String>> {
   }
 
   @Override public Call<List<String>> clone() {
-    return new GetSpanNamesCall(executorService, dynamoDB, serviceSpanNamesTableName, serviceName);
+    return new GetSpanNamesCall(executor, dynamoDB, serviceSpanNamesTableName, serviceName);
   }
 }

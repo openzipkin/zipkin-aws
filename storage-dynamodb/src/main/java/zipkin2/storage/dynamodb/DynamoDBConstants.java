@@ -35,7 +35,7 @@ final class DynamoDBConstants {
     static final String REMOTE_SERVICE_NAME_SPAN_NAME = "remote_service_name_span_name";
     static final String TIMESTAMP = "timestamp";
     static final String DURATION = "duration";
-    static final String TAG_PREFIX = "zipkin_tag.";
+    static final String TAG_PREFIX = "tag.";
     static final String ANNOTATIONS = "annotations";
   }
 

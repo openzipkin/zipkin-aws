@@ -17,12 +17,11 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.QueryRequest;
 import com.amazonaws.services.dynamodbv2.model.QueryResult;
-import com.amazonaws.services.dynamodbv2.model.Select;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import zipkin2.Call;
 import zipkin2.Span;
 import zipkin2.codec.SpanBytesDecoder;
@@ -32,17 +31,17 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID_64;
 
 final class GetTraceByIdCall extends DynamoDBCall<List<Span>> {
-  private final ExecutorService executorService;
+  private final Executor executor;
   private final AmazonDynamoDBAsync dynamoDB;
   private final String spansTableName;
   private final boolean strictTraceId;
   private final String traceId;
 
-  GetTraceByIdCall(ExecutorService executorService, AmazonDynamoDBAsync dynamoDB,
+  GetTraceByIdCall(Executor executor, AmazonDynamoDBAsync dynamoDB,
       String spansTableName, boolean strictTraceId,
       String traceId) {
-    super(executorService);
-    this.executorService = executorService;
+    super(executor);
+    this.executor = executor;
     this.dynamoDB = dynamoDB;
     this.spansTableName = spansTableName;
     this.strictTraceId = strictTraceId;
@@ -62,7 +61,7 @@ final class GetTraceByIdCall extends DynamoDBCall<List<Span>> {
 
   private QueryRequest strictTraceIdQuery() {
     return new QueryRequest(spansTableName)
-        .withSelect(Select.ALL_ATTRIBUTES)
+        .withAttributesToGet(TRACE_ID, TRACE_ID_64, SPAN_BLOB)
         .withKeyConditionExpression(TRACE_ID + " = :" + TRACE_ID)
         .withExpressionAttributeValues(
             Collections.singletonMap(":" + TRACE_ID, new AttributeValue().withS(traceId)));
@@ -71,7 +70,7 @@ final class GetTraceByIdCall extends DynamoDBCall<List<Span>> {
   private QueryRequest lenientTraceIdQuery() {
     return new QueryRequest(spansTableName)
         .withIndexName(TRACE_ID_64)
-        .withSelect(Select.ALL_ATTRIBUTES)
+        .withAttributesToGet(TRACE_ID, TRACE_ID_64, SPAN_BLOB)
         .withKeyConditionExpression(TRACE_ID_64 + " = :" + TRACE_ID_64)
         .withExpressionAttributeValues(
             Collections.singletonMap(":" + TRACE_ID_64,
@@ -79,6 +78,6 @@ final class GetTraceByIdCall extends DynamoDBCall<List<Span>> {
   }
 
   @Override public Call<List<Span>> clone() {
-    return new GetTraceByIdCall(executorService, dynamoDB, spansTableName, strictTraceId, traceId);
+    return new GetTraceByIdCall(executor, dynamoDB, spansTableName, strictTraceId, traceId);
   }
 }

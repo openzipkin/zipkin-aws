@@ -18,7 +18,7 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import zipkin2.internal.HexCodec;
 import zipkin2.storage.AutocompleteTags;
@@ -27,23 +27,9 @@ import zipkin2.storage.SpanStore;
 import zipkin2.storage.StorageComponent;
 
 /**
- * We use the following tables: zipkin-spans, zipkin-traces, zipkin-service-names,
- * zipkin-span-names, zipkin-service-span-names
+ * We use the following tables:
  *
- * zipkin-spans: trace_id span_id_composite (timestamp << 64 + (unsigned) span_id) span_id span
- * tag_value_pairs[] tags[] timestamp duration ttl
- *
- * zipkin-traces: trace_id tag_value_pairs[] tags[] earliest_timestamp latest_timestamp duration
- * ttl
- *
- * zipkin-names: name_type service_name ttl
- *
- * zipkin-span-names: span_name ttl
- *
- * zipkin-service-span-names: service_name span_name ttl
- *
- * In the event a query contains either span_name or service_name, the query will run against the
- * zipkin-spans table, otherwise it will be a scan against zipkin-traces
+ * zipkin-spans zipkin-service-span-names zipkin-dependencies zipkin-autocomplete-tags
  */
 public final class DynamoDBStorage extends StorageComponent {
   private DynamoDBSpanStore dynamoDBSpanStore;
@@ -81,7 +67,7 @@ public final class DynamoDBStorage extends StorageComponent {
     List<String> autocompleteKeys = Collections.emptyList();
     AmazonDynamoDBAsync dynamoDB;
     String tablePrefix = "zipkin-";
-    ExecutorService executorService = Executors.newCachedThreadPool();
+    Executor executor = Executors.newCachedThreadPool();
     Duration dataTtl = Duration.ofDays(7);
 
     /** {@inheritDoc} */
@@ -114,8 +100,8 @@ public final class DynamoDBStorage extends StorageComponent {
       return this;
     }
 
-    public DynamoDBStorage.Builder executorService(ExecutorService executorService) {
-      this.executorService = executorService;
+    public DynamoDBStorage.Builder executorService(Executor executor) {
+      this.executor = executor;
       return this;
     }
 
