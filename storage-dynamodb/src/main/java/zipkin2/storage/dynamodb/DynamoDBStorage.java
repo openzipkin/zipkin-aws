@@ -18,6 +18,7 @@ import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 import zipkin2.internal.HexCodec;
@@ -40,13 +41,6 @@ public final class DynamoDBStorage extends StorageComponent {
     dynamoDBSpanStore = new DynamoDBSpanStore(builder);
     dynamoDBSpanConsumer = new DynamoDBSpanConsumer(builder);
     dynamoDBAutocompleteTags = new DynamoDBAutocompleteTags(builder);
-  }
-
-  static String timestampId(long timestamp, String spanId) {
-    return BigInteger.valueOf(timestamp)
-        .shiftLeft(Long.SIZE)
-        .add(BigInteger.valueOf(HexCodec.lowerHexToUnsignedLong(spanId)))
-        .toString();
   }
 
   @Override public SpanStore spanStore() {
