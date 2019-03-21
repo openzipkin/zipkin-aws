@@ -15,6 +15,7 @@ package zipkin2.storage.dynamodb;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.QueryRequest;
 import com.amazonaws.services.dynamodbv2.model.QueryResult;
 import com.amazonaws.services.dynamodbv2.model.Select;
 import java.util.Collections;
@@ -43,8 +44,7 @@ final class GetServiceNamesCall extends DynamoDBCall<List<String>> {
   }
 
   @Override protected List<String> doExecute() {
-    QueryResult result = dynamoDB.query(
-        new com.amazonaws.services.dynamodbv2.model.QueryRequest(serviceSpanNamesTableName)
+    QueryResult result = dynamoDB.query(new QueryRequest(serviceSpanNamesTableName)
             .withIndexName(INDEX_INVERTED)
             .withSelect(Select.ALL_ATTRIBUTES)
             .withKeyConditionExpression(SPAN + " = :" + SPAN)

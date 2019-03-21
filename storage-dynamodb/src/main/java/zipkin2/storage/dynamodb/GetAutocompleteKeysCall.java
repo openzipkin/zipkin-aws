@@ -15,6 +15,7 @@ package zipkin2.storage.dynamodb;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
+import com.amazonaws.services.dynamodbv2.model.QueryRequest;
 import com.amazonaws.services.dynamodbv2.model.QueryResult;
 import com.amazonaws.services.dynamodbv2.model.Select;
 import java.util.Collections;
@@ -42,8 +43,7 @@ final class GetAutocompleteKeysCall extends DynamoDBCall<List<String>> {
   }
 
   @Override protected List<String> doExecute() {
-    QueryResult result = dynamoDB.query(
-        new com.amazonaws.services.dynamodbv2.model.QueryRequest(autocompleteTagsTableName)
+    QueryResult result = dynamoDB.query(new QueryRequest(autocompleteTagsTableName)
             .withIndexName(INDEX_INVERTED)
             .withSelect(Select.ALL_ATTRIBUTES)
             .withKeyConditionExpression(VALUE + " = :" + VALUE)
