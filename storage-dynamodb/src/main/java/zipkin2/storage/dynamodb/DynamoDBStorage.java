@@ -14,14 +14,11 @@
 package zipkin2.storage.dynamodb;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
-import java.math.BigInteger;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
-import zipkin2.internal.HexCodec;
 import zipkin2.storage.AutocompleteTags;
 import zipkin2.storage.SpanConsumer;
 import zipkin2.storage.SpanStore;

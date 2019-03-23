@@ -20,14 +20,17 @@ import com.amazonaws.services.dynamodbv2.model.BatchWriteItemRequest;
 import com.amazonaws.services.dynamodbv2.model.PutRequest;
 import com.amazonaws.services.dynamodbv2.model.UpdateItemRequest;
 import com.amazonaws.services.dynamodbv2.model.WriteRequest;
+import com.amazonaws.util.StringUtils;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.stream.Collectors;
 import zipkin2.Annotation;
 import zipkin2.Call;
@@ -35,21 +38,22 @@ import zipkin2.Span;
 import zipkin2.codec.SpanBytesEncoder;
 import zipkin2.storage.SpanConsumer;
 
-import static zipkin2.storage.dynamodb.DynamoDBConstants.AUTOCOMPLETE_TAGS_TABLE_BASE_NAME;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.AutocompleteTags.TAG;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.AutocompleteTags.VALUE;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.FIELD_DELIMITER;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.SERVICE_SPAN_NAMES_TABLE_BASE_NAME;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.SEARCH_TABLE_BASE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.SPANS_TABLE_BASE_NAME;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.ServiceSpanNames.SERVICE;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.ServiceSpanNames.SPAN;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.ServiceSpanNames.UNKNOWN;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.AUTOCOMPLETE_TAG_ENTITY_TYPE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_KEY;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_KEY_VALUE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.SERVICE_SPAN_ENTITY_TYPE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_TYPE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.UNKNOWN;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_VALUE;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.ANNOTATIONS;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.DURATION;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_NAME;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_NAME_SPAN_NAME;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_NAME;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_NAME_SPAN_NAME;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_BLOB;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_NAME;
@@ -68,8 +72,7 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
   private final AmazonDynamoDB dynamoDB;
   private final long dataTtlSeconds;
   private final String spansTableName;
-  private final String serviceSpanNamesTableName;
-  private final String autocompleteTagsTableName;
+  private final String searchTableName;
 
   DynamoDBSpanConsumer(DynamoDBStorage.Builder builder) {
     this.autocompleteKeys = builder.autocompleteKeys;
@@ -77,8 +80,7 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
     this.dataTtlSeconds = builder.dataTtl.toMillis() / 1000;
 
     this.spansTableName = builder.tablePrefix + SPANS_TABLE_BASE_NAME;
-    this.serviceSpanNamesTableName = builder.tablePrefix + SERVICE_SPAN_NAMES_TABLE_BASE_NAME;
-    this.autocompleteTagsTableName = builder.tablePrefix + AUTOCOMPLETE_TAGS_TABLE_BASE_NAME;
+    this.searchTableName = builder.tablePrefix + SEARCH_TABLE_BASE_NAME;
   }
 
   @Override public Call<Void> accept(List<Span> list) {
@@ -97,14 +99,11 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
 
     // We use update requests for the next two entities because we want to update the TTL if they
     // exist already. Updates in DynamoDB are treated as upserts
-    List<UpdateItemRequest> names = createUpdateNames(list, ttlForBatch);
-    for (UpdateItemRequest request : names) {
-      dynamoDB.updateItem(request.withTableName(serviceSpanNamesTableName));
-    }
+    List<UpdateItemRequest> upserts = createUpsertsForServiceSpanNames(list, ttlForBatch);
+    upserts.addAll(createUpsertsForAutocompleteTags(list, ttlForBatch));
 
-    List<UpdateItemRequest> autocompleteTags = createAutocompleteTags(list, ttlForBatch);
-    for (UpdateItemRequest request : autocompleteTags) {
-      dynamoDB.updateItem(request.withTableName(autocompleteTagsTableName));
+    for (UpdateItemRequest request : upserts) {
+      dynamoDB.updateItem(request.withTableName(searchTableName));
     }
 
     return Call.create(null);
@@ -127,12 +126,12 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
         spanPut.addItemEntry(SPAN_NAME, new AttributeValue().withS(span.name()));
 
         if (span.localServiceName() != null && !span.localServiceName().isEmpty()) {
-          spanPut.addItemEntry(LOCAL_SERVICE_NAME_SPAN_NAME,
+          spanPut.addItemEntry(LOCAL_SERVICE_SPAN_NAME,
               new AttributeValue().withS(span.localServiceName() + FIELD_DELIMITER + span.name()));
         }
 
         if (span.remoteServiceName() != null && !span.remoteServiceName().isEmpty()) {
-          spanPut.addItemEntry(REMOTE_SERVICE_NAME_SPAN_NAME,
+          spanPut.addItemEntry(REMOTE_SERVICE_SPAN_NAME,
               new AttributeValue().withS(span.remoteServiceName() + FIELD_DELIMITER + span.name()));
         }
       }
@@ -186,143 +185,91 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
         .toString();
   }
 
-  private List<UpdateItemRequest> createUpdateNames(List<Span> spans, AttributeValue ttl) {
-    PairWithTTL.PairWithTTLBuilder reusableBuilder = PairWithTTL.newBuilder(SERVICE, SPAN);
-    List<PairWithTTL> pairs = new ArrayList<>();
+  private List<UpdateItemRequest> createUpsertsForServiceSpanNames(List<Span> spans, AttributeValue ttl) {
+    Set<Pair> entries = new HashSet<>();
 
     for (Span span : spans) {
-      PairWithTTL.PairWithTTLBuilder localServiceBuilder = PairWithTTL.newBuilder(SERVICE, SPAN);
+      String localServiceName = StringUtils.isNullOrEmpty(span.localServiceName()) ? UNKNOWN : span.localServiceName();
+      String spanName = StringUtils.isNullOrEmpty(span.name()) ? UNKNOWN : span.name();
+      entries.add(new Pair(localServiceName, spanName));
 
-      if (span.localServiceName() != null && !span.localServiceName().isEmpty()) {
-        pairs.add(reusableBuilder.build(span.localServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP, ttl));
-
-        localServiceBuilder.key(span.localServiceName());
-      } else {
-        localServiceBuilder.key(UNKNOWN);
+      if (!StringUtils.isNullOrEmpty(span.localServiceName())) {
+        entries.add(new Pair(span.localServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP));
       }
 
-      if (span.name() != null && !span.name().isEmpty()) {
-        localServiceBuilder.value(span.name());
-      } else {
-        localServiceBuilder.value(UNKNOWN);
+      if (!StringUtils.isNullOrEmpty(span.remoteServiceName())) {
+        entries.add(new Pair(span.remoteServiceName(), spanName));
+        entries.add(new Pair(span.remoteServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP));
       }
-
-      if (span.remoteServiceName() != null && !span.remoteServiceName().isEmpty()) {
-        pairs.add(reusableBuilder.build(span.remoteServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP, ttl));
-        pairs.add(reusableBuilder.build(span.remoteServiceName(), localServiceBuilder.value, ttl));
-      }
-
-      localServiceBuilder.ttl(ttl);
-
-      pairs.add(localServiceBuilder.build());
     }
 
-    PairWithTTL.merge(pairs);
-
-    return pairs.stream().map(PairWithTTL::asUpdateItemRequest).collect(Collectors.toList());
+    return entries.stream()
+        .map(p -> p.asUpdateItemRequest(SERVICE_SPAN_ENTITY_TYPE, ttl))
+        .collect(Collectors.toList());
   }
 
-  private List<UpdateItemRequest> createAutocompleteTags(List<Span> spans, AttributeValue ttl) {
-    PairWithTTL.PairWithTTLBuilder builder = PairWithTTL.newBuilder(TAG, VALUE);
-    List<PairWithTTL> pairs = new ArrayList<>();
+  private List<UpdateItemRequest> createUpsertsForAutocompleteTags(List<Span> spans, AttributeValue ttl) {
+    Set<Pair> entries = new HashSet<>();
 
     for (Span span : spans) {
       for (Map.Entry<String, String> tag : span.tags().entrySet()) {
         if (autocompleteKeys.contains(tag.getKey())) {
-          pairs.add(builder.build(tag.getKey(), tag.getValue(), ttl));
-          pairs.add(builder.build(tag.getKey(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP, ttl));
+          entries.add(new Pair(tag.getKey(), tag.getValue()));
+          entries.add(new Pair(tag.getKey(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP));
         }
       }
     }
-    PairWithTTL.merge(pairs);
 
-    return pairs.stream().map(PairWithTTL::asUpdateItemRequest).collect(Collectors.toList());
+    return entries.stream()
+        .map(p -> p.asUpdateItemRequest(AUTOCOMPLETE_TAG_ENTITY_TYPE, ttl))
+        .collect(Collectors.toList());
   }
 
-  private static class PairWithTTL {
-    private final String keyColumn;
-    private final String key;
-    private final String valueColumn;
-    private final String value;
-    private final AttributeValue ttl;
+  private static class Pair implements Map.Entry<String, String> {
+    private String key;
+    private String value;
 
-    private PairWithTTL(String keyColumn, String key, String valueColumn,
-        String value, AttributeValue ttl) {
-      this.keyColumn = keyColumn;
+    Pair(String key, String value) {
+      if (key == null) throw new IllegalArgumentException("Key cannot be null");
+      if (value == null) throw new IllegalArgumentException("Value cannot be null");
       this.key = key;
-      this.valueColumn = valueColumn;
       this.value = value;
-      this.ttl = ttl;
     }
 
-    static PairWithTTLBuilder newBuilder(String key_column, String value_column) {
-      return new PairWithTTLBuilder(key_column, value_column);
-    }
-
-    static void merge(List<PairWithTTL> input) {
-      Map<String, Map<String, PairWithTTL>> found = new HashMap<>();
-      List<PairWithTTL> toRemove = new ArrayList<>();
-      for (PairWithTTL pair : input) {
-        if (found.containsKey(pair.key)) {
-          if (found.get(pair.key).containsKey(pair.value)) {
-            PairWithTTL toMergeWith = found.get(pair.key).get(pair.value);
-            if (Long.valueOf(pair.ttl.getN()) > Long.valueOf(toMergeWith.ttl.getN())) {
-              toMergeWith.ttl.withN(pair.ttl.getN());
-            }
-            toRemove.add(pair);
-          } else {
-            found.get(pair.key).put(pair.value, pair);
-          }
-        } else {
-          found.put(pair.key, new HashMap<>());
-          found.get(pair.key).put(pair.value, pair);
-        }
-      }
-      input.removeAll(toRemove);
-    }
-
-    private UpdateItemRequest asUpdateItemRequest() {
+    UpdateItemRequest asUpdateItemRequest(String type, AttributeValue ttl) {
       return new UpdateItemRequest()
           .withKey(new HashMap<String, AttributeValue>() {{
-            put(keyColumn, new AttributeValue().withS(key));
-            put(valueColumn, new AttributeValue().withS(value));
+            put(ENTITY_TYPE, new AttributeValue().withS(type));
+            put(ENTITY_KEY_VALUE, new AttributeValue().withS(String.join(FIELD_DELIMITER, key, value)));
           }})
+          .addAttributeUpdatesEntry(ENTITY_KEY, new AttributeValueUpdate().withValue(new AttributeValue().withS(key)))
+          .addAttributeUpdatesEntry(ENTITY_VALUE, new AttributeValueUpdate().withValue(new AttributeValue().withS(value)))
           .addAttributeUpdatesEntry(TTL_COLUMN, new AttributeValueUpdate().withValue(ttl));
     }
 
-    private static class PairWithTTLBuilder {
-      private final String keyColumn;
-      private final String valueColumn;
-      private String key;
-      private String value;
-      private AttributeValue ttl;
+    @Override public String getKey() {
+      return key;
+    }
 
-      private PairWithTTLBuilder(String keyColumn, String valueColumn) {
-        this.keyColumn = keyColumn;
-        this.valueColumn = valueColumn;
-      }
+    @Override public String getValue() {
+      return value;
+    }
 
-      PairWithTTLBuilder key(String keyValue) {
-        this.key = keyValue;
-        return this;
-      }
+    @Override public String setValue(String value) {
+      this.value = value;
+      return this.value;
+    }
 
-      PairWithTTLBuilder value(String valueValue) {
-        this.value = valueValue;
-        return this;
-      }
+    @Override public int hashCode() {
+      return key.hashCode() + value.hashCode();
+    }
 
-      PairWithTTLBuilder ttl(AttributeValue ttl) {
-        this.ttl = ttl;
-        return this;
-      }
-
-      PairWithTTL build(String key, String value, AttributeValue ttl) {
-        return new PairWithTTL(keyColumn, key, valueColumn, value, ttl);
-      }
-
-      PairWithTTL build() {
-        return new PairWithTTL(keyColumn, key, valueColumn, value, ttl);
+    @Override public boolean equals(Object other) {
+      if (other instanceof Pair) {
+        Pair otherPair = (Pair) other;
+        return this.key.equals(otherPair.key) && this.value.equals(otherPair.value);
+      } else {
+        return false;
       }
     }
   }

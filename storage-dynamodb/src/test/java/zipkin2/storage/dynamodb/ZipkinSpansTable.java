@@ -25,8 +25,8 @@ import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughput;
 import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
 
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_NAME;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_NAME_SPAN_NAME;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_NAME_SPAN_NAME;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_SPAN_NAME;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TIMESTAMP_SPAN_ID;
@@ -48,9 +48,9 @@ public class ZipkinSpansTable extends AbstractDynamoDBTable {
             new AttributeDefinition(TIMESTAMP_SPAN_ID, ScalarAttributeType.N),
             new AttributeDefinition(SPAN_NAME, ScalarAttributeType.S),
             new AttributeDefinition(LOCAL_SERVICE_NAME, ScalarAttributeType.S),
-            new AttributeDefinition(LOCAL_SERVICE_NAME_SPAN_NAME, ScalarAttributeType.S),
+            new AttributeDefinition(LOCAL_SERVICE_SPAN_NAME, ScalarAttributeType.S),
             new AttributeDefinition(REMOTE_SERVICE_NAME, ScalarAttributeType.S),
-            new AttributeDefinition(REMOTE_SERVICE_NAME_SPAN_NAME, ScalarAttributeType.S)
+            new AttributeDefinition(REMOTE_SERVICE_SPAN_NAME, ScalarAttributeType.S)
         )
         .withKeySchema(
             new KeySchemaElement(TRACE_ID, KeyType.HASH),
@@ -91,17 +91,17 @@ public class ZipkinSpansTable extends AbstractDynamoDBTable {
                 .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
                 .withProvisionedThroughput(new ProvisionedThroughput(1L, 1L)),
             new GlobalSecondaryIndex()
-                .withIndexName(LOCAL_SERVICE_NAME_SPAN_NAME)
+                .withIndexName(LOCAL_SERVICE_SPAN_NAME)
                 .withKeySchema(
-                    new KeySchemaElement(LOCAL_SERVICE_NAME_SPAN_NAME, KeyType.HASH),
+                    new KeySchemaElement(LOCAL_SERVICE_SPAN_NAME, KeyType.HASH),
                     new KeySchemaElement(TIMESTAMP_SPAN_ID, KeyType.RANGE)
                 )
                 .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
                 .withProvisionedThroughput(new ProvisionedThroughput(1L, 1L)),
             new GlobalSecondaryIndex()
-                .withIndexName(REMOTE_SERVICE_NAME_SPAN_NAME)
+                .withIndexName(REMOTE_SERVICE_SPAN_NAME)
                 .withKeySchema(
-                    new KeySchemaElement(REMOTE_SERVICE_NAME_SPAN_NAME, KeyType.HASH),
+                    new KeySchemaElement(REMOTE_SERVICE_SPAN_NAME, KeyType.HASH),
                     new KeySchemaElement(TIMESTAMP_SPAN_ID, KeyType.RANGE)
                 )
                 .withProjection(new Projection().withProjectionType(ProjectionType.ALL))

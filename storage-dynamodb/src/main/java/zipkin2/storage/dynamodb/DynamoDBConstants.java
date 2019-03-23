@@ -15,8 +15,7 @@ package zipkin2.storage.dynamodb;
 
 final class DynamoDBConstants {
   static final String SPANS_TABLE_BASE_NAME = "spans";
-  static final String SERVICE_SPAN_NAMES_TABLE_BASE_NAME = "service-span-names";
-  static final String AUTOCOMPLETE_TAGS_TABLE_BASE_NAME = "autocomplete-tags";
+  static final String SEARCH_TABLE_BASE_NAME = "search";
 
   static final String FIELD_DELIMITER = "░";
 
@@ -32,28 +31,27 @@ final class DynamoDBConstants {
     static final String SPAN_NAME = "span_name";
     static final String SPAN_BLOB = "span_blob";
     static final String LOCAL_SERVICE_NAME = "local_service_name";
-    static final String LOCAL_SERVICE_NAME_SPAN_NAME = "local_service_name_span_name";
+    static final String LOCAL_SERVICE_SPAN_NAME = "local_service_span_name";
     static final String REMOTE_SERVICE_NAME = "remote_service_name";
-    static final String REMOTE_SERVICE_NAME_SPAN_NAME = "remote_service_name_span_name";
+    static final String REMOTE_SERVICE_SPAN_NAME = "remote_service_span_name";
     static final String TIMESTAMP = "timestamp";
     static final String DURATION = "duration";
     static final String TAG_PREFIX = "tag.";
     static final String ANNOTATIONS = "annotations";
   }
 
-  final class ServiceSpanNames {
-    static final String INDEX_INVERTED = "inverted";
+  final class Search {
+    static final String KEY_INDEX = "key_index";
+    static final String VALUE_INDEX = "value_index";
 
-    static final String SERVICE = "service_name";
-    static final String SPAN = "span_name";
+    static final String ENTITY_TYPE = "entity_type";
+    static final String ENTITY_KEY_VALUE = "entity_key_value";
+    static final String ENTITY_KEY = "entity_key";
+    static final String ENTITY_VALUE = "entity_value";
+
+    static final String SERVICE_SPAN_ENTITY_TYPE = "service-span";
+    static final String AUTOCOMPLETE_TAG_ENTITY_TYPE = "autocomplete-tag";
 
     static final String UNKNOWN = "unknown";
-  }
-
-  final class AutocompleteTags {
-    static final String INDEX_INVERTED = "inverted";
-
-    static final String TAG = "tag_key";
-    static final String VALUE = "tag_value";
   }
 }

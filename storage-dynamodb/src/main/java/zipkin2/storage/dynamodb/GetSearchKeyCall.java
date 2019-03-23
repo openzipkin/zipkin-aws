@@ -18,48 +18,50 @@ import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.QueryRequest;
 import com.amazonaws.services.dynamodbv2.model.QueryResult;
 import com.amazonaws.services.dynamodbv2.model.Select;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import zipkin2.Call;
 
-import static zipkin2.storage.dynamodb.DynamoDBConstants.ServiceSpanNames.INDEX_INVERTED;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.ServiceSpanNames.SERVICE;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.ServiceSpanNames.SPAN;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.ServiceSpanNames.UNKNOWN;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_KEY;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_TYPE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_VALUE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.VALUE_INDEX;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.WILDCARD_FOR_INVERTED_INDEX_LOOKUP;
 
-final class GetServiceNamesCall extends DynamoDBCall<List<String>> {
+public class GetSearchKeyCall extends DynamoDBCall<List<String>> {
   private final Executor executor;
   private final AmazonDynamoDBAsync dynamoDB;
-  private final String serviceSpanNamesTableName;
+  private final String searchTableName;
+  private final String type;
+  private final List<String> excludedKeys;
 
-  public GetServiceNamesCall(Executor executor, AmazonDynamoDBAsync dynamoDB,
-      String serviceSpanNamesTableName) {
+  GetSearchKeyCall(Executor executor, AmazonDynamoDBAsync dynamoDB,
+      String searchTableName, String type, List<String> excludedKeys) {
     super(executor);
     this.executor = executor;
     this.dynamoDB = dynamoDB;
-    this.serviceSpanNamesTableName = serviceSpanNamesTableName;
+    this.searchTableName = searchTableName;
+    this.type = type;
+    this.excludedKeys = excludedKeys;
   }
 
   @Override protected List<String> doExecute() {
-    QueryResult result = dynamoDB.query(new QueryRequest(serviceSpanNamesTableName)
-            .withIndexName(INDEX_INVERTED)
-            .withSelect(Select.ALL_ATTRIBUTES)
-            .withKeyConditionExpression(SPAN + " = :" + SPAN)
-            .withExpressionAttributeValues(
-                Collections.singletonMap(":" + SPAN, new AttributeValue().withS(
-                    WILDCARD_FOR_INVERTED_INDEX_LOOKUP)))
+    QueryResult result = dynamoDB.query(new QueryRequest(searchTableName)
+        .withIndexName(VALUE_INDEX)
+        .withSelect(Select.ALL_ATTRIBUTES)
+        .withKeyConditionExpression(ENTITY_TYPE + " = :" + ENTITY_TYPE + " AND " + ENTITY_VALUE + " = :" + ENTITY_VALUE)
+        .addExpressionAttributeValuesEntry(":" + ENTITY_TYPE, new AttributeValue().withS(type))
+        .addExpressionAttributeValuesEntry(":" + ENTITY_VALUE, new AttributeValue().withS(WILDCARD_FOR_INVERTED_INDEX_LOOKUP))
     );
     return result.getItems().stream()
-        .map(m -> m.get(SERVICE))
+        .map(m -> m.get(ENTITY_KEY))
         .map(AttributeValue::getS)
-        .filter(s -> !s.equals(UNKNOWN))
+        .filter(s -> !excludedKeys.contains(s))
         .collect(Collectors.toList());
   }
 
   @Override public Call<List<String>> clone() {
-    return new GetServiceNamesCall(executor, dynamoDB, serviceSpanNamesTableName);
+    return new GetSearchKeyCall(executor, dynamoDB, searchTableName, type, excludedKeys);
   }
 }
