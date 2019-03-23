@@ -18,46 +18,52 @@ import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.QueryRequest;
 import com.amazonaws.services.dynamodbv2.model.QueryResult;
 import com.amazonaws.services.dynamodbv2.model.Select;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import zipkin2.Call;
 
-import static zipkin2.storage.dynamodb.DynamoDBConstants.AutocompleteTags.INDEX_INVERTED;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.AutocompleteTags.TAG;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.AutocompleteTags.VALUE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_KEY;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_TYPE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_VALUE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.KEY_INDEX;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.WILDCARD_FOR_INVERTED_INDEX_LOOKUP;
 
-final class GetAutocompleteKeysCall extends DynamoDBCall<List<String>> {
+public class GetSearchValueCall extends DynamoDBCall<List<String>> {
   private final Executor executor;
   private final AmazonDynamoDBAsync dynamoDB;
-  private final String autocompleteTagsTableName;
+  private final String searchTableName;
+  private final String type;
+  private final String key;
+  private final List<String> excludedValues;
 
-  GetAutocompleteKeysCall(Executor executor, AmazonDynamoDBAsync dynamoDB,
-      String autocompleteTagsTableName) {
+  GetSearchValueCall(Executor executor, AmazonDynamoDBAsync dynamoDB,
+      String searchTableName, String type, String key, List<String> excludedValues) {
     super(executor);
     this.executor = executor;
     this.dynamoDB = dynamoDB;
-    this.autocompleteTagsTableName = autocompleteTagsTableName;
+    this.searchTableName = searchTableName;
+    this.type = type;
+    this.key = key;
+    this.excludedValues = excludedValues;
   }
 
   @Override protected List<String> doExecute() {
-    QueryResult result = dynamoDB.query(new QueryRequest(autocompleteTagsTableName)
-            .withIndexName(INDEX_INVERTED)
-            .withSelect(Select.ALL_ATTRIBUTES)
-            .withKeyConditionExpression(VALUE + " = :" + VALUE)
-            .withExpressionAttributeValues(
-                Collections.singletonMap(":" + VALUE, new AttributeValue().withS(
-                    WILDCARD_FOR_INVERTED_INDEX_LOOKUP)))
+    QueryResult result = dynamoDB.query(new QueryRequest(searchTableName)
+        .withIndexName(KEY_INDEX)
+        .withSelect(Select.ALL_ATTRIBUTES)
+        .withKeyConditionExpression(ENTITY_TYPE + " = :" + ENTITY_TYPE + " AND " + ENTITY_KEY + " = :" + ENTITY_KEY)
+        .addExpressionAttributeValuesEntry(":" + ENTITY_TYPE, new AttributeValue().withS(type))
+        .addExpressionAttributeValuesEntry(":" + ENTITY_KEY, new AttributeValue().withS(key))
     );
     return result.getItems().stream()
-        .map(m -> m.get(TAG))
+        .map(m -> m.get(ENTITY_VALUE))
         .map(AttributeValue::getS)
+        .filter(s -> !s.equals(WILDCARD_FOR_INVERTED_INDEX_LOOKUP) && !excludedValues.contains(s))
         .collect(Collectors.toList());
   }
 
   @Override public Call<List<String>> clone() {
-    return new GetAutocompleteKeysCall(executor, dynamoDB, autocompleteTagsTableName);
+    return new GetSearchValueCall(executor, dynamoDB, searchTableName, type, key, excludedValues);
   }
 }

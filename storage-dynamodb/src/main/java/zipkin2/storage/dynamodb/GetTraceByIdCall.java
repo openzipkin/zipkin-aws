@@ -61,7 +61,7 @@ final class GetTraceByIdCall extends DynamoDBCall<List<Span>> {
 
   private QueryRequest strictTraceIdQuery() {
     return new QueryRequest(spansTableName)
-        .withAttributesToGet(TRACE_ID, TRACE_ID_64, SPAN_BLOB)
+        .withProjectionExpression(TRACE_ID + ", " + TRACE_ID_64 + ", " + SPAN_BLOB)
         .withKeyConditionExpression(TRACE_ID + " = :" + TRACE_ID)
         .withExpressionAttributeValues(
             Collections.singletonMap(":" + TRACE_ID, new AttributeValue().withS(traceId)));
@@ -70,7 +70,7 @@ final class GetTraceByIdCall extends DynamoDBCall<List<Span>> {
   private QueryRequest lenientTraceIdQuery() {
     return new QueryRequest(spansTableName)
         .withIndexName(TRACE_ID_64)
-        .withAttributesToGet(TRACE_ID, TRACE_ID_64, SPAN_BLOB)
+        .withProjectionExpression(TRACE_ID + ", " + TRACE_ID_64 + ", " + SPAN_BLOB)
         .withKeyConditionExpression(TRACE_ID_64 + " = :" + TRACE_ID_64)
         .withExpressionAttributeValues(
             Collections.singletonMap(":" + TRACE_ID_64,

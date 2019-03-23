@@ -36,9 +36,9 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.FIELD_DELIMITER;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.ANNOTATIONS;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.DURATION;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_NAME;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_NAME_SPAN_NAME;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_NAME;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_NAME_SPAN_NAME;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_BLOB;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TAG_PREFIX;
@@ -121,14 +121,14 @@ final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
       // USE dynamodb query
       if (queryRequest.serviceName() != null) {
         if (queryRequest.spanName() != null) {
-          QueryRequest query = getQueryForGlobalSecondaryIndex(LOCAL_SERVICE_NAME_SPAN_NAME,
+          QueryRequest query = getQueryForGlobalSecondaryIndex(LOCAL_SERVICE_SPAN_NAME,
               queryRequest.serviceName() + FIELD_DELIMITER + queryRequest.spanName(),
               expressionAttributeNames, filterExpressionAttributes, filters);
           QueryResult result = dynamoDB.query(query);
           rows.addAll(result.getItems());
-          filterExpressionAttributes.remove(":" + LOCAL_SERVICE_NAME_SPAN_NAME);
+          filterExpressionAttributes.remove(":" + LOCAL_SERVICE_SPAN_NAME);
 
-          query = getQueryForGlobalSecondaryIndex(REMOTE_SERVICE_NAME_SPAN_NAME,
+          query = getQueryForGlobalSecondaryIndex(REMOTE_SERVICE_SPAN_NAME,
               queryRequest.serviceName() + FIELD_DELIMITER + queryRequest.spanName(),
               expressionAttributeNames, filterExpressionAttributes, filters);
           result = dynamoDB.query(query);
@@ -241,7 +241,7 @@ final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
 
   private List<Span> getSpansForTraceId(String traceId) {
     QueryRequest request = new QueryRequest(spansTableName)
-        .withAttributesToGet(TRACE_ID, TRACE_ID_64, SPAN_BLOB)
+        .withProjectionExpression(TRACE_ID + ", " + TRACE_ID_64 + ", " + SPAN_BLOB)
         .withExpressionAttributeValues(
             Collections.singletonMap(":" + TRACE_ID, new AttributeValue().withS(traceId)));
 

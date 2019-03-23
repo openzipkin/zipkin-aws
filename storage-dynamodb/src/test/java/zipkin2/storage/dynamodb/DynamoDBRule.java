@@ -33,8 +33,7 @@ public class DynamoDBRule extends ExternalResource {
   private AmazonDynamoDBAsync dynamoDB;
 
   private ZipkinSpansTable zipkinSpansTable;
-  private ZipkinServiceSpanNamesTable zipkinServiceSpanNamesTable;
-  private ZipkinAutocompleteTagsTable zipkinAutocompleteTagsTable;
+  private ZipkinSearchValuesTable zipkinSearchValuesTable;
   private ZipkinDependenciesTable zipkinDependenciesTable;
 
   @Override protected void before() throws Throwable {
@@ -52,8 +51,7 @@ public class DynamoDBRule extends ExternalResource {
         .build();
 
     zipkinSpansTable = new ZipkinSpansTable(dynamoDB);
-    zipkinServiceSpanNamesTable = new ZipkinServiceSpanNamesTable(dynamoDB);
-    zipkinAutocompleteTagsTable = new ZipkinAutocompleteTagsTable(dynamoDB);
+    zipkinSearchValuesTable = new ZipkinSearchValuesTable(dynamoDB);
     zipkinDependenciesTable = new ZipkinDependenciesTable(dynamoDB);
 
     createTables();
@@ -74,15 +72,13 @@ public class DynamoDBRule extends ExternalResource {
 
   private void createTables() {
     zipkinSpansTable.create();
-    zipkinServiceSpanNamesTable.create();
-    zipkinAutocompleteTagsTable.create();
+    zipkinSearchValuesTable.create();
     zipkinDependenciesTable.create();
   }
 
   private void dropTables() {
     zipkinSpansTable.drop();
-    zipkinServiceSpanNamesTable.drop();
-    zipkinAutocompleteTagsTable.drop();
+    zipkinSearchValuesTable.drop();
     zipkinDependenciesTable.drop();
   }
 }
