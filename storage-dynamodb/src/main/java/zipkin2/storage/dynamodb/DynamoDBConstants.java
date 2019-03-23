@@ -25,8 +25,8 @@ final class DynamoDBConstants {
 
   final class Spans {
     static final String TRACE_ID = "trace_id";
+    static final String SPAN_TIMESTAMP_ID = "span_timestamp_id";
     static final String TRACE_ID_64 = "trace_id_64";
-    static final String TIMESTAMP_SPAN_ID = "timestamp_span_id";
     static final String SPAN_ID = "span_id";
     static final String SPAN_NAME = "span_name";
     static final String SPAN_BLOB = "span_blob";
@@ -34,8 +34,8 @@ final class DynamoDBConstants {
     static final String LOCAL_SERVICE_SPAN_NAME = "local_service_span_name";
     static final String REMOTE_SERVICE_NAME = "remote_service_name";
     static final String REMOTE_SERVICE_SPAN_NAME = "remote_service_span_name";
-    static final String TIMESTAMP = "timestamp";
-    static final String DURATION = "duration";
+    static final String SPAN_TIMESTAMP = "span_timestamp";
+    static final String SPAN_DURATION = "span_duration";
     static final String TAG_PREFIX = "tag.";
     static final String ANNOTATIONS = "annotations";
   }
@@ -46,6 +46,7 @@ final class DynamoDBConstants {
 
     static final String ENTITY_TYPE = "entity_type";
     static final String ENTITY_KEY_VALUE = "entity_key_value";
+
     static final String ENTITY_KEY = "entity_key";
     static final String ENTITY_VALUE = "entity_value";
 

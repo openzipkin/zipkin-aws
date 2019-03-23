@@ -15,21 +15,18 @@ package zipkin2.storage.dynamodb;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import com.amazonaws.services.dynamodbv2.model.QueryRequest;
 import com.amazonaws.services.dynamodbv2.model.QueryResult;
-import com.amazonaws.services.dynamodbv2.model.Select;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import zipkin2.Call;
 
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_KEY;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_TYPE;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_VALUE;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.VALUE_INDEX;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.WILDCARD_FOR_INVERTED_INDEX_LOOKUP;
 
-public class GetSearchKeyCall extends DynamoDBCall<List<String>> {
+class GetSearchKeyCall extends DynamoDBSearchCall {
   private final Executor executor;
   private final AmazonDynamoDBAsync dynamoDB;
   private final String searchTableName;
@@ -47,15 +44,7 @@ public class GetSearchKeyCall extends DynamoDBCall<List<String>> {
   }
 
   @Override protected List<String> doExecute() {
-    QueryResult result = dynamoDB.query(new QueryRequest(searchTableName)
-        .withIndexName(VALUE_INDEX)
-        .withSelect(Select.ALL_ATTRIBUTES)
-        .withKeyConditionExpression(
-            ENTITY_TYPE + " = :" + ENTITY_TYPE + " AND " + ENTITY_VALUE + " = :" + ENTITY_VALUE)
-        .addExpressionAttributeValuesEntry(":" + ENTITY_TYPE, new AttributeValue().withS(type))
-        .addExpressionAttributeValuesEntry(":" + ENTITY_VALUE,
-            new AttributeValue().withS(WILDCARD_FOR_INVERTED_INDEX_LOOKUP))
-    );
+    QueryResult result = dynamoDB.query(createQuery(searchTableName, VALUE_INDEX, type, ENTITY_VALUE, WILDCARD_FOR_INVERTED_INDEX_LOOKUP));
     return result.getItems().stream()
         .map(m -> m.get(ENTITY_KEY))
         .map(AttributeValue::getS)

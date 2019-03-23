@@ -27,7 +27,7 @@ import zipkin2.storage.StorageComponent;
 /**
  * We use the following tables:
  *
- * zipkin-spans zipkin-service-span-names zipkin-dependencies zipkin-autocomplete-tags
+ * zipkin-spans zipkin-search zipkin-dependencies
  */
 public final class DynamoDBStorage extends StorageComponent {
   private DynamoDBSpanStore dynamoDBSpanStore;
@@ -103,7 +103,7 @@ public final class DynamoDBStorage extends StorageComponent {
 
     @Override public StorageComponent build() {
       if (dynamoDB == null) {
-        throw new IllegalStateException("A AmazonDynamoDBAsync client is required");
+        throw new IllegalStateException("A AmazonDynamoDBAsync instance must be provided");
       }
       return new DynamoDBStorage(this);
     }

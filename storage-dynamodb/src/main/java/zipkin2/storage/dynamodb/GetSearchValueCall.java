@@ -15,21 +15,18 @@ package zipkin2.storage.dynamodb;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
-import com.amazonaws.services.dynamodbv2.model.QueryRequest;
 import com.amazonaws.services.dynamodbv2.model.QueryResult;
-import com.amazonaws.services.dynamodbv2.model.Select;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 import zipkin2.Call;
 
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_KEY;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_TYPE;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_VALUE;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.KEY_INDEX;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.WILDCARD_FOR_INVERTED_INDEX_LOOKUP;
 
-public class GetSearchValueCall extends DynamoDBCall<List<String>> {
+class GetSearchValueCall extends DynamoDBSearchCall {
   private final Executor executor;
   private final AmazonDynamoDBAsync dynamoDB;
   private final String searchTableName;
@@ -49,14 +46,7 @@ public class GetSearchValueCall extends DynamoDBCall<List<String>> {
   }
 
   @Override protected List<String> doExecute() {
-    QueryResult result = dynamoDB.query(new QueryRequest(searchTableName)
-        .withIndexName(KEY_INDEX)
-        .withSelect(Select.ALL_ATTRIBUTES)
-        .withKeyConditionExpression(
-            ENTITY_TYPE + " = :" + ENTITY_TYPE + " AND " + ENTITY_KEY + " = :" + ENTITY_KEY)
-        .addExpressionAttributeValuesEntry(":" + ENTITY_TYPE, new AttributeValue().withS(type))
-        .addExpressionAttributeValuesEntry(":" + ENTITY_KEY, new AttributeValue().withS(key))
-    );
+    QueryResult result = dynamoDB.query(createQuery(searchTableName, KEY_INDEX, type, ENTITY_KEY, key));
     return result.getItems().stream()
         .map(m -> m.get(ENTITY_VALUE))
         .map(AttributeValue::getS)
