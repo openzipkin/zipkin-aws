@@ -52,7 +52,8 @@ public class GetSearchValueCall extends DynamoDBCall<List<String>> {
     QueryResult result = dynamoDB.query(new QueryRequest(searchTableName)
         .withIndexName(KEY_INDEX)
         .withSelect(Select.ALL_ATTRIBUTES)
-        .withKeyConditionExpression(ENTITY_TYPE + " = :" + ENTITY_TYPE + " AND " + ENTITY_KEY + " = :" + ENTITY_KEY)
+        .withKeyConditionExpression(
+            ENTITY_TYPE + " = :" + ENTITY_TYPE + " AND " + ENTITY_KEY + " = :" + ENTITY_KEY)
         .addExpressionAttributeValuesEntry(":" + ENTITY_TYPE, new AttributeValue().withS(type))
         .addExpressionAttributeValuesEntry(":" + ENTITY_KEY, new AttributeValue().withS(key))
     );

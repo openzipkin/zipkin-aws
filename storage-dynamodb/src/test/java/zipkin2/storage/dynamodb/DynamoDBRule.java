@@ -41,7 +41,9 @@ public class DynamoDBRule extends ExternalResource {
 
     dynamoDB = AmazonDynamoDBAsyncClientBuilder.standard()
         .withEndpointConfiguration(
-            new AwsClientBuilder.EndpointConfiguration(String.format("http://%s:%d", dynamoDBLocal.getContainerIpAddress(), dynamoDBLocal.getFirstMappedPort()), "us-east-1"))
+            new AwsClientBuilder.EndpointConfiguration(
+                String.format("http://%s:%d", dynamoDBLocal.getContainerIpAddress(),
+                    dynamoDBLocal.getFirstMappedPort()), "us-east-1"))
         .withCredentials(
             new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
         .withClientConfiguration(new ClientConfiguration()

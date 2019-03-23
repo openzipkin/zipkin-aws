@@ -45,11 +45,14 @@ final class DependencyWriterForTests {
     return links.stream().map(link -> new WriteRequest().withPutRequest(
         new PutRequest()
             .addItemEntry("link_day", new AttributeValue().withS(String.valueOf(midnight)))
-            .addItemEntry("parent_child", new AttributeValue().withS(link.parent() + "->" + link.child()))
+            .addItemEntry("parent_child",
+                new AttributeValue().withS(link.parent() + "->" + link.child()))
             .addItemEntry("parent", new AttributeValue().withS(link.parent()))
             .addItemEntry("child", new AttributeValue().withS(link.child()))
-            .addItemEntry("call_count", new AttributeValue().withN(String.valueOf(link.callCount())))
-            .addItemEntry("error_count", new AttributeValue().withN(String.valueOf(link.errorCount())))
+            .addItemEntry("call_count",
+                new AttributeValue().withN(String.valueOf(link.callCount())))
+            .addItemEntry("error_count",
+                new AttributeValue().withN(String.valueOf(link.errorCount())))
     )).collect(Collectors.toList());
   }
 }
