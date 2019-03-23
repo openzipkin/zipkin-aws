@@ -34,7 +34,7 @@ import zipkin2.codec.SpanBytesDecoder;
 
 import static zipkin2.storage.dynamodb.DynamoDBConstants.FIELD_DELIMITER;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.ANNOTATIONS;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.DURATION;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_DURATION;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_NAME;
@@ -42,13 +42,18 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_SP
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_BLOB;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TAG_PREFIX;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TIMESTAMP;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TIMESTAMP_SPAN_ID;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_TIMESTAMP;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_TIMESTAMP_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID_64;
 
 final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
   private static final BigInteger MAX_TIMESTAMP_ID = new BigInteger("ffffffffffffffff", 16);
+
+  private static final String TIMESTAMP_ID_UPPER_BOUND = ":timestamp_id_upper_bound";
+  private static final String TIMESTAMP_ID_LOWER_BOUND = ":timestamp_id_lower_bound";
+  private static final String SPAN_TIMESTAMP_ID_FILTER = SPAN_TIMESTAMP_ID + " BETWEEN " + TIMESTAMP_ID_LOWER_BOUND + " AND " + TIMESTAMP_ID_UPPER_BOUND;
+  private static final String QUERY_PROJECTION_EXPRESSION = String.join(", ", TRACE_ID, TRACE_ID_64, SPAN_TIMESTAMP);
 
   private final Executor executor;
   private final boolean strictTraceId;
@@ -68,99 +73,94 @@ final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
   }
 
   @Override protected List<List<Span>> doExecute() {
-    BigInteger timestampIdUpperBound =
-        BigInteger.valueOf(queryRequest.endTs()).shiftLeft(64).add(MAX_TIMESTAMP_ID);
-    BigInteger timestampIdLowerBound =
-        BigInteger.valueOf(queryRequest.endTs() - queryRequest.lookback()).shiftLeft(64);
-
     List<Map<String, AttributeValue>> rows = new ArrayList<>();
-    Map<String, AttributeValue> filterExpressionAttributes = new HashMap<>();
+    Map<String, AttributeValue> expressionAttributeValues = new HashMap<>();
     Map<String, String> expressionAttributeNames = new HashMap<>();
     List<String> filters = new ArrayList<>();
 
-    expressionAttributeNames.put("#timestamp", TIMESTAMP);
-    filterExpressionAttributes.put(":timestamp_upper",
-        new AttributeValue().withN(timestampIdUpperBound.toString()));
-    filterExpressionAttributes.put(":timestamp_lower",
-        new AttributeValue().withN(timestampIdLowerBound.toString()));
+    // We store a timestamp UUID-like value, where the upper 64 bits are the timestamp and lower 64
+    // are random, so we can get a range of "timestamp_id" by using endTs and lookback, the
+    // highest is calculated as: (endTs << 64 + 0xffffffffffffffff), and the lowest is calculated
+    // as: ((endTs - lookback) << 64)
+    BigInteger timestampIdUpperBound = BigInteger.valueOf(queryRequest.endTs()).shiftLeft(64).add(MAX_TIMESTAMP_ID);
+    BigInteger timestampIdLowerBound = BigInteger.valueOf(queryRequest.endTs() - queryRequest.lookback()).shiftLeft(64);
 
+    expressionAttributeValues.put(TIMESTAMP_ID_UPPER_BOUND, new AttributeValue().withN(timestampIdUpperBound.toString()));
+    expressionAttributeValues.put(TIMESTAMP_ID_LOWER_BOUND, new AttributeValue().withN(timestampIdLowerBound.toString()));
+
+    // Sets the duration filters for the query
+    // if min is not null and max is not null then span_duration is between them
+    //    if they are equal, we filter to span_duration == min
+    // if min is not null and max is then span_duration is >= min
     if (queryRequest.minDuration() != null) {
-      expressionAttributeNames.put("#dur", DURATION);
-      filterExpressionAttributes.put(":min_duration",
-          new AttributeValue().withN(queryRequest.minDuration().toString()));
+      expressionAttributeValues.put(":min_duration", new AttributeValue().withN(queryRequest.minDuration().toString()));
       if (queryRequest.maxDuration() != null) {
         if (queryRequest.maxDuration().equals(queryRequest.minDuration())) {
-          filters.add("#dur = :min_duration");
+          filters.add(SPAN_DURATION + " = :min_duration");
         } else {
-          filterExpressionAttributes.put(":max_duration",
-              new AttributeValue().withN(queryRequest.maxDuration().toString()));
-          filters.add("#dur BETWEEN :min_duration AND :max_duration");
+          expressionAttributeValues.put(":max_duration", new AttributeValue().withN(queryRequest.maxDuration().toString()));
+          filters.add(SPAN_DURATION + " BETWEEN :min_duration AND :max_duration");
         }
       } else {
-        filters.add("#dur >= :min_duration");
+        filters.add(SPAN_DURATION + " >= :min_duration");
       }
     }
 
+    // Sets tag and annotation filters
+    // For each item in the query set up an equality check, if it does not have a value we check for
+    // tag exists OR IN annotations, otherwise we check tag=value
     int i = 0;
     for (Map.Entry<String, String> tag : queryRequest.annotationQuery().entrySet()) {
       expressionAttributeNames.put("#tag_key" + i, TAG_PREFIX + tag.getKey());
       if (tag.getValue().isEmpty()) {
-        filterExpressionAttributes.put(":annotation" + i, new AttributeValue().withS(tag.getKey()));
-        filters.add(
-            String.format("(attribute_exists(#tag_key%d) OR contains(%s, :annotation%d))", i,
-                ANNOTATIONS, i));
+        expressionAttributeValues.put(":annotation" + i, new AttributeValue().withS(tag.getKey()));
+        filters.add(String.format("(attribute_exists(#tag_key%d) OR contains(%s, :annotation%d))", i, ANNOTATIONS, i));
       } else {
         filters.add(String.format("#tag_key%d = :tag_value%d", i, i));
-        filterExpressionAttributes.put(":tag_value" + i,
-            new AttributeValue().withS(tag.getValue()));
+        expressionAttributeValues.put(":tag_value" + i, new AttributeValue().withS(tag.getValue()));
       }
       i++;
     }
 
+    // This signals that we can use our secondary indexes on service_names and/or span_names
     if (queryRequest.serviceName() != null || queryRequest.spanName() != null) {
-      // USE dynamodb query
       if (queryRequest.serviceName() != null) {
         if (queryRequest.spanName() != null) {
-          QueryRequest query = getQueryForGlobalSecondaryIndex(LOCAL_SERVICE_SPAN_NAME,
-              queryRequest.serviceName() + FIELD_DELIMITER + queryRequest.spanName(),
-              expressionAttributeNames, filterExpressionAttributes, filters);
-          QueryResult result = dynamoDB.query(query);
-          rows.addAll(result.getItems());
-          filterExpressionAttributes.remove(":" + LOCAL_SERVICE_SPAN_NAME);
-
-          query = getQueryForGlobalSecondaryIndex(REMOTE_SERVICE_SPAN_NAME,
-              queryRequest.serviceName() + FIELD_DELIMITER + queryRequest.spanName(),
-              expressionAttributeNames, filterExpressionAttributes, filters);
-          result = dynamoDB.query(query);
-          rows.addAll(result.getItems());
+          rows.addAll(
+              getAllLocalAndRemoteRows(
+                  LOCAL_SERVICE_SPAN_NAME,
+                  REMOTE_SERVICE_SPAN_NAME,
+                  queryRequest.serviceName() + FIELD_DELIMITER + queryRequest.spanName(),
+                  expressionAttributeValues,
+                  expressionAttributeNames,
+                  filters
+              ));
         } else {
-          // only service names
-          QueryRequest query = getQueryForGlobalSecondaryIndex(LOCAL_SERVICE_NAME,
-              queryRequest.serviceName(), expressionAttributeNames, filterExpressionAttributes,
-              filters);
-          QueryResult result = dynamoDB.query(query);
-          rows.addAll(result.getItems());
-          filterExpressionAttributes.remove(":" + LOCAL_SERVICE_NAME);
-
-          query = getQueryForGlobalSecondaryIndex(REMOTE_SERVICE_NAME, queryRequest.serviceName(),
-              expressionAttributeNames,
-              filterExpressionAttributes, filters);
-          result = dynamoDB.query(query);
-          rows.addAll(result.getItems());
+          rows.addAll(
+              getAllLocalAndRemoteRows(
+                  LOCAL_SERVICE_NAME,
+                  REMOTE_SERVICE_NAME,
+                  queryRequest.serviceName(),
+                  expressionAttributeValues,
+                  expressionAttributeNames,
+                  filters
+              ));
         }
       } else {
-        QueryRequest query = getQueryForGlobalSecondaryIndex(SPAN_NAME, queryRequest.spanName(),
-            expressionAttributeNames,
-            filterExpressionAttributes, filters);
-        QueryResult result = dynamoDB.query(query);
-        rows.addAll(result.getItems());
+        boolean hasMore = true;
+        Map<String, AttributeValue> lastKey = Collections.emptyMap();
+        while (hasMore) {
+          lastKey = queryRows(rows, SPAN_NAME, queryRequest.spanName(), lastKey, expressionAttributeValues, expressionAttributeNames, filters);
+          hasMore = lastKey != null && !lastKey.isEmpty();
+        }
       }
     } else {
-      filters.add(TIMESTAMP_SPAN_ID + " BETWEEN :timestamp_lower AND :timestamp_upper");
+      // We have to scan now because we don't have an index to use based on only endTs & lookback
+      filters.add(SPAN_TIMESTAMP_ID_FILTER);
 
       ScanRequest request = new ScanRequest(spansTableName)
-          .withProjectionExpression(TRACE_ID + ", " + TRACE_ID_64 + ", #timestamp")
-          .withExpressionAttributeValues(filterExpressionAttributes)
+          .withProjectionExpression(QUERY_PROJECTION_EXPRESSION)
+          .withExpressionAttributeValues(expressionAttributeValues)
           .withFilterExpression(String.join(" AND ", filters));
       if (expressionAttributeNames.size() > 0) {
         request.withExpressionAttributeNames(expressionAttributeNames);
@@ -185,34 +185,60 @@ final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
   }
 
   @Override public Call<List<List<Span>>> clone() {
-    return new GetTracesForQueryCall(executor, strictTraceId, dynamoDB, spansTableName,
-        queryRequest);
+    return new GetTracesForQueryCall(executor, strictTraceId, dynamoDB, spansTableName, queryRequest);
   }
 
-  private QueryRequest getQueryForGlobalSecondaryIndex(String indexName,
-      String key, Map<String, String> expressionAttributeNames,
-      Map<String, AttributeValue> filterExpressionAttributes,
-      List<String> filters) {
+  private List<Map<String, AttributeValue>> getAllLocalAndRemoteRows(String localIndex, String remoteIndex, String key, Map<String, AttributeValue> expressionAttributeValues, Map<String, String> expressionAttributeNames, List<String> filters) {
+    List<Map<String, AttributeValue>> rows = new ArrayList<>();
+    boolean moreLocal = true;
+    Map<String, AttributeValue> localLastKey = Collections.emptyMap();
+    boolean moreRemote = true;
+    Map<String, AttributeValue> remoteLastKey = Collections.emptyMap();
+    while (moreLocal || moreRemote) {
+      if (moreLocal) {
+        localLastKey = queryRows(rows, localIndex, key, localLastKey, expressionAttributeValues, expressionAttributeNames, filters);
+        moreLocal = localLastKey != null && !localLastKey.isEmpty();
+      }
 
-    filterExpressionAttributes.put(":" + indexName, new AttributeValue().withS(key));
-
-    QueryRequest queryRequest = new QueryRequest(spansTableName)
-        .withProjectionExpression(TRACE_ID + ", " + TRACE_ID_64 + ", #timestamp")
-        .withScanIndexForward(false)
-        .withIndexName(indexName)
-        .withKeyConditionExpression(indexName
-            + " = :"
-            + indexName
-            + " AND "
-            + TIMESTAMP_SPAN_ID
-            + " BETWEEN :timestamp_lower AND :timestamp_upper")
-        .withExpressionAttributeValues(filterExpressionAttributes);
-    if (expressionAttributeNames.size() > 0) {
-      queryRequest.withExpressionAttributeNames(expressionAttributeNames);
+      if (moreRemote) {
+        remoteLastKey = queryRows(rows, remoteIndex, key, remoteLastKey, expressionAttributeValues, expressionAttributeNames, filters);
+        moreRemote = remoteLastKey != null && !remoteLastKey.isEmpty();
+      }
     }
+    return rows;
+  }
+
+  private Map<String, AttributeValue> queryRows(List<Map<String, AttributeValue>> rowCollection, String index, String value, Map<String, AttributeValue> lastEvaluatedKey, Map<String, AttributeValue> expressionAttributeValues, Map<String, String> expressionAttributeNames, List<String> filters) {
+    QueryRequest request = createQuery(index, value, expressionAttributeValues, expressionAttributeNames, filters);
+    if (!lastEvaluatedKey.isEmpty()) {
+      request.withExclusiveStartKey(lastEvaluatedKey);
+    }
+    QueryResult result = dynamoDB.query(request);
+    rowCollection.addAll(result.getItems());
+    // undo previous changes so future queries don't break
+    return result.getLastEvaluatedKey();
+  }
+
+  private QueryRequest createQuery(String index, String key, Map<String, AttributeValue> expressionAttributeValues, Map<String, String> expressionAttributeNames, List<String> filters) {
+    QueryRequest queryRequest = new QueryRequest(spansTableName)
+        .withIndexName(index)
+        .withProjectionExpression(QUERY_PROJECTION_EXPRESSION)
+        .withKeyConditionExpression(String.format("%s = :%s AND %s", index, index, SPAN_TIMESTAMP_ID_FILTER))
+        .withScanIndexForward(false);
+
+    queryRequest.addExpressionAttributeValuesEntry(":" + index, new AttributeValue().withS(key));
+    for (Map.Entry<String, AttributeValue> attributeValue : expressionAttributeValues.entrySet()) {
+      queryRequest.addExpressionAttributeValuesEntry(attributeValue.getKey(), attributeValue.getValue());
+    }
+
+    for (Map.Entry<String, String> attributeName : expressionAttributeNames.entrySet()) {
+      queryRequest.addExpressionAttributeNamesEntry(attributeName.getKey(), attributeName.getValue());
+    }
+
     if (!filters.isEmpty()) {
       queryRequest.withFilterExpression(String.join(" AND ", filters));
     }
+
     return queryRequest;
   }
 
@@ -223,8 +249,8 @@ final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
     for (Map<String, AttributeValue> row : input) {
       String traceId = row.get(traceIdField).getS();
       if (keep.containsKey(traceId)) {
-        if (Long.valueOf(row.get(TIMESTAMP).getN()) > Long.valueOf(
-            keep.get(traceId).get(TIMESTAMP).getN())) {
+        if (Long.valueOf(row.get(SPAN_TIMESTAMP).getN()) > Long.valueOf(
+            keep.get(traceId).get(SPAN_TIMESTAMP).getN())) {
           keep.put(traceId, row);
         }
       } else {
@@ -233,8 +259,8 @@ final class GetTracesForQueryCall extends DynamoDBCall<List<List<Span>>> {
     }
 
     List<Map<String, AttributeValue>> result = new ArrayList<>(keep.values());
-    result.sort((m1, m2) -> Long.valueOf(m2.get(TIMESTAMP).getN())
-        .compareTo(Long.valueOf(m1.get(TIMESTAMP).getN())));
+    result.sort((m1, m2) -> Long.valueOf(m2.get(SPAN_TIMESTAMP).getN())
+        .compareTo(Long.valueOf(m1.get(SPAN_TIMESTAMP).getN())));
 
     return result;
   }

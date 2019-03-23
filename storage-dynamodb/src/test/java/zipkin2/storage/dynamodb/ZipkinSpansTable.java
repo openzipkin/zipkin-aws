@@ -29,7 +29,7 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_SPA
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_NAME;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TIMESTAMP_SPAN_ID;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_TIMESTAMP_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID_64;
 
@@ -45,7 +45,7 @@ public class ZipkinSpansTable extends AbstractDynamoDBTable {
         .withAttributeDefinitions(
             new AttributeDefinition(TRACE_ID, ScalarAttributeType.S),
             new AttributeDefinition(TRACE_ID_64, ScalarAttributeType.S),
-            new AttributeDefinition(TIMESTAMP_SPAN_ID, ScalarAttributeType.N),
+            new AttributeDefinition(SPAN_TIMESTAMP_ID, ScalarAttributeType.N),
             new AttributeDefinition(SPAN_NAME, ScalarAttributeType.S),
             new AttributeDefinition(LOCAL_SERVICE_NAME, ScalarAttributeType.S),
             new AttributeDefinition(LOCAL_SERVICE_SPAN_NAME, ScalarAttributeType.S),
@@ -54,7 +54,7 @@ public class ZipkinSpansTable extends AbstractDynamoDBTable {
         )
         .withKeySchema(
             new KeySchemaElement(TRACE_ID, KeyType.HASH),
-            new KeySchemaElement(TIMESTAMP_SPAN_ID, KeyType.RANGE)
+            new KeySchemaElement(SPAN_TIMESTAMP_ID, KeyType.RANGE)
         )
         .withProvisionedThroughput(new ProvisionedThroughput(1L, 1L))
         .withGlobalSecondaryIndexes(
@@ -62,7 +62,7 @@ public class ZipkinSpansTable extends AbstractDynamoDBTable {
                 .withIndexName(TRACE_ID_64)
                 .withKeySchema(
                     new KeySchemaElement(TRACE_ID_64, KeyType.HASH),
-                    new KeySchemaElement(TIMESTAMP_SPAN_ID, KeyType.RANGE)
+                    new KeySchemaElement(SPAN_TIMESTAMP_ID, KeyType.RANGE)
                 )
                 .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
                 .withProvisionedThroughput(new ProvisionedThroughput(1L, 1L)),
@@ -70,7 +70,7 @@ public class ZipkinSpansTable extends AbstractDynamoDBTable {
                 .withIndexName(SPAN_NAME)
                 .withKeySchema(
                     new KeySchemaElement(SPAN_NAME, KeyType.HASH),
-                    new KeySchemaElement(TIMESTAMP_SPAN_ID, KeyType.RANGE)
+                    new KeySchemaElement(SPAN_TIMESTAMP_ID, KeyType.RANGE)
                 )
                 .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
                 .withProvisionedThroughput(new ProvisionedThroughput(1L, 1L)),
@@ -78,7 +78,7 @@ public class ZipkinSpansTable extends AbstractDynamoDBTable {
                 .withIndexName(LOCAL_SERVICE_NAME)
                 .withKeySchema(
                     new KeySchemaElement(LOCAL_SERVICE_NAME, KeyType.HASH),
-                    new KeySchemaElement(TIMESTAMP_SPAN_ID, KeyType.RANGE)
+                    new KeySchemaElement(SPAN_TIMESTAMP_ID, KeyType.RANGE)
                 )
                 .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
                 .withProvisionedThroughput(new ProvisionedThroughput(1L, 1L)),
@@ -86,7 +86,7 @@ public class ZipkinSpansTable extends AbstractDynamoDBTable {
                 .withIndexName(REMOTE_SERVICE_NAME)
                 .withKeySchema(
                     new KeySchemaElement(REMOTE_SERVICE_NAME, KeyType.HASH),
-                    new KeySchemaElement(TIMESTAMP_SPAN_ID, KeyType.RANGE)
+                    new KeySchemaElement(SPAN_TIMESTAMP_ID, KeyType.RANGE)
                 )
                 .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
                 .withProvisionedThroughput(new ProvisionedThroughput(1L, 1L)),
@@ -94,7 +94,7 @@ public class ZipkinSpansTable extends AbstractDynamoDBTable {
                 .withIndexName(LOCAL_SERVICE_SPAN_NAME)
                 .withKeySchema(
                     new KeySchemaElement(LOCAL_SERVICE_SPAN_NAME, KeyType.HASH),
-                    new KeySchemaElement(TIMESTAMP_SPAN_ID, KeyType.RANGE)
+                    new KeySchemaElement(SPAN_TIMESTAMP_ID, KeyType.RANGE)
                 )
                 .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
                 .withProvisionedThroughput(new ProvisionedThroughput(1L, 1L)),
@@ -102,7 +102,7 @@ public class ZipkinSpansTable extends AbstractDynamoDBTable {
                 .withIndexName(REMOTE_SERVICE_SPAN_NAME)
                 .withKeySchema(
                     new KeySchemaElement(REMOTE_SERVICE_SPAN_NAME, KeyType.HASH),
-                    new KeySchemaElement(TIMESTAMP_SPAN_ID, KeyType.RANGE)
+                    new KeySchemaElement(SPAN_TIMESTAMP_ID, KeyType.RANGE)
                 )
                 .withProjection(new Projection().withProjectionType(ProjectionType.ALL))
                 .withProvisionedThroughput(new ProvisionedThroughput(1L, 1L))

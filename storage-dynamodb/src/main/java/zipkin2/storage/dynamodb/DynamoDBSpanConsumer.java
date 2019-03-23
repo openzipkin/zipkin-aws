@@ -49,17 +49,17 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_VALUE;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.SERVICE_SPAN_ENTITY_TYPE;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.UNKNOWN;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.ANNOTATIONS;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.DURATION;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_BLOB;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_DURATION;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_NAME;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_TIMESTAMP;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TAG_PREFIX;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TIMESTAMP;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TIMESTAMP_SPAN_ID;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_TIMESTAMP_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID_64;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.TTL_COLUMN;
@@ -117,7 +117,7 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
       spanPut.addItemEntry(TRACE_ID_64,
           new AttributeValue(span.traceId().substring(Math.max(0, span.traceId().length() - 16))));
 
-      spanPut.addItemEntry(TIMESTAMP_SPAN_ID,
+      spanPut.addItemEntry(SPAN_TIMESTAMP_ID,
           new AttributeValue().withN(timestampId(span.timestampAsLong() / 1000)));
 
       spanPut.addItemEntry(SPAN_ID, new AttributeValue().withS(span.id()));
@@ -164,12 +164,12 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
       }
 
       if (span.timestamp() != null) {
-        spanPut.addItemEntry(TIMESTAMP,
+        spanPut.addItemEntry(SPAN_TIMESTAMP,
             new AttributeValue().withN(String.valueOf(span.timestampAsLong())));
       }
 
       if (span.duration() != null) {
-        spanPut.addItemEntry(DURATION,
+        spanPut.addItemEntry(SPAN_DURATION,
             new AttributeValue().withN(String.valueOf(span.durationAsLong())));
       }
 
@@ -187,48 +187,48 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
 
   private List<UpdateItemRequest> createUpsertsForServiceSpanNames(List<Span> spans,
       AttributeValue ttl) {
-    Set<Pair> entries = new HashSet<>();
+    Set<Pair> pairs = new HashSet<>();
 
     for (Span span : spans) {
-      String localServiceName =
-          StringUtils.isNullOrEmpty(span.localServiceName()) ? UNKNOWN : span.localServiceName();
       String spanName = StringUtils.isNullOrEmpty(span.name()) ? UNKNOWN : span.name();
-      entries.add(new Pair(localServiceName, spanName));
+      pairs.add(new Pair(
+          StringUtils.isNullOrEmpty(span.localServiceName()) ? UNKNOWN : span.localServiceName(),
+          spanName));
 
       if (!StringUtils.isNullOrEmpty(span.localServiceName())) {
-        entries.add(new Pair(span.localServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP));
+        pairs.add(new Pair(span.localServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP));
       }
 
       if (!StringUtils.isNullOrEmpty(span.remoteServiceName())) {
-        entries.add(new Pair(span.remoteServiceName(), spanName));
-        entries.add(new Pair(span.remoteServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP));
+        pairs.add(new Pair(span.remoteServiceName(), spanName));
+        pairs.add(new Pair(span.remoteServiceName(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP));
       }
     }
 
-    return entries.stream()
+    return pairs.stream()
         .map(p -> p.asUpdateItemRequest(SERVICE_SPAN_ENTITY_TYPE, ttl))
         .collect(Collectors.toList());
   }
 
   private List<UpdateItemRequest> createUpsertsForAutocompleteTags(List<Span> spans,
       AttributeValue ttl) {
-    Set<Pair> entries = new HashSet<>();
+    Set<Pair> pairs = new HashSet<>();
 
     for (Span span : spans) {
       for (Map.Entry<String, String> tag : span.tags().entrySet()) {
         if (autocompleteKeys.contains(tag.getKey())) {
-          entries.add(new Pair(tag.getKey(), tag.getValue()));
-          entries.add(new Pair(tag.getKey(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP));
+          pairs.add(new Pair(tag.getKey(), tag.getValue()));
+          pairs.add(new Pair(tag.getKey(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP));
         }
       }
     }
 
-    return entries.stream()
+    return pairs.stream()
         .map(p -> p.asUpdateItemRequest(AUTOCOMPLETE_TAG_ENTITY_TYPE, ttl))
         .collect(Collectors.toList());
   }
 
-  private static class Pair implements Map.Entry<String, String> {
+  private static class Pair {
     private String key;
     private String value;
 
@@ -251,19 +251,6 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
           .addAttributeUpdatesEntry(ENTITY_VALUE,
               new AttributeValueUpdate().withValue(new AttributeValue().withS(value)))
           .addAttributeUpdatesEntry(TTL_COLUMN, new AttributeValueUpdate().withValue(ttl));
-    }
-
-    @Override public String getKey() {
-      return key;
-    }
-
-    @Override public String getValue() {
-      return value;
-    }
-
-    @Override public String setValue(String value) {
-      this.value = value;
-      return this.value;
     }
 
     @Override public int hashCode() {
