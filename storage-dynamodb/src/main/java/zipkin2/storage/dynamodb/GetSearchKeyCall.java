@@ -50,9 +50,11 @@ public class GetSearchKeyCall extends DynamoDBCall<List<String>> {
     QueryResult result = dynamoDB.query(new QueryRequest(searchTableName)
         .withIndexName(VALUE_INDEX)
         .withSelect(Select.ALL_ATTRIBUTES)
-        .withKeyConditionExpression(ENTITY_TYPE + " = :" + ENTITY_TYPE + " AND " + ENTITY_VALUE + " = :" + ENTITY_VALUE)
+        .withKeyConditionExpression(
+            ENTITY_TYPE + " = :" + ENTITY_TYPE + " AND " + ENTITY_VALUE + " = :" + ENTITY_VALUE)
         .addExpressionAttributeValuesEntry(":" + ENTITY_TYPE, new AttributeValue().withS(type))
-        .addExpressionAttributeValuesEntry(":" + ENTITY_VALUE, new AttributeValue().withS(WILDCARD_FOR_INVERTED_INDEX_LOOKUP))
+        .addExpressionAttributeValuesEntry(":" + ENTITY_VALUE,
+            new AttributeValue().withS(WILDCARD_FOR_INVERTED_INDEX_LOOKUP))
     );
     return result.getItems().stream()
         .map(m -> m.get(ENTITY_KEY))

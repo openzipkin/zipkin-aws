@@ -26,9 +26,9 @@ import com.amazonaws.services.dynamodbv2.model.ScalarAttributeType;
 
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_SPAN_NAME;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_NAME;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.REMOTE_SERVICE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TIMESTAMP_SPAN_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID_64;

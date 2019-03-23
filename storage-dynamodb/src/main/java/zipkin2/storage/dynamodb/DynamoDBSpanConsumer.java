@@ -44,10 +44,10 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.SPANS_TABLE_BASE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.AUTOCOMPLETE_TAG_ENTITY_TYPE;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_KEY;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_KEY_VALUE;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.SERVICE_SPAN_ENTITY_TYPE;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_TYPE;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.UNKNOWN;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.ENTITY_VALUE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.SERVICE_SPAN_ENTITY_TYPE;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.UNKNOWN;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.ANNOTATIONS;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.DURATION;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.LOCAL_SERVICE_NAME;
@@ -185,11 +185,13 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
         .toString();
   }
 
-  private List<UpdateItemRequest> createUpsertsForServiceSpanNames(List<Span> spans, AttributeValue ttl) {
+  private List<UpdateItemRequest> createUpsertsForServiceSpanNames(List<Span> spans,
+      AttributeValue ttl) {
     Set<Pair> entries = new HashSet<>();
 
     for (Span span : spans) {
-      String localServiceName = StringUtils.isNullOrEmpty(span.localServiceName()) ? UNKNOWN : span.localServiceName();
+      String localServiceName =
+          StringUtils.isNullOrEmpty(span.localServiceName()) ? UNKNOWN : span.localServiceName();
       String spanName = StringUtils.isNullOrEmpty(span.name()) ? UNKNOWN : span.name();
       entries.add(new Pair(localServiceName, spanName));
 
@@ -208,7 +210,8 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
         .collect(Collectors.toList());
   }
 
-  private List<UpdateItemRequest> createUpsertsForAutocompleteTags(List<Span> spans, AttributeValue ttl) {
+  private List<UpdateItemRequest> createUpsertsForAutocompleteTags(List<Span> spans,
+      AttributeValue ttl) {
     Set<Pair> entries = new HashSet<>();
 
     for (Span span : spans) {
@@ -240,10 +243,13 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
       return new UpdateItemRequest()
           .withKey(new HashMap<String, AttributeValue>() {{
             put(ENTITY_TYPE, new AttributeValue().withS(type));
-            put(ENTITY_KEY_VALUE, new AttributeValue().withS(String.join(FIELD_DELIMITER, key, value)));
+            put(ENTITY_KEY_VALUE,
+                new AttributeValue().withS(String.join(FIELD_DELIMITER, key, value)));
           }})
-          .addAttributeUpdatesEntry(ENTITY_KEY, new AttributeValueUpdate().withValue(new AttributeValue().withS(key)))
-          .addAttributeUpdatesEntry(ENTITY_VALUE, new AttributeValueUpdate().withValue(new AttributeValue().withS(value)))
+          .addAttributeUpdatesEntry(ENTITY_KEY,
+              new AttributeValueUpdate().withValue(new AttributeValue().withS(key)))
+          .addAttributeUpdatesEntry(ENTITY_VALUE,
+              new AttributeValueUpdate().withValue(new AttributeValue().withS(value)))
           .addAttributeUpdatesEntry(TTL_COLUMN, new AttributeValueUpdate().withValue(ttl));
     }
 
