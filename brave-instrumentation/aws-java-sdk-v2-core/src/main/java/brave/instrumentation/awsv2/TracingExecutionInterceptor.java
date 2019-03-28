@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -41,8 +41,8 @@ import software.amazon.awssdk.http.SdkHttpResponse;
  *
  * The inner span, "Client Span", is created for each outgoing HTTP request. This span will be of
  * type CLIENT. The remoteService will be the name of the AWS service, and the span name will be the
- * name of the operation being done. If the request results in an error then the span will be
- * tagged with the error. The AWS request ID is added when available.
+ * name of the operation being done. If the request results in an error then the span will be tagged
+ * with the error. The AWS request ID is added when available.
  */
 final class TracingExecutionInterceptor implements ExecutionInterceptor {
   static final ExecutionAttribute<TraceContext> DEFERRED_ROOT_CONTEXT =
@@ -108,18 +108,17 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
     } else {
       applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
     }
-    try (Tracer.SpanInScope ignored = tracer.withSpanInScope(applicationSpan)) {
-      String serviceName = executionAttributes.getAttribute(SdkExecutionAttribute.SERVICE_NAME);
-      String operation = getAwsOperationNameFromRequestClass(context.request());
-      applicationSpan.name("aws-sdk")
-          .tag("aws.service_name", serviceName)
-          .tag("aws.operation", operation);
 
-      return context.httpRequest().copy(builder -> {
-        Span clientSpan = nextClientSpan(applicationSpan, serviceName, operation, builder);
-        executionAttributes.putAttribute(CLIENT_SPAN, clientSpan);
-      });
-    }
+    String serviceName = executionAttributes.getAttribute(SdkExecutionAttribute.SERVICE_NAME);
+    String operation = getAwsOperationNameFromRequestClass(context.request());
+    applicationSpan.name("aws-sdk")
+        .tag("aws.service_name", serviceName)
+        .tag("aws.operation", operation);
+
+    return context.httpRequest().copy(builder -> {
+      Span clientSpan = nextClientSpan(applicationSpan, serviceName, operation, builder);
+      executionAttributes.putAttribute(CLIENT_SPAN, clientSpan);
+    });
   }
 
   /**
@@ -131,17 +130,13 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       ExecutionAttributes executionAttributes
   ) {
     Span clientSpan = executionAttributes.getAttribute(CLIENT_SPAN);
-    try (Tracer.SpanInScope ignored = tracer.withSpanInScope(clientSpan)) {
-      if (!context.httpResponse().isSuccessful()) {
-        clientSpan.tag("error", context.httpResponse().statusText()
-            .orElse("Unknown AWS service error"));
-      }
-      handler.handleReceive(context.httpResponse(), null, clientSpan);
+    if (!context.httpResponse().isSuccessful()) {
+      clientSpan.tag("error", context.httpResponse().statusText()
+          .orElse("Unknown AWS service error"));
     }
+    handler.handleReceive(context.httpResponse(), null, clientSpan);
     executionAttributes.putAttribute(CLIENT_SPAN, null);
   }
-
-
 
   /**
    * After a SDK request has been executed
@@ -151,9 +146,7 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       ExecutionAttributes executionAttributes
   ) {
     Span applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
-    try (Tracer.SpanInScope ignored = tracer.withSpanInScope(applicationSpan)) {
-      applicationSpan.finish();
-    }
+    applicationSpan.finish();
   }
 
   /**
@@ -163,10 +156,14 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       Context.FailedExecution context,
       ExecutionAttributes executionAttributes
   ) {
-    Span applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
-    try (Tracer.SpanInScope ignored = tracer.withSpanInScope(applicationSpan)) {
-      applicationSpan.error(context.exception());
+    Span clientSpan = executionAttributes.getAttribute(CLIENT_SPAN);
+    if (clientSpan != null) {
+      handler.handleReceive(null, context.exception(), clientSpan);
+      executionAttributes.putAttribute(CLIENT_SPAN, null);
     }
+    Span applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
+    applicationSpan.error(context.exception());
+    applicationSpan.finish();
   }
 
   private Span nextClientSpan(
@@ -177,8 +174,7 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
   ) {
     Span span = tracer.newChild(applicationSpan.context());
     handler.handleSend(injector, sdkHttpRequestBuilder, span);
-    return span.name(operation)
-        .remoteServiceName(serviceName);
+    return span.name(operation).remoteServiceName(serviceName);
   }
 
   private String getAwsOperationNameFromRequestClass(SdkRequest request) {
