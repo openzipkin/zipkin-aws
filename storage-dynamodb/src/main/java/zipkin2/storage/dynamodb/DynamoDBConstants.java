@@ -23,7 +23,7 @@ final class DynamoDBConstants {
 
   static final String TTL_COLUMN = "ttl";
 
-  final class Spans {
+  static final class Spans {
     static final String TRACE_ID = "trace_id";
     static final String SPAN_TIMESTAMP_ID = "span_timestamp_id";
     static final String TRACE_ID_64 = "trace_id_64";
@@ -40,7 +40,7 @@ final class DynamoDBConstants {
     static final String ANNOTATIONS = "annotations";
   }
 
-  final class Search {
+  static final class Search {
     static final String KEY_INDEX = "key_index";
     static final String VALUE_INDEX = "value_index";
 

@@ -14,9 +14,10 @@
 package zipkin2.storage.dynamodb;
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.concurrent.Executor;
 import zipkin2.Call;
 import zipkin2.storage.AutocompleteTags;
 
@@ -24,34 +25,25 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.SEARCH_TABLE_BASE_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Search.AUTOCOMPLETE_TAG_ENTITY_TYPE;
 
 final class DynamoDBAutocompleteTags implements AutocompleteTags {
-  private final boolean searchEnabled;
-  private final AmazonDynamoDBAsync dynamoDB;
-  private final Executor executor;
-  private final String searchTableName;
+  final boolean searchEnabled;
+  final AmazonDynamoDBAsync dynamoDB;
+  final String searchTableName;
+  final Call<List<String>> keysCall;
 
   DynamoDBAutocompleteTags(DynamoDBStorage.Builder builder) {
     this.searchEnabled = builder.searchEnabled;
     this.dynamoDB = builder.client;
-    this.executor = builder.executor;
-
+    this.keysCall = Call.create(new ArrayList<>(builder.autocompleteKeys));
     this.searchTableName = builder.tablePrefix + SEARCH_TABLE_BASE_NAME;
   }
 
   @Override public Call<List<String>> getKeys() {
-    if (!searchEnabled) {
-      return Call.emptyList();
-    }
-    return new GetSearchKeyCall(executor, dynamoDB, searchTableName,
-        AUTOCOMPLETE_TAG_ENTITY_TYPE,
-        Collections.emptyList());
+    if (!searchEnabled) return Call.emptyList();
+    return keysCall.clone();
   }
 
   @Override public Call<List<String>> getValues(String key) {
-    if (!searchEnabled) {
-      return Call.emptyList();
-    }
-    return new GetSearchValueCall(executor, dynamoDB, searchTableName,
-        AUTOCOMPLETE_TAG_ENTITY_TYPE,
-        key, Collections.emptyList());
+    if (!searchEnabled) return Call.emptyList();
+    return SearchTableCall.values(dynamoDB, searchTableName, AUTOCOMPLETE_TAG_ENTITY_TYPE, key);
   }
 }

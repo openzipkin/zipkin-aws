@@ -13,20 +13,24 @@
  */
 package zipkin2.storage.dynamodb;
 
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
+import com.amazonaws.handlers.AsyncHandler;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.AttributeValueUpdate;
 import com.amazonaws.services.dynamodbv2.model.BatchWriteItemRequest;
+import com.amazonaws.services.dynamodbv2.model.BatchWriteItemResult;
 import com.amazonaws.services.dynamodbv2.model.PutRequest;
 import com.amazonaws.services.dynamodbv2.model.UpdateItemRequest;
+import com.amazonaws.services.dynamodbv2.model.UpdateItemResult;
 import com.amazonaws.services.dynamodbv2.model.WriteRequest;
 import com.amazonaws.util.StringUtils;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -36,6 +40,7 @@ import zipkin2.Annotation;
 import zipkin2.Call;
 import zipkin2.Span;
 import zipkin2.codec.SpanBytesEncoder;
+import zipkin2.internal.AggregateCall;
 import zipkin2.storage.SpanConsumer;
 
 import static zipkin2.storage.dynamodb.DynamoDBConstants.FIELD_DELIMITER;
@@ -58,8 +63,8 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_DURATION;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_NAME;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_TIMESTAMP;
-import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TAG_PREFIX;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_TIMESTAMP_ID;
+import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TAG_PREFIX;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID_64;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.TTL_COLUMN;
@@ -68,11 +73,11 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.WILDCARD_FOR_INVERTED_I
 final class DynamoDBSpanConsumer implements SpanConsumer {
   private static Random random = new Random();
 
-  private final List<String> autocompleteKeys;
-  private final AmazonDynamoDB dynamoDB;
-  private final long dataTtlSeconds;
-  private final String spansTableName;
-  private final String searchTableName;
+  final List<String> autocompleteKeys;
+  final AmazonDynamoDBAsync dynamoDB;
+  final long dataTtlSeconds;
+  final String spansTableName;
+  final String searchTableName;
 
   DynamoDBSpanConsumer(DynamoDBStorage.Builder builder) {
     this.autocompleteKeys = builder.autocompleteKeys;
@@ -87,13 +92,15 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
     AttributeValue ttlForBatch = new AttributeValue().withN(
         String.valueOf(Instant.now().getEpochSecond() + dataTtlSeconds));
 
+    List<Call<Void>> calls = new ArrayList<>();
     List<WriteRequest> spanWriteRequests = createWriteSpans(list, ttlForBatch);
     while (!spanWriteRequests.isEmpty()) {
       int maxIndex = Math.min(spanWriteRequests.size(), 25);
       BatchWriteItemRequest request = new BatchWriteItemRequest();
-      request.addRequestItemsEntry(spansTableName, spanWriteRequests.subList(0, maxIndex));
+      request.addRequestItemsEntry(spansTableName,
+          new ArrayList<>(spanWriteRequests.subList(0, maxIndex)));
 
-      dynamoDB.batchWriteItem(request);
+      calls.add(new BatchWriteItemCall(dynamoDB, request));
       spanWriteRequests.subList(0, maxIndex).clear();
     }
 
@@ -103,10 +110,10 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
     upserts.addAll(createUpsertsForAutocompleteTags(list, ttlForBatch));
 
     for (UpdateItemRequest request : upserts) {
-      dynamoDB.updateItem(request.withTableName(searchTableName));
+      calls.add(new UpdateItemCall(dynamoDB, request));
     }
 
-    return Call.create(null);
+    return AggregateCall.newVoidCall(calls);
   }
 
   private List<WriteRequest> createWriteSpans(List<Span> spans, AttributeValue ttl) {
@@ -187,7 +194,7 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
 
   private List<UpdateItemRequest> createUpsertsForServiceSpanNames(List<Span> spans,
       AttributeValue ttl) {
-    Set<Pair> pairs = new HashSet<>();
+    Set<Pair> pairs = new LinkedHashSet<>();
 
     for (Span span : spans) {
       String spanName = StringUtils.isNullOrEmpty(span.name()) ? UNKNOWN : span.name();
@@ -206,25 +213,26 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
     }
 
     return pairs.stream()
-        .map(p -> p.asUpdateItemRequest(SERVICE_SPAN_ENTITY_TYPE, ttl))
+        .map(p -> p.asUpdateItemRequest(SERVICE_SPAN_ENTITY_TYPE, ttl)
+            .withTableName(searchTableName))
         .collect(Collectors.toList());
   }
 
   private List<UpdateItemRequest> createUpsertsForAutocompleteTags(List<Span> spans,
       AttributeValue ttl) {
-    Set<Pair> pairs = new HashSet<>();
+    Set<Pair> pairs = new LinkedHashSet<>();
 
     for (Span span : spans) {
       for (Map.Entry<String, String> tag : span.tags().entrySet()) {
         if (autocompleteKeys.contains(tag.getKey())) {
           pairs.add(new Pair(tag.getKey(), tag.getValue()));
-          pairs.add(new Pair(tag.getKey(), WILDCARD_FOR_INVERTED_INDEX_LOOKUP));
         }
       }
     }
 
     return pairs.stream()
-        .map(p -> p.asUpdateItemRequest(AUTOCOMPLETE_TAG_ENTITY_TYPE, ttl))
+        .map(p -> p.asUpdateItemRequest(AUTOCOMPLETE_TAG_ENTITY_TYPE, ttl)
+            .withTableName(searchTableName))
         .collect(Collectors.toList());
   }
 
@@ -264,6 +272,62 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
       } else {
         return false;
       }
+    }
+  }
+
+  static final class BatchWriteItemCall
+      extends DynamoDBCall<BatchWriteItemRequest, BatchWriteItemResult, Void> {
+    BatchWriteItemCall(AmazonDynamoDBAsync dynamoDB, BatchWriteItemRequest request) {
+      super(dynamoDB, request);
+    }
+
+    @Override List<Map<String, AttributeValue>> items(BatchWriteItemResult result) {
+      return Collections.emptyList();
+    }
+
+    @Override public Void map(List<Map<String, AttributeValue>> input) {
+      return null;
+    }
+
+    @Override BatchWriteItemResult sync(BatchWriteItemRequest request) {
+      return dynamoDB.batchWriteItem(request);
+    }
+
+    @Override void async(BatchWriteItemRequest request,
+        AsyncHandler<BatchWriteItemRequest, BatchWriteItemResult> handler) {
+      dynamoDB.batchWriteItemAsync(request, handler);
+    }
+
+    @Override public Call<Void> clone() {
+      return new BatchWriteItemCall(dynamoDB, request);
+    }
+  }
+
+  static final class UpdateItemCall
+      extends DynamoDBCall<UpdateItemRequest, UpdateItemResult, Void> {
+    UpdateItemCall(AmazonDynamoDBAsync dynamoDB, UpdateItemRequest request) {
+      super(dynamoDB, request);
+    }
+
+    @Override List<Map<String, AttributeValue>> items(UpdateItemResult result) {
+      return Collections.emptyList();
+    }
+
+    @Override public Void map(List<Map<String, AttributeValue>> input) {
+      return null;
+    }
+
+    @Override UpdateItemResult sync(UpdateItemRequest request) {
+      return dynamoDB.updateItem(request);
+    }
+
+    @Override void async(UpdateItemRequest request,
+        AsyncHandler<UpdateItemRequest, UpdateItemResult> handler) {
+      dynamoDB.updateItemAsync(request, handler);
+    }
+
+    @Override public Call<Void> clone() {
+      return new UpdateItemCall(dynamoDB, request);
     }
   }
 }

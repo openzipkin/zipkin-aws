@@ -16,12 +16,10 @@ package zipkin2.storage.dynamodb;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.QueryRequest;
-import com.amazonaws.services.dynamodbv2.model.QueryResult;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
 import zipkin2.Call;
 import zipkin2.Span;
 import zipkin2.codec.SpanBytesDecoder;
@@ -30,36 +28,16 @@ import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.SPAN_BLOB;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID;
 import static zipkin2.storage.dynamodb.DynamoDBConstants.Spans.TRACE_ID_64;
 
-final class GetTraceByIdCall extends DynamoDBCall<List<Span>> {
-  private final Executor executor;
-  private final AmazonDynamoDBAsync dynamoDB;
-  private final String spansTableName;
-  private final boolean strictTraceId;
-  private final String traceId;
-
-  GetTraceByIdCall(Executor executor, AmazonDynamoDBAsync dynamoDB,
-      String spansTableName, boolean strictTraceId,
-      String traceId) {
-    super(executor);
-    this.executor = executor;
-    this.dynamoDB = dynamoDB;
-    this.spansTableName = spansTableName;
-    this.strictTraceId = strictTraceId;
-    this.traceId = traceId;
-  }
-
-  @Override protected List<Span> doExecute() {
-    QueryRequest dynamoRequest = strictTraceId ? strictTraceIdQuery() : lenientTraceIdQuery();
-    QueryResult result = dynamoDB.query(dynamoRequest);
-
-    List<Span> spans = new ArrayList<>(result.getCount());
-    for (Map<String, AttributeValue> row : result.getItems()) {
-      spans.add(SpanBytesDecoder.PROTO3.decodeOne(row.get(SPAN_BLOB).getB().array()));
+final class GetTraceByIdCall extends DynamoDBCall.Query<List<Span>> {
+  static Call<List<Span>> create(AmazonDynamoDBAsync dynamoDB, String spansTableName,
+      boolean strictTraceId, String traceId) {
+    if (strictTraceId) {
+      return new GetTraceByIdCall(dynamoDB, strictTraceIdQuery(spansTableName, traceId));
     }
-    return spans;
+    return new GetTraceByIdCall(dynamoDB, lenientTraceIdQuery(spansTableName, traceId));
   }
 
-  private QueryRequest strictTraceIdQuery() {
+  static QueryRequest strictTraceIdQuery(String spansTableName, String traceId) {
     return new QueryRequest(spansTableName)
         .withProjectionExpression(TRACE_ID + ", " + TRACE_ID_64 + ", " + SPAN_BLOB)
         .withKeyConditionExpression(TRACE_ID + " = :" + TRACE_ID)
@@ -67,7 +45,7 @@ final class GetTraceByIdCall extends DynamoDBCall<List<Span>> {
             Collections.singletonMap(":" + TRACE_ID, new AttributeValue().withS(traceId)));
   }
 
-  private QueryRequest lenientTraceIdQuery() {
+  static QueryRequest lenientTraceIdQuery(String spansTableName, String traceId) {
     return new QueryRequest(spansTableName)
         .withIndexName(TRACE_ID_64)
         .withProjectionExpression(TRACE_ID + ", " + TRACE_ID_64 + ", " + SPAN_BLOB)
@@ -77,7 +55,19 @@ final class GetTraceByIdCall extends DynamoDBCall<List<Span>> {
                 new AttributeValue().withS(traceId.substring(Math.max(0, traceId.length() - 16)))));
   }
 
+  GetTraceByIdCall(AmazonDynamoDBAsync dynamoDB, QueryRequest request) {
+    super(dynamoDB, request);
+  }
+
   @Override public Call<List<Span>> clone() {
-    return new GetTraceByIdCall(executor, dynamoDB, spansTableName, strictTraceId, traceId);
+    return new GetTraceByIdCall(dynamoDB, request);
+  }
+
+  @Override public List<Span> map(List<Map<String, AttributeValue>> items) {
+    List<Span> result = new ArrayList<>();
+    for (Map<String, AttributeValue> row : items) {
+      result.add(SpanBytesDecoder.PROTO3.decodeOne(row.get(SPAN_BLOB).getB().array()));
+    }
+    return result;
   }
 }

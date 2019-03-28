@@ -54,7 +54,7 @@ public class ITDynamoDBStorage {
       return dynamodb.computeStorageBuilder().searchEnabled(false).build();
     }
 
-    @Before public void clear() throws Exception {
+    @Before public void clear() {
       dynamodb.clear();
     }
   }
@@ -66,7 +66,19 @@ public class ITDynamoDBStorage {
       return dynamodb.computeStorageBuilder().strictTraceId(false).build();
     }
 
-    @Before public void clear() throws Exception {
+    @Before public void clear() {
+      dynamodb.clear();
+    }
+  }
+
+  public static class ITAutocompleteTags extends zipkin2.storage.ITAutocompleteTags {
+    @ClassRule public static DynamoDBRule dynamodb = classRule();
+
+    @Override public DynamoDBStorage.Builder storageBuilder() {
+      return dynamodb.computeStorageBuilder();
+    }
+
+    @Before @Override public void clear() {
       dynamodb.clear();
     }
   }
@@ -83,7 +95,7 @@ public class ITDynamoDBStorage {
       aggregateLinks(spans).forEach(dependencyWriter::write);
     }
 
-    @Override public void clear() throws Exception {
+    @Override public void clear() {
       dynamodb.clear();
     }
   }
