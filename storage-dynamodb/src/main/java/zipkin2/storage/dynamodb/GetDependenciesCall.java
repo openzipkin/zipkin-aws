@@ -16,7 +16,6 @@ package zipkin2.storage.dynamodb;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.dynamodbv2.model.QueryRequest;
-import com.amazonaws.services.dynamodbv2.model.QueryResult;
 import com.amazonaws.services.dynamodbv2.model.Select;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -24,30 +23,17 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 import zipkin2.Call;
 import zipkin2.DependencyLink;
+import zipkin2.internal.AggregateCall;
+import zipkin2.internal.DependencyLinker;
 
-final class GetDependenciesCall extends DynamoDBCall<List<DependencyLink>> {
-  private final Executor executor;
-  private final AmazonDynamoDBAsync dynamoDB;
-  private final long endTs;
-  private final long lookback;
+final class GetDependenciesCall extends DynamoDBCall.Query<List<DependencyLink>> {
 
-  GetDependenciesCall(Executor executor, AmazonDynamoDBAsync dynamoDB, long endTs,
+  static Call<List<DependencyLink>> create(AmazonDynamoDBAsync dynamoDB, long endTs,
       long lookback) {
-    super(executor);
-    this.executor = executor;
-    this.dynamoDB = dynamoDB;
-    this.endTs = endTs;
-    this.lookback = lookback;
-  }
-
-  @Override protected List<DependencyLink> doExecute() {
     LocalDateTime endOfDay = LocalDateTime.ofInstant(Instant.ofEpochMilli(endTs), ZoneId.of("UTC"))
         .withHour(23)
         .withMinute(59)
@@ -56,57 +42,77 @@ final class GetDependenciesCall extends DynamoDBCall<List<DependencyLink>> {
     LocalDateTime start = LocalDateTime.ofInstant(Instant.ofEpochMilli(endTs).minusMillis(lookback),
         ZoneId.of("UTC"));
 
-    List<DependencyLink> links = new ArrayList<>();
     QueryRequest request = new QueryRequest()
         .withTableName("zipkin-dependencies")
         .withSelect(Select.ALL_ATTRIBUTES)
         .withKeyConditionExpression("link_day = :link_day");
 
+    List<GetDependenciesCall> calls = new ArrayList<>();
     while (endOfDay.isAfter(start) || endOfDay.isEqual(start)) {
       LocalDateTime endDayStart =
           LocalDateTime.of(endOfDay.getYear(), endOfDay.getMonth(), endOfDay.getDayOfMonth(), 0, 0,
               0, 0);
-      request = request.withExpressionAttributeValues(Collections.singletonMap(
+      request = request.clone().withExpressionAttributeValues(Collections.singletonMap(
           ":link_day",
           new AttributeValue().withS(
               String.valueOf(endDayStart.toInstant(ZoneOffset.UTC).toEpochMilli())
           )
       ));
-      QueryResult result = dynamoDB.query(request);
-      links.addAll(result.getItems().stream().map(this::fromMap).collect(Collectors.toList()));
+      calls.add(new GetDependenciesCall(dynamoDB, request));
       endOfDay = endOfDay.minusDays(1);
     }
 
-    return merge(links);
+    if (calls.size() == 1) return calls.get(0);
+    return new AggregateDependencyLinks(calls);
+  }
+
+  GetDependenciesCall(AmazonDynamoDBAsync dynamoDB, QueryRequest query) {
+    super(dynamoDB, query);
   }
 
   @Override public Call<List<DependencyLink>> clone() {
-    return new GetDependenciesCall(executor, dynamoDB, endTs, lookback);
+    return new GetDependenciesCall(dynamoDB, request);
   }
 
-  private DependencyLink fromMap(Map<String, AttributeValue> map) {
-    return DependencyLink.newBuilder()
-        .parent(map.get("parent").getS())
-        .child(map.get("child").getS())
-        .callCount(Long.valueOf(map.get("call_count").getN()))
-        .errorCount(Long.valueOf(map.get("error_count").getN()))
-        .build();
+  @Override public List<DependencyLink> map(List<Map<String, AttributeValue>> items) {
+    List<DependencyLink> result = new ArrayList<>();
+    for (Map<String, AttributeValue> map : items) {
+      result.add(DependencyLink.newBuilder()
+          .parent(map.get("parent").getS())
+          .child(map.get("child").getS())
+          .callCount(Long.valueOf(map.get("call_count").getN()))
+          .errorCount(Long.valueOf(map.get("error_count").getN()))
+          .build());
+    }
+    return result;
   }
 
-  private List<DependencyLink> merge(List<DependencyLink> links) {
-    Map<String, DependencyLink> linkMap = new HashMap<>();
-    links.forEach(l -> {
-      String key = l.parent() + "-" + l.child();
-      if (linkMap.containsKey(key)) {
-        DependencyLink existing = linkMap.get(key);
-        linkMap.put(key, existing.toBuilder()
-            .callCount(existing.callCount() + l.callCount())
-            .errorCount(existing.errorCount() + l.errorCount())
-            .build());
-      } else {
-        linkMap.put(key, l);
-      }
-    });
-    return new ArrayList<>(linkMap.values());
+  /** Since we cannot make a single call for all days of data, we are aggregating client-side */
+  // TODO: cite more speicifically the technical limitation of the DynamoDB query api
+  static final class AggregateDependencyLinks
+      extends AggregateCall<List<DependencyLink>, List<DependencyLink>> {
+    AggregateDependencyLinks(List<? extends Call<List<DependencyLink>>> calls) {
+      super(calls);
+    }
+
+    @Override protected List<DependencyLink> newOutput() {
+      return new ArrayList<>();
+    }
+
+    @Override protected void append(List<DependencyLink> input, List<DependencyLink> output) {
+      output.addAll(input);
+    }
+
+    @Override protected List<DependencyLink> finish(List<DependencyLink> done) {
+      return DependencyLinker.merge(done);
+    }
+
+    @Override protected boolean isEmpty(List<DependencyLink> output) {
+      return output.isEmpty();
+    }
+
+    @Override public AggregateDependencyLinks clone() {
+      return new AggregateDependencyLinks(cloneCalls());
+    }
   }
 }
