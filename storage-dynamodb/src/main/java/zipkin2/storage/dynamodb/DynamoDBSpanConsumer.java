@@ -76,7 +76,7 @@ final class DynamoDBSpanConsumer implements SpanConsumer {
 
   DynamoDBSpanConsumer(DynamoDBStorage.Builder builder) {
     this.autocompleteKeys = builder.autocompleteKeys;
-    this.dynamoDB = builder.dynamoDB;
+    this.dynamoDB = builder.client;
     this.dataTtlSeconds = builder.dataTtl.toMillis() / 1000;
 
     this.spansTableName = builder.tablePrefix + SPANS_TABLE_BASE_NAME;

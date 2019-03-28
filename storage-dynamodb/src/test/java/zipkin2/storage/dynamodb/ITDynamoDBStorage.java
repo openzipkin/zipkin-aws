@@ -14,107 +14,77 @@
 package zipkin2.storage.dynamodb;
 
 import java.util.List;
-import java.util.concurrent.Executors;
+import org.junit.Before;
 import org.junit.ClassRule;
+import org.junit.Ignore;
+import org.junit.Test;
 import org.junit.experimental.runners.Enclosed;
 import org.junit.runner.RunWith;
 import zipkin2.Span;
-import zipkin2.storage.StorageComponent;
 
 @RunWith(Enclosed.class)
 public class ITDynamoDBStorage {
 
-  @ClassRule public static DynamoDBRule dynamoDBRule = new DynamoDBRule();
-
-  public static class ITDependencies extends zipkin2.storage.ITDependencies {
-    DynamoDBStorage storage;
-    DependencyWriterForTests dependencyWriter;
-
-    public ITDependencies() {
-      storage = new DynamoDBStorage(new DynamoDBStorage.Builder()
-          .dynamoDB(dynamoDBRule.dynamoDB())
-          .executorService(Executors.newSingleThreadExecutor()));
-      dependencyWriter = new DependencyWriterForTests(dynamoDBRule.dynamoDB());
-    }
-
-    protected DynamoDBStorage storage() {
-      return this.storage;
-    }
-
-    public void clear() {
-      dynamoDBRule.cleanUp();
-    }
-
-    @Override protected void processDependencies(List<Span> spans) throws Exception {
-      aggregateLinks(spans).forEach(dependencyWriter::write);
-    }
+  /** Written intentionally to allow you to run a single nested method via the CLI. See README */
+  static DynamoDBRule classRule() {
+    return new DynamoDBRule("amazon/dynamodb-local");
   }
 
-  public static class ITAutocompleteTags extends zipkin2.storage.ITAutocompleteTags {
-    protected StorageComponent.Builder storageBuilder() {
-      return new DynamoDBStorage.Builder()
-          .dynamoDB(dynamoDBRule.dynamoDB())
-          .executorService(Executors.newSingleThreadExecutor());
+  public static class ITSpanStore extends zipkin2.storage.ITSpanStore {
+    @ClassRule public static DynamoDBRule dynamodb = classRule();
+
+    @Override public DynamoDBStorage storage() {
+      return dynamodb.storage;
     }
 
-    public void clear() {
-      dynamoDBRule.cleanUp();
-    }
-  }
-
-  public static class ITStrictTraceIdFalse extends zipkin2.storage.ITStrictTraceIdFalse {
-    DynamoDBStorage storage;
-
-    public ITStrictTraceIdFalse() {
-      storage = new DynamoDBStorage(new DynamoDBStorage.Builder()
-          .dynamoDB(dynamoDBRule.dynamoDB())
-          .strictTraceId(false)
-          .executorService(Executors.newSingleThreadExecutor()));
+    @Test @Ignore @Override public void deduplicates() {
+      // currently we don't deduplicate writes of the same doc.
+      // Not sure DynamoDB can (via checksum etc).
     }
 
-    protected DynamoDBStorage storage() {
-      return this.storage;
-    }
-
-    public void clear() {
-      dynamoDBRule.cleanUp();
+    @Before public void clear() {
+      dynamodb.clear();
     }
   }
 
   public static class ITSearchEnabledFalse extends zipkin2.storage.ITSearchEnabledFalse {
-    DynamoDBStorage storage;
+    @ClassRule public static DynamoDBRule dynamodb = classRule();
 
-    public ITSearchEnabledFalse() {
-      storage = new DynamoDBStorage(new DynamoDBStorage.Builder()
-          .dynamoDB(dynamoDBRule.dynamoDB())
-          .searchEnabled(false)
-          .executorService(Executors.newSingleThreadExecutor()));
+    @Override public DynamoDBStorage storage() {
+      return dynamodb.computeStorageBuilder().searchEnabled(false).build();
     }
 
-    protected DynamoDBStorage storage() {
-      return this.storage;
-    }
-
-    public void clear() {
-      dynamoDBRule.cleanUp();
+    @Before public void clear() throws Exception {
+      dynamodb.clear();
     }
   }
 
-  public static class ITSpanStore extends zipkin2.storage.ITSpanStore {
-    DynamoDBStorage storage;
+  public static class ITStrictTraceIdFalse extends zipkin2.storage.ITStrictTraceIdFalse {
+    @ClassRule public static DynamoDBRule dynamodb = classRule();
 
-    public ITSpanStore() {
-      storage = new DynamoDBStorage(new DynamoDBStorage.Builder()
-          .dynamoDB(dynamoDBRule.dynamoDB())
-          .executorService(Executors.newSingleThreadExecutor()));
+    @Override public DynamoDBStorage storage() {
+      return dynamodb.computeStorageBuilder().strictTraceId(false).build();
     }
 
-    protected DynamoDBStorage storage() {
-      return this.storage;
+    @Before public void clear() throws Exception {
+      dynamodb.clear();
+    }
+  }
+
+  public static class ITDependencies extends zipkin2.storage.ITDependencies {
+    @ClassRule public static DynamoDBRule dynamodb = classRule();
+
+    @Override protected DynamoDBStorage storage() {
+      return dynamodb.storage;
     }
 
-    public void clear() {
-      dynamoDBRule.cleanUp();
+    @Override protected void processDependencies(List<Span> spans) {
+      DependencyWriterForTests dependencyWriter = new DependencyWriterForTests(storage().client);
+      aggregateLinks(spans).forEach(dependencyWriter::write);
+    }
+
+    @Override public void clear() throws Exception {
+      dynamodb.clear();
     }
   }
 }

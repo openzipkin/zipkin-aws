@@ -48,7 +48,7 @@
 
     <license-maven-plugin.version>3.0</license-maven-plugin.version>
 
-    <zipkin.version>2.12.6</zipkin.version>
+    <zipkin.version>2.12.7-SNAPSHOT</zipkin.version>
     <zipkin-reporter2.version>2.8.1</zipkin-reporter2.version>
     <brave.version>5.6.3</brave.version>
 
@@ -118,6 +118,17 @@
     <system>Github</system>
     <url>https://github.com/openzipkin/zipkin-aws/issues</url>
   </issueManagement>
+
+  <!-- temporary while using zipkin snapshots -->
+  <repositories>
+    <repository>
+      <id>jfrog-snapshots</id>
+      <url>https://oss.jfrog.org/artifactory/oss-snapshot-local</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+    </repository>
+  </repositories>
 
   <dependencyManagement>
     <dependencies>

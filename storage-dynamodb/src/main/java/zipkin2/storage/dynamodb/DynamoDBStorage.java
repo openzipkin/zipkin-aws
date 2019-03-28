@@ -30,11 +30,70 @@ import zipkin2.storage.StorageComponent;
  * zipkin-spans zipkin-search zipkin-dependencies
  */
 public final class DynamoDBStorage extends StorageComponent {
-  private DynamoDBSpanStore dynamoDBSpanStore;
-  private DynamoDBSpanConsumer dynamoDBSpanConsumer;
-  private DynamoDBAutocompleteTags dynamoDBAutocompleteTags;
+  public static Builder newBuilder(AmazonDynamoDBAsync client) {
+    return new Builder(client);
+  }
 
-  DynamoDBStorage(DynamoDBStorage.Builder builder) {
+  public static final class Builder extends StorageComponent.Builder {
+    final AmazonDynamoDBAsync client;
+    boolean strictTraceId = true;
+    boolean searchEnabled = true;
+    List<String> autocompleteKeys = Collections.emptyList();
+    String tablePrefix = "zipkin-";
+    Executor executor = Executors.newCachedThreadPool();
+    Duration dataTtl = Duration.ofDays(7);
+
+    // TODO: we might consider changing this to build a client similar to how we do AWS senders
+    Builder(AmazonDynamoDBAsync client) {
+      if (client == null) throw new NullPointerException("client == null");
+      this.client = client;
+    }
+
+    @Override public Builder strictTraceId(boolean strictTraceId) {
+      this.strictTraceId = strictTraceId;
+      return this;
+    }
+
+    @Override public Builder searchEnabled(boolean searchEnabled) {
+      this.searchEnabled = searchEnabled;
+      return this;
+    }
+
+    @Override public Builder autocompleteKeys(List<String> autocompleteKeys) {
+      if (autocompleteKeys == null) throw new NullPointerException("autocompleteKeys == null");
+      this.autocompleteKeys = autocompleteKeys;
+      return this;
+    }
+
+    public Builder tablePrefix(String tablePrefix) {
+      this.tablePrefix = tablePrefix;
+      return this;
+    }
+
+    public Builder executor(Executor executor) {
+      this.executor = executor;
+      return this;
+    }
+
+    public Builder dataTtl(Duration dataTtl) {
+      this.dataTtl = dataTtl;
+      return this;
+    }
+
+    @Override public DynamoDBStorage build() {
+      return new DynamoDBStorage(this);
+    }
+  }
+
+  final AmazonDynamoDBAsync client;
+  final Executor executor;
+  final DynamoDBSpanStore dynamoDBSpanStore;
+  final DynamoDBSpanConsumer dynamoDBSpanConsumer;
+  final DynamoDBAutocompleteTags dynamoDBAutocompleteTags;
+
+  DynamoDBStorage(Builder builder) {
+    client = builder.client;
+    executor = builder.executor;
     dynamoDBSpanStore = new DynamoDBSpanStore(builder);
     dynamoDBSpanConsumer = new DynamoDBSpanConsumer(builder);
     dynamoDBAutocompleteTags = new DynamoDBAutocompleteTags(builder);
@@ -52,60 +111,7 @@ public final class DynamoDBStorage extends StorageComponent {
     return dynamoDBAutocompleteTags;
   }
 
-  public static final class Builder extends StorageComponent.Builder {
-    boolean strictTraceId = true;
-    boolean searchEnabled = true;
-    List<String> autocompleteKeys = Collections.emptyList();
-    AmazonDynamoDBAsync dynamoDB;
-    String tablePrefix = "zipkin-";
-    Executor executor = Executors.newCachedThreadPool();
-    Duration dataTtl = Duration.ofDays(7);
-
-    /** {@inheritDoc} */
-    @Override
-    public DynamoDBStorage.Builder strictTraceId(boolean strictTraceId) {
-      this.strictTraceId = strictTraceId;
-      return this;
-    }
-
-    @Override
-    public DynamoDBStorage.Builder searchEnabled(boolean searchEnabled) {
-      this.searchEnabled = searchEnabled;
-      return this;
-    }
-
-    @Override
-    public DynamoDBStorage.Builder autocompleteKeys(List<String> autocompleteKeys) {
-      if (autocompleteKeys == null) throw new NullPointerException("autocompleteKeys == null");
-      this.autocompleteKeys = autocompleteKeys;
-      return this;
-    }
-
-    public DynamoDBStorage.Builder dynamoDB(AmazonDynamoDBAsync dynamoDB) {
-      this.dynamoDB = dynamoDB;
-      return this;
-    }
-
-    public DynamoDBStorage.Builder tablePrefix(String tablePrefix) {
-      this.tablePrefix = tablePrefix;
-      return this;
-    }
-
-    public DynamoDBStorage.Builder executorService(Executor executor) {
-      this.executor = executor;
-      return this;
-    }
-
-    public DynamoDBStorage.Builder dataTtl(Duration dataTtl) {
-      this.dataTtl = dataTtl;
-      return this;
-    }
-
-    @Override public StorageComponent build() {
-      if (dynamoDB == null) {
-        throw new IllegalStateException("A AmazonDynamoDBAsync instance must be provided");
-      }
-      return new DynamoDBStorage(this);
-    }
+  @Override public void close() {
+    // TODO: we probably want to manage the dynamodb client so we can close it properly
   }
 }

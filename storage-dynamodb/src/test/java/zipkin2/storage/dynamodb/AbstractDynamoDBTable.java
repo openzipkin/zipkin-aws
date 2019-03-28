@@ -30,10 +30,11 @@ public abstract class AbstractDynamoDBTable {
     }
   }
 
-  void drop() {
+  void truncate() { // drop then create is more efficient than scanning all rows
     if (tableExists()) {
       dynamoDB.deleteTable(tableName());
     }
+    create();
   }
 
   private boolean tableExists() {
