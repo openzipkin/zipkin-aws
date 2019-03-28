@@ -31,7 +31,7 @@ final class DynamoDBAutocompleteTags implements AutocompleteTags {
 
   DynamoDBAutocompleteTags(DynamoDBStorage.Builder builder) {
     this.searchEnabled = builder.searchEnabled;
-    this.dynamoDB = builder.dynamoDB;
+    this.dynamoDB = builder.client;
     this.executor = builder.executor;
 
     this.searchTableName = builder.tablePrefix + SEARCH_TABLE_BASE_NAME;

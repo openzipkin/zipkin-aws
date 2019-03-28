@@ -40,7 +40,7 @@ final class DynamoDBSpanStore implements SpanStore {
   DynamoDBSpanStore(DynamoDBStorage.Builder builder) {
     this.strictTraceId = builder.strictTraceId;
     this.searchEnabled = builder.searchEnabled;
-    this.dynamoDB = builder.dynamoDB;
+    this.dynamoDB = builder.client;
     this.executor = builder.executor;
 
     this.spansTableName = builder.tablePrefix + SPANS_TABLE_BASE_NAME;

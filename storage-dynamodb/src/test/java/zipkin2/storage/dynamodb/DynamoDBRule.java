@@ -20,30 +20,70 @@ import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
+import org.junit.AssumptionViolatedException;
 import org.junit.rules.ExternalResource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.testcontainers.containers.GenericContainer;
+import org.testcontainers.containers.output.OutputFrame;
+import org.testcontainers.containers.wait.strategy.HostPortWaitStrategy;
+import zipkin2.CheckResult;
 
-public class DynamoDBRule extends ExternalResource {
+final class DynamoDBRule extends ExternalResource {
+  static final Logger LOGGER = LoggerFactory.getLogger(DynamoDBRule.class);
+  static final int DYNAMODB_PORT = 8000;
+  final String image;
+  GenericContainer container;
+  DynamoDBStorage storage;
 
-  // Run test container: `docker run -p 8000:8000 amazon/dynamodb-local -jar DynamoDBLocal.jar -sharedDb`
-  private GenericContainer dynamoDBLocal = new GenericContainer<>("amazon/dynamodb-local")
-      .withExposedPorts(8000)
-      .withCommand("-jar DynamoDBLocal.jar -sharedDb");
+  DynamoDBRule(String image) {
+    this.image = image;
+  }
 
-  private AmazonDynamoDBAsync dynamoDB;
+  @Override protected void before() {
+    try {
+      LOGGER.info("Starting docker image " + image);
+      // Run test container: `docker run -p 8000:8000 amazon/dynamodb-local -jar DynamoDBLocal.jar -sharedDb`
+      container = new GenericContainer(image)
+          .withExposedPorts(DYNAMODB_PORT)
+          .withCommand("-jar DynamoDBLocal.jar -sharedDb")
+          .withLogConsumer(new Consumer<OutputFrame>() {
+            @Override public void accept(OutputFrame outputFrame) {
+              System.out.println(outputFrame.getUtf8String());
+            }
+          })
+          .waitingFor(new HostPortWaitStrategy());
+      container.start();
+      System.out.println("Starting docker image " + image);
+    } catch (RuntimeException e) {
+      LOGGER.warn("Couldn't start docker image " + image + ": " + e.getMessage(), e);
+    }
 
-  private ZipkinSpansTable zipkinSpansTable;
-  private ZipkinSearchValuesTable zipkinSearchValuesTable;
-  private ZipkinDependenciesTable zipkinDependenciesTable;
+    tryToInitializeClient();
+  }
 
-  @Override protected void before() throws Throwable {
-    dynamoDBLocal.start();
+  void tryToInitializeClient() {
+    DynamoDBStorage result = computeStorageBuilder().build();
+    CheckResult check = result.check();
+    if (!check.ok()) {
+      throw new AssumptionViolatedException(check.error().getMessage(), check.error());
+    }
+    this.storage = result;
+  }
 
-    dynamoDB = AmazonDynamoDBAsyncClientBuilder.standard()
+  DynamoDBStorage.Builder computeStorageBuilder() {
+    if (storage != null) {
+      storage.close();
+      ((ExecutorService) storage.executor).shutdownNow();
+    }
+    AmazonDynamoDBAsync client = AmazonDynamoDBAsyncClientBuilder.standard()
         .withEndpointConfiguration(
             new AwsClientBuilder.EndpointConfiguration(
-                String.format("http://%s:%d", dynamoDBLocal.getContainerIpAddress(),
-                    dynamoDBLocal.getFirstMappedPort()), "us-east-1"))
+                String.format("http://%s:%d", container.getContainerIpAddress(),
+                    container.getFirstMappedPort()), "us-east-1"))
         .withCredentials(
             new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
         .withClientConfiguration(new ClientConfiguration()
@@ -51,36 +91,28 @@ public class DynamoDBRule extends ExternalResource {
                 new RetryPolicy(RetryPolicy.RetryCondition.NO_RETRY_CONDITION, null, 0, true))
             .withConnectionTimeout(50))
         .build();
+    // TODO: schema creation should be built-in like elasticsearch and cassandra (ensureSchema)
+    new ZipkinSpansTable(client).create();
+    new ZipkinSearchValuesTable(client).create();
+    new ZipkinDependenciesTable(client).create();
+    return DynamoDBStorage.newBuilder(client).executor(Executors.newSingleThreadExecutor());
+  }
 
-    zipkinSpansTable = new ZipkinSpansTable(dynamoDB);
-    zipkinSearchValuesTable = new ZipkinSearchValuesTable(dynamoDB);
-    zipkinDependenciesTable = new ZipkinDependenciesTable(dynamoDB);
-
-    createTables();
+  void clear() {
+    if (storage == null) return;
+    new ZipkinSpansTable(storage.client).truncate();
+    new ZipkinSearchValuesTable(storage.client).truncate();
+    new ZipkinDependenciesTable(storage.client).truncate();
   }
 
   @Override protected void after() {
-    dynamoDBLocal.stop();
-  }
-
-  public AmazonDynamoDBAsync dynamoDB() {
-    return dynamoDB;
-  }
-
-  public void cleanUp() {
-    dropTables();
-    createTables();
-  }
-
-  private void createTables() {
-    zipkinSpansTable.create();
-    zipkinSearchValuesTable.create();
-    zipkinDependenciesTable.create();
-  }
-
-  private void dropTables() {
-    zipkinSpansTable.drop();
-    zipkinSearchValuesTable.drop();
-    zipkinDependenciesTable.drop();
+    if (storage != null) {
+      storage.close();
+      ((ExecutorService) storage.executor).shutdownNow();
+    }
+    if (container != null) {
+      LOGGER.info("Stopping docker image " + image);
+      container.stop();
+    }
   }
 }
