@@ -1,0 +1,56 @@
+# Default JDK is really old: 1.8.0_31; Trusty's is less old: 1.8.0_51
+# https://docs.travis-ci.com/user/ci-environment/#Virtualization-environments
+sudo: required
+dist: trusty
+
+cache:
+  directories:
+  - $HOME/.m2
+
+language: java
+
+jdk:
+  - openjdk11
+
+before_install:
+  # Parameters used during release
+  # allocate commits to CI, not the owner of the deploy key
+  - git config user.name "zipkinci"
+  - git config user.email "zipkinci+zipkin-dev@googlegroups.com"
+  # setup https authentication credentials, used by ./mvnw release:prepare
+  - git config credential.helper "store --file=.git/credentials"
+  - echo "https://$GH_TOKEN:@github.com" > .git/credentials
+
+install:
+  # Override default travis to use the maven wrapper
+  - ./mvnw install -DskipTests=true -Dmaven.javadoc.skip=true -B -V
+
+script:
+  - ./travis/publish.sh
+
+# Don't build release tags. This avoids publish conflicts because the version commit exists both on master and the release tag.
+# See https://github.com/travis-ci/travis-ci/issues/1532
+branches:
+  except:
+    - /^[0-9]/
+
+env:
+  global:
+  # Ex. travis encrypt BINTRAY_USER=your_github_account
+  - secure: "UHhthQe+xvLNEj8VPF4MORzzhMkqiPVQg+q8eN/VgzkgbHEdumfj/UpPe7kacCjPvF1XHy/cK4COE3B8OwRBk9+0U9A3Yrr5xEO8XpQmp+cL2ch7+uAe/XdXTDnFAG9ASYxQbf7IDlmq/gCtX7d3EByC6Xh60bhWTwi0bTtUpY+ENmcvpZJFIppd56whK+dOg+oyp2rFUG/9Vx9VMXxTzTqMHH1MHpTCfy4Qv5eAxrtA2g2Z9/+GdDQKR4BTKCOL8dnDlFzi3/DChlEOwOvyapFjcIGOZwVTpzQvHvDZhQvGSFW/4CCBF1FyUYE0+MHiT2aGN+DdljJh17mg8ghQkRDxq8PhwG9PveVPc/nVDIhtyKmSxsOXbzau3jO9ss0f+02X4lreJNqB0M5lmU8u3o54mlDnBlbuCOtt5P9FfhSVruFp4pzQ43jqTooAXpTq96ENEmhah9QiyipWamRmqA/bkXEktBe87YEi5lYxXUy+EBJmaZ7/Ax7PtZU6md1R/f1RcFHgwEensPF2n1t+zMRTwRgPcPLCGQopY/PcHjU+WDY/huXGw2nF09OQm5qaKhPiYoIZ+KlfCmdxxcyO0qi19WhN2ldEcxJxD47A79UOhKjMqEzTaXnfHAML7LsbAxSluwnydjb9hDtRYQDA+RqxqJRG3GHTDRFy5/wUu7c="
+  # Ex. travis encrypt BINTRAY_KEY=xxx-https://bintray.com/profile/edit-xxx --add
+  - secure: "AVhQ93kYFAi39z6YeJlVaLoA1h7KMgyi3hca/PmqkGdYqbyqqSBlUKbnkwf84l2Ko/apmaB+9Ck30dr6vceDXEjp4uOFqf+os6VO2v7aKHcrnx8fe6bnCQa64IT1ndzVhcA4QYXOXgx+/TWx3dl/1KIIXmMe9Z9EOYDu0aHA+5jvDKBle0B0XEaECz7NrgLsRN59ppM2PsiLi/0qzIDPkUtcqQUViCcapdbNrxFqki1BOJpgc5eY3VmdhKvf+QDvSRNmNeXMH/Fz1za+R7RItM9QTPiWFr7L+mLGCNW0MuOHYNofO1g12pZcIXsnNqBzjQxI03u//QTcZS0j9ZED5R8V89RCnbXEZEIIPpF78LlfxmjqIUc5dahffexHhTEUbZgAz2BnWegmhwO9FjNxyYH+InsOO6hJmxSfKwLJAlemiFQn44/U9EE1s4+wjxRX6Y6LdQDeOE6fLjtiH044YXQlAPnrMLQAKEaUWCa4PXlNM3MZemUhdOAhPMpFXpsEUbe/z2mlhh+K/O3uFKe6fLj2phkAgm5LO9h9nJDORDHJkXcp1yPYD14RChiREpVIbkkJ111J/gNCTkLCe2fV7epFu0r+IrntAb34zjpbQSfkMqas4bX3B9EMmeM5LenPgbTHIxEY7UYZMQPH0GMLkInPRv4Cmka9p1uutBoZBEo="
+  # Ex. travis encrypt GH_TOKEN=XXX-https://github.com/settings/tokens-XXX --add
+  - secure: "xkEB8AvFuk3TEXtuO5m3hyFgdqVk4BTaJWm9Rb/N3EOVrWB5VkMYxHAASaHra8OD/T/PLKlt4sZ4O4AdAs0E9XfAzUvF01GbTsCdUEh70LUgbmrEZ49Mk9LEn9nYZu5zSMbLbDyHjHgrkcMImHiCT468LMbCiixxOq1lO5556MeMKU4X544yneNORrA9Hu1E9PtMTrK1VOVmThMjTIjTg0JT1+lBg4kWh4IMkt7tpcPHfrydzKhxer0qpTDFB+Haj6Vwl4rf0drnzfdqllZ+QIJeReLmA1jcQ/IXe4o121ye8DHhjCa1Bd3GIxMWgbi3IAwvaLhrYvjteUorHRCp22JuhaaWFYQN6sBlVkRpr6bN0vNsUhdlRIfFaOF1+b5HA/bxnEAucOngSvC/heBDMyNsYx82h04zhqRXdfb2PcvkdiJpX8mk0u9CCHFq0jApE+qyeK+G9A5cbM1JJeKO/dyOxfnpML171kS9muwymwJ53R8C6vf9fbLucq3nmYY0MVwE9iDfibWp2CM3kvx4ch4KuKYvt3+DVtdHMpSbeH7v50iVYHNY59CH4PqntQwopxSJbK6hcmF0HzUtAt1xeIa+39VgHGUM40K2OT422fjceMWG2zFFw5/cxnPH4uAwc9q1AVgcztCYgfg5cL/gZ2q4OPxdQA8u149eSH7emvQ="
+  # Ex. travis encrypt SONATYPE_USER=your_sonatype_account
+  - secure: "cgD+Vaiyof6x2vPZuVuoSwqebyEq8k7YOSiE5n9KY5Z6qHselEPEmisF0+u/SnGox1wwNgIlftk1sB9i46qQAVPWzrgT/1DeISQ/I+48MLGMXvMn70ccgsj76SMxLXaGjWK8s1/8FoeWJ8HB93+aAGGL4rgoNQA4FVSAJOAXjXbQc5PH5sgfd+jz9wakFOPiy5/0er/DPKql70T1lkkqbjddrAmNrH2IwQCJOjfyG4FmnKZu0Wp5yhYTlS14xfAT7zk//RoEcV6hXZcv/dqJb5Uoml7J6qJwaqtR52j4FpdRvQCGJCNDiaGEMoAk+080ub8GPQR8mY9yFPpBVGx/fsWqosLv3YhBCJifvFRKyTqXTE9wMmnxzZdDN3MyzG+Unvtsn5ww9sUnQ8WOvQ/QiDnCLhO7lB0xpIvwBHXA+UBnoUb8NBhmilX779hYebeJTcxI58j2/AuchuC76aY6Tcxxm850LmG0eJU9jafypdtUuBr0zWbU9wk3ajpKcP5LDrnsf3bVVbgch7DJeznhMnJiwJM48/h7PvKypVxftkAvwPvQNKFR/ufXOFPiSTlS7t2WLddsdz/IYY8XShGobJiEcNT5qVxHsxMS05KqAxMxBoOrchngy+lcbGDCOztON+kNwtLe5ZaPd3ewlfisPzEVNP2wn0eTA5BXqZW1LgU="
+  # Ex. travis encrypt SONATYPE_PASSWORD=your_sonatype_password
+  - secure: "U4szTwwaGvDT8vg9hHH6/1h9yysl9RgZWT+3uRx8ZFIuMCtmnBOhQxuThy//2a9XPEcwzEFh9bbr9W4c2nMPsxSamj4dS9yxTfLSLUxLgHbVY+mmcLlrpsGXuGLOnVA9nJ/sux5nD4mKnfMaGpUmaOA+5Ab2DNSEG6jnXzdfZLc4QSCeydi0VQDlq7ScRkFyIkbyQ8xUB1us5fjp4F3tfGXl7lWVXvd/i12yNUMAa1joHSLFuZBen2cSCBt/O9YNHAx5vGTGs1pnX6FQQ/sr+Whtz+VmUGtfCbTYkCjnNCT4Spi9Oa2qzegWHeKuIzvnKwMK9JP/NUlmQAK4G/DcHO5gBWXCjBGbrhENr4xHqOpK2Na13VgO31/B/hb+0tJXgQBfxamuHIptq14Ntsv7w23LSHSSSSbBdSLX6xu30qEzF+LAzKEZqoLgnVAwE2btImov2KLwuMe4OEE36iiEdZp8FMRNtdeTwNFXhq+yLMp5/WWdW3+eafh7v/kDKRVL4PtAHwmxmirrmUfXRElZPEj66OdtsV6erxG5XVg92mH8/YarzLyjB19d1MSQA/78EqO1Fz900RerXx0XsCuZrFyjn1GA9235x6IxOmWaEFU0LfrUTJVdWvvsET1Kida0TBAj3Ko1GY/92y/F/49Dd4JQjfLL/caLK/tRdaH5UmI="
+
+notifications:
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/637e968b45032d16ee26
+    on_success: change
+    on_failure: always
+    on_start: false
