@@ -55,7 +55,7 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
   @Override protected DynamoDbClient newClient(int i) {
     ClientOverrideConfiguration configuration = ClientOverrideConfiguration.builder()
         .retryPolicy(RetryPolicy.builder().numRetries(3).build())
-        .apiCallTimeout(Duration.ofMillis(100))
+        .apiCallTimeout(Duration.ofSeconds(1))
         .addExecutionInterceptor(AwsSdkTracing.create(httpTracing).executionInterceptor())
         .build();
 
