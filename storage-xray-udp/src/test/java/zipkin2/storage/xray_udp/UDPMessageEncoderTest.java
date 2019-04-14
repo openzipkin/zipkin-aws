@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -219,6 +219,22 @@ public class UDPMessageEncoderTest {
     String json = writeJson(span);
     assertThat(readMap(json, "aws"))
         .containsExactly(entry("region", "reg1"), entry("table_name", "table1"));
+  }
+
+  @Test
+  public void writeJson_aws_ec2() throws Exception {
+    Span span =
+            serverSpan
+                    .toBuilder()
+                    .putTag("aws.ec2.availability_zone", "us-west-2c")
+                    .putTag("aws.ec2.instance_id", "i-0b5a4678fc325bg98")
+                    .build();
+
+    String json = writeJson(span);
+    assertThat(readMap(json, "aws.ec2"))
+            .containsExactly(
+                    entry("availability_zone", "us-west-2c"),
+                    entry("instance_id", "i-0b5a4678fc325bg98"));
   }
 
   String writeJson(Span span) throws IOException {
