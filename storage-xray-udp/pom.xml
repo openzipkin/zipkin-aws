@@ -30,6 +30,10 @@
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>org.apache.zipkin.zipkin2</groupId>
+      <artifactId>zipkin</artifactId>
+    </dependency>
     <!-- TODO: consider shading as it can make this 3rd party dep-free -->
     <dependency>
       <groupId>com.squareup.moshi</groupId>

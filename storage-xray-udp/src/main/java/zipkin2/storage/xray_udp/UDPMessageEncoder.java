@@ -280,7 +280,7 @@ final class UDPMessageEncoder {
       }
       if (causeExceptions != null) {
         String s = "\"exceptions\" :";
-        if (causeWorkingDirectory != null) s = "," + (s);
+        if (causeWorkingDirectory != null) s = "," + s;
         buffer.writeUtf8(s + causeExceptions);
       }
       writer.endObject();

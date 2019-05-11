@@ -13,7 +13,7 @@ and exposes configuration options through environment variables.
 JRE 8 is required to run Zipkin server.
 
 Fetch the latest released
-[executable jar for Zipkin server](https://search.maven.org/remote_content?g=io.zipkin.java&a=zipkin-server&v=LATEST&c=exec)
+[executable jar for Zipkin server](https://search.maven.org/remote_content?g=org.apache.zipkin&a=zipkin-server&v=LATEST&c=exec)
 and
 [autoconfigure module jar for the sqs collector](https://search.maven.org/remote_content?g=io.zipkin.aws&a=zipkin-autoconfigure-collector-sqs&v=LATEST&c=module).
 Run Zipkin server with the SQS collector enabled.
@@ -21,8 +21,8 @@ Run Zipkin server with the SQS collector enabled.
 For example:
 
 ```bash
-$ curl -sSL https://zipkin.io/quickstart.sh | bash -s
-$ curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-collector-sqs:LATEST:module sqs.jar
+$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s
+$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-collector-sqs:LATEST:module sqs.jar
 $ SQS_QUEUE_URL=https://ap-southeast-1.queue.amazonaws.com/012345678901/zipkin \
       java \
       -Dloader.path='sqs.jar,sqs.jar!/lib' \

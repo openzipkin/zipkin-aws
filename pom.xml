@@ -47,15 +47,15 @@
 
     <license-maven-plugin.version>3.0</license-maven-plugin.version>
 
-    <zipkin.version>2.12.8</zipkin.version>
+    <zipkin.version>2.13.0</zipkin.version>
     <zipkin-reporter2.version>2.8.2</zipkin-reporter2.version>
     <brave.version>5.6.3</brave.version>
 
     <slf4j.version>1.7.25</slf4j.version>
     <log4j.version>2.11.2</log4j.version>
 
-    <aws-java-sdk.version>1.11.530</aws-java-sdk.version>
-    <sdk-core.version>2.5.21</sdk-core.version>
+    <aws-java-sdk.version>1.11.550</aws-java-sdk.version>
+    <sdk-core.version>2.5.41</sdk-core.version>
 
     <!-- make sure this matches spring-boot's version -->
     <jackson.version>2.9.8</jackson.version>
@@ -121,20 +121,19 @@
   <dependencyManagement>
     <dependencies>
       <dependency>
-        <groupId>io.zipkin.zipkin2</groupId>
+        <groupId>org.apache.zipkin.zipkin2</groupId>
         <artifactId>zipkin</artifactId>
         <version>${zipkin.version}</version>
       </dependency>
       <dependency>
-        <groupId>io.zipkin.zipkin2</groupId>
+        <groupId>org.apache.zipkin.zipkin2</groupId>
         <artifactId>zipkin-collector</artifactId>
         <version>${zipkin.version}</version>
       </dependency>
       <dependency>
-        <groupId>io.zipkin.zipkin2</groupId>
-        <artifactId>zipkin</artifactId>
+        <groupId>org.apache.zipkin.zipkin2</groupId>
+        <artifactId>zipkin-tests</artifactId>
         <version>${zipkin.version}</version>
-        <type>test-jar</type>
         <scope>test</scope>
       </dependency>
       <dependency>
@@ -166,12 +165,12 @@
       <dependency>
         <groupId>com.squareup.okhttp3</groupId>
         <artifactId>okhttp</artifactId>
-        <version>3.14.0</version>
+        <version>3.14.1</version>
       </dependency>
       <dependency>
         <groupId>com.squareup.okhttp3</groupId>
         <artifactId>mockwebserver</artifactId>
-        <version>3.14.0</version>
+        <version>3.14.1</version>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>
@@ -184,11 +183,6 @@
   </dependencyManagement>
 
   <dependencies>
-    <dependency>
-      <groupId>io.zipkin.zipkin2</groupId>
-      <artifactId>zipkin</artifactId>
-    </dependency>
-
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
@@ -216,15 +210,15 @@
         <plugin>
           <groupId>io.takari</groupId>
           <artifactId>maven</artifactId>
-          <version>0.7.5</version>
+          <version>0.7.6</version>
           <configuration>
-            <maven>3.6.0</maven>
+            <maven>3.6.1</maven>
           </configuration>
         </plugin>
 
         <plugin>
           <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.8.0</version>
+          <version>3.8.1</version>
           <inherited>true</inherited>
           <configuration>
             <!-- Retrolambda will rewrite lambdas as Java 6 bytecode -->
@@ -254,9 +248,9 @@
           </configuration>
           <dependencies>
             <dependency>
-              <groupId>io.zipkin.layout</groupId>
+              <groupId>org.apache.zipkin.layout</groupId>
               <artifactId>zipkin-layout-factory</artifactId>
-              <version>0.0.4</version>
+              <version>0.0.5</version>
             </dependency>
           </dependencies>
         </plugin>
@@ -530,7 +524,7 @@
 
           <plugin>
             <artifactId>maven-javadoc-plugin</artifactId>
-            <version>3.0.1</version>
+            <version>3.1.0</version>
             <configuration>
               <failOnError>false</failOnError>
               <!-- hush pedantic warnings: we don't put param and return on everything! -->

@@ -161,7 +161,7 @@ public final class XRayUDPStorage extends StorageComponent implements SpanStore,
           return new XRayUDPStorage(new InetSocketAddress("localhost", 2000));
         } // otherwise fall through to parse
       }
-      String[] splitAddress = address.split(":");
+      String[] splitAddress = address.split(":", 2);
       String host = splitAddress[0];
       Integer port = null;
       try {

@@ -33,6 +33,13 @@
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>zipkin-storage-xray-udp</artifactId>
+      <exclusions>
+        <!-- Remove this once on ASF zipkin-reporter -->
+        <exclusion>
+          <groupId>org.apache.zipkin.zipkin2</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <dependency>
