@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -109,7 +109,7 @@ final class SQSSpanProcessor extends Component implements Runnable {
       final String deleteId = String.valueOf(count++);
       try {
         String stringBody = message.getBody();
-        if (stringBody.isEmpty()) continue;
+        if (stringBody.isEmpty() || stringBody.equals("[]")) continue;
         // allow plain-text json, but permit base64 encoded thrift or json
         byte[] spans =
             stringBody.charAt(0) == '[' ? stringBody.getBytes(UTF_8) : Base64.decode(stringBody);
@@ -144,5 +144,9 @@ final class SQSSpanProcessor extends Component implements Runnable {
 
   private DeleteMessageBatchResult delete(List<DeleteMessageBatchRequestEntry> entries) {
     return client.deleteMessageBatch(queueUrl, entries);
+  }
+
+  @Override public final String toString() {
+    return "SQSSpanProcessor{queueUrl=" + queueUrl + "}";
   }
 }

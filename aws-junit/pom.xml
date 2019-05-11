@@ -36,6 +36,10 @@
   </properties>
 
   <dependencies>
+    <dependency>
+      <groupId>org.apache.zipkin.zipkin2</groupId>
+      <artifactId>zipkin</artifactId>
+    </dependency>
 
     <dependency>
       <groupId>com.amazonaws</groupId>

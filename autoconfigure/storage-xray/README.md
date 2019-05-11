@@ -20,7 +20,7 @@ and exposes configuration options through environment variables.
 JRE 8 is required to run Zipkin server.
 
 Fetch the latest released
-[executable jar for Zipkin server](https://search.maven.org/remote_content?g=io.zipkin.java&a=zipkin-server&v=LATEST&c=exec)
+[executable jar for Zipkin server](https://search.maven.org/remote_content?g=org.apache.zipkin&a=zipkin-server&v=LATEST&c=exec)
 and
 [autoconfigure module jar for the xray storage](https://search.maven.org/remote_content?g=io.zipkin.aws&a=zipkin-autoconfigure-storage-xray&v=LATEST&c=module).
 Run Zipkin server with the XRAY storage enabled.
@@ -28,8 +28,8 @@ Run Zipkin server with the XRAY storage enabled.
 For example:
 
 ```bash
-$ curl -sSL https://zipkin.io/quickstart.sh | bash -s
-$ curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-storage-xray:LATEST:module xray.jar
+$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s
+$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-storage-xray:LATEST:module xray.jar
 $ STORAGE_TYPE=xray \
     java \
     -Dloader.path='xray.jar,xray.jar!/lib' \

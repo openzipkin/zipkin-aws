@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -34,36 +34,28 @@ import org.springframework.context.annotation.Condition;
 import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.context.annotation.Import;
+import org.springframework.core.env.Environment;
 import org.springframework.core.type.AnnotatedTypeMetadata;
-import zipkin2.autoconfigure.storage.elasticsearch.ZipkinElasticsearchStorageAutoConfiguration;
 import zipkin2.elasticsearch.ElasticsearchStorage;
-import zipkin2.storage.StorageComponent;
 
 import static java.lang.String.format;
 
 @Configuration
 @EnableConfigurationProperties(ZipkinElasticsearchAwsStorageProperties.class)
 @Conditional(ZipkinElasticsearchAwsStorageAutoConfiguration.AwsMagic.class)
-@Import(ZipkinElasticsearchStorageAutoConfiguration.class)
 class ZipkinElasticsearchAwsStorageAutoConfiguration {
   static final Pattern AWS_URL =
       Pattern.compile("^https://[^.]+\\.([^.]+)\\.es\\.amazonaws\\.com", Pattern.CASE_INSENSITIVE);
   static final Logger log =
       Logger.getLogger(ZipkinElasticsearchAwsStorageAutoConfiguration.class.getName());
 
-  @Bean
-  @Qualifier("zipkinElasticsearchHttp")
-  Interceptor awsSignatureVersion4(
-      String region,
-      ZipkinElasticsearchAwsStorageProperties aws,
+  @Bean @Qualifier("zipkinElasticsearchHttp")
+  Interceptor awsSignatureVersion4(String region, ZipkinElasticsearchAwsStorageProperties aws,
       AWSCredentials.Provider credentials) {
     return new AWSSignatureVersion4(region, "es", credentials);
   }
 
-  @Bean
-  String region(
-      @Value("${zipkin.storage.elasticsearch.hosts:}") String hosts,
+  @Bean String region(@Value("${zipkin.storage.elasticsearch.hosts:}") String hosts,
       ZipkinElasticsearchAwsStorageProperties aws) {
     if ("".equals(hosts)) hosts = null;
     String domain = aws.getDomain();
@@ -88,14 +80,12 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
   }
 
   /** By default, get credentials from the {@link DefaultAWSCredentialsProviderChain} */
-  @Bean
-  @ConditionalOnMissingBean
+  @Bean @ConditionalOnMissingBean
   AWSCredentials.Provider credentials() {
     return new AWSCredentials.Provider() {
       AWSCredentialsProvider delegate = new DefaultAWSCredentialsProviderChain();
 
-      @Override
-      public AWSCredentials get() {
+      @Override public AWSCredentials get() {
         com.amazonaws.auth.AWSCredentials result = delegate.getCredentials();
         String sessionToken =
             result instanceof AWSSessionCredentials
@@ -111,20 +101,13 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
    * When the domain variable is set, we lookup the elasticsearch domain url dynamically, using the
    * AWS api. Otherwise, we assume the URL specified in ES_HOSTS is correct.
    */
-  @Bean
-  @Conditional(AwsDomainSetCondition.class)
-  StorageComponent storage(
+  @Bean @Conditional(AwsDomainSetCondition.class)
+  ElasticsearchStorage.HostsSupplier hostsSupplier(
       String region,
-      ElasticsearchStorage.Builder builder,
       ZipkinElasticsearchAwsStorageProperties aws,
-      @Qualifier("zipkinElasticsearchHttp") OkHttpClient client) {
-    String domain = aws.getDomain();
-
-    ElasticsearchDomainEndpoint hosts =
-        new ElasticsearchDomainEndpoint(
-            client, HttpUrl.parse("https://es." + region + ".amazonaws.com"), domain);
-
-    return builder.hostsSupplier(hosts).build();
+      OkHttpClient client) {
+    return new ElasticsearchDomainEndpoint(
+        client, HttpUrl.parse("https://es." + region + ".amazonaws.com"), aws.getDomain());
   }
 
   static final class AwsDomainSetCondition extends SpringBootCondition {
@@ -140,11 +123,10 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
   }
 
   static final class AwsMagic implements Condition {
-    @Override
-    public boolean matches(ConditionContext condition, AnnotatedTypeMetadata md) {
-      String hosts = condition.getEnvironment().getProperty("zipkin.storage.elasticsearch.hosts");
-      String domain =
-          condition.getEnvironment().getProperty("zipkin.storage.elasticsearch.aws.domain");
+    @Override public boolean matches(ConditionContext condition, AnnotatedTypeMetadata md) {
+      Environment environment = condition.getEnvironment();
+      String hosts = environment.getProperty("zipkin.storage.elasticsearch.hosts");
+      String domain = environment.getProperty("zipkin.storage.elasticsearch.aws.domain");
 
       // If neither hosts nor domain, no AWS magic
       if (isEmpty(hosts) && isEmpty(domain)) return false;
@@ -160,14 +142,16 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
       Matcher matcher = AWS_URL.matcher(url);
       if (matcher.find()) {
         String matched = matcher.group(1);
-        if (awsRegion != null)
+        if (awsRegion != null) {
           throw new IllegalArgumentException(
               "too many regions: saw '" + awsRegion + "' and '" + matched + "'");
+        }
         awsRegion = matcher.group(1);
       } else {
-        if (awsRegion != null)
+        if (awsRegion != null) {
           throw new IllegalArgumentException(
               "mismatched regions; saw '" + awsRegion + "' but none found in '" + url + "'");
+        }
       }
     }
     return awsRegion;

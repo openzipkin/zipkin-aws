@@ -56,11 +56,11 @@ If you cannot use our [Docker image](https://github.com/openzipkin/docker-zipkin
 yourself by downloading a couple jars. Here's an example of integrating the SQS Collector.
 
 ### Step 1: Download zipkin-server jar
-Download the [latest released server](https://search.maven.org/remote_content?g=io.zipkin.java&a=zipkin-server&v=LATEST&c=exec) as zipkin.jar:
+Download the [latest released server](https://search.maven.org/remote_content?g=org.apache.zipkin&a=zipkin-server&v=LATEST&c=exec) as zipkin.jar:
 
 ```
 cd /tmp
-wget -O zipkin.jar 'https://search.maven.org/remote_content?g=io.zipkin.java&a=zipkin-server&v=LATEST&c=exec'
+wget -O zipkin.jar 'https://search.maven.org/remote_content?g=org.apache.zipkin&a=zipkin-server&v=LATEST&c=exec'
 ```
 
 ### Step 2: Download the latest sqs-module jar

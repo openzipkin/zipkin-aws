@@ -31,8 +31,8 @@
 
   <dependencies>
     <dependency>
-      <groupId>io.zipkin.java</groupId>
-      <artifactId>zipkin-autoconfigure-storage-elasticsearch</artifactId>
+      <groupId>org.apache.zipkin.zipkin2</groupId>
+      <artifactId>zipkin-storage-elasticsearch</artifactId>
       <version>${zipkin.version}</version>
     </dependency>
 

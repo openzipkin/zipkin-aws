@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -161,7 +161,7 @@ public final class XRayUDPStorage extends StorageComponent implements SpanStore,
           return new XRayUDPStorage(new InetSocketAddress("localhost", 2000));
         } // otherwise fall through to parse
       }
-      String[] splitAddress = address.split(":");
+      String[] splitAddress = address.split(":", 2);
       String host = splitAddress[0];
       Integer port = null;
       try {

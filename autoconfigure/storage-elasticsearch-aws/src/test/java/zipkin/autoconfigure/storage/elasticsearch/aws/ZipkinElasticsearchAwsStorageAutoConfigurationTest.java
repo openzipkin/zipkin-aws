@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,104 +13,117 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
+import java.util.Collections;
+import java.util.List;
+import okhttp3.Interceptor;
 import okhttp3.OkHttpClient;
 import org.junit.After;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import zipkin2.autoconfigure.storage.elasticsearch.Access;
+import org.springframework.context.annotation.Bean;
+import zipkin2.elasticsearch.ElasticsearchStorage;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
 
 public class ZipkinElasticsearchAwsStorageAutoConfigurationTest {
+  AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 
-  @Rule public ExpectedException thrown = ExpectedException.none();
+  @After public void close() {
+    context.close();
+  }
 
-  AnnotationConfigApplicationContext context;
+  @Test public void providesBeans_whenStorageTypeElasticsearchAndHostsAreAwsUrls() {
+    refreshContextWithProperties("zipkin.storage.type:elasticsearch",
+        "zipkin.storage.elasticsearch.hosts:https://search-domain-xyzzy.us-west-2.es.amazonaws.com");
 
-  @After
-  public void close() {
-    if (context != null) {
-      context.close();
+    expectSignatureInterceptor();
+    expectNoDomainEndpoint();
+  }
+
+  @Test public void providesBeans_whenStorageTypeElasticsearchAndDomain() {
+    refreshContextWithProperties(
+        "zipkin.storage.type:elasticsearch",
+        "zipkin.storage.elasticsearch.aws.domain:foobar",
+        "zipkin.storage.elasticsearch.aws.region:us-west-2"
+    );
+
+    expectSignatureInterceptor();
+    expectDomainEndpoint();
+  }
+
+  @Test public void doesntProvideBeans_whenStorageTypeNotElasticsearch() {
+    refreshContextWithProperties("zipkin.storage.type:cassandra");
+
+    expectNoInterceptors();
+    expectNoDomainEndpoint();
+  }
+
+  @Test public void doesntProvideBeans_whenStorageTypeElasticsearchAndHostsNotUrls() {
+    refreshContextWithProperties("zipkin.storage.type:elasticsearch");
+
+    expectNoInterceptors();
+    expectNoDomainEndpoint();
+  }
+
+  @Test public void doesntProvideBeans_whenStorageTypeElasticsearchAndHostsNotAwsUrls() {
+    refreshContextWithProperties(
+        "zipkin.storage.type:elasticsearch",
+        "zipkin.storage.elasticsearch.hosts:https://localhost:9200"
+    );
+
+    expectNoInterceptors();
+    expectNoDomainEndpoint();
+  }
+
+  void expectSignatureInterceptor() {
+    assertThat(context.getBean(OkHttpClient.class).networkInterceptors())
+        .extracting(Interceptor::getClass)
+        .contains((Class) AWSSignatureVersion4.class);
+  }
+
+  void expectDomainEndpoint() {
+    assertThat(context.getBean(ElasticsearchStorage.HostsSupplier.class))
+        .isInstanceOf(ElasticsearchDomainEndpoint.class);
+  }
+
+  void expectNoInterceptors() {
+    assertThat(context.getBean(OkHttpClient.class).networkInterceptors())
+        .isEmpty();
+  }
+
+  void expectNoDomainEndpoint() {
+    try {
+      context.getBean(ElasticsearchStorage.HostsSupplier.class);
+
+      failBecauseExceptionWasNotThrown(NoSuchBeanDefinitionException.class);
+    } catch (NoSuchBeanDefinitionException expected) {
     }
   }
 
-  @Test
-  public void doesntProvideAWSSignatureVersion4_whenStorageTypeNotElasticsearch() {
-    context = new AnnotationConfigApplicationContext();
-    TestPropertyValues.of("zipkin.storage.type:cassandra").applyTo(context);
+  void refreshContextWithProperties(String... pairs) {
+    TestPropertyValues.of(pairs).applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
-        ZipkinElasticsearchAwsStorageAutoConfiguration.class);
+        ZipkinElasticsearchAwsStorageAutoConfiguration.class,
+        ZipkinTestAutoConfiguration.class);
     context.refresh();
-
-    thrown.expect(NoSuchBeanDefinitionException.class);
-    context.getBean(AWSSignatureVersion4.class);
   }
 
-  @Test
-  public void providesAWSSignatureVersion4_whenStorageTypeElasticsearchAndHostsAreAwsUrls() {
-    context = new AnnotationConfigApplicationContext();
-    TestPropertyValues.of(
-        "zipkin.storage.type:elasticsearch",
-        "zipkin.storage.elasticsearch.hosts:https://search-domain-xyzzy.us-west-2.es.amazonaws.com")
-        .applyTo(context);
-    Access.registerElasticsearch(context);
-    context.register(ZipkinElasticsearchAwsStorageAutoConfiguration.class);
-    context.refresh();
+  // Relevant parts copied from ZipkinElasticsearchStorageAutoConfiguration for use in tests
+  static class ZipkinTestAutoConfiguration {
+    @Autowired(required = false) List<Interceptor> networkInterceptors = Collections.emptyList();
 
-    assertThat(context.getBean(OkHttpClient.class).networkInterceptors())
-        .extracting(i -> i.getClass())
-        .contains((Class) AWSSignatureVersion4.class);
-  }
-
-  @Test
-  public void providesAWSSignatureVersion4_whenStorageTypeElasticsearchAndDomain() {
-    context = new AnnotationConfigApplicationContext();
-    TestPropertyValues.of(
-        "zipkin.storage.type:elasticsearch",
-        "zipkin.storage.elasticsearch.aws.domain:foobar",
-        "zipkin.storage.elasticsearch.aws.region:us-west-2")
-        .applyTo(context);
-    Access.registerElasticsearch(context);
-    context.register(ZipkinElasticsearchAwsStorageAutoConfiguration.class);
-    context.refresh();
-
-    assertThat(context.getBean(OkHttpClient.class).networkInterceptors())
-        .extracting(i -> i.getClass())
-        .contains((Class) AWSSignatureVersion4.class);
-  }
-
-  @Test
-  public void doesntProvidesAWSSignatureVersion4_whenStorageTypeElasticsearchAndHostsNotUrls() {
-    context = new AnnotationConfigApplicationContext();
-    TestPropertyValues.of("zipkin.storage.type:elasticsearch").applyTo(context);
-    context.register(
-        PropertyPlaceholderAutoConfiguration.class,
-        ZipkinElasticsearchAwsStorageAutoConfiguration.class);
-    context.refresh();
-
-    thrown.expect(NoSuchBeanDefinitionException.class);
-    context.getBean(AWSSignatureVersion4.class);
-  }
-
-  @Test
-  public void doesntProvideAWSSignatureVersion4_whenStorageTypeElasticsearchAndHostsNotAwsUrls() {
-    context = new AnnotationConfigApplicationContext();
-    TestPropertyValues.of(
-        "zipkin.storage.type:elasticsearch",
-        "zipkin.storage.elasticsearch.hosts:https://localhost:9200")
-        .applyTo(context);
-    context.register(
-        PropertyPlaceholderAutoConfiguration.class,
-        ZipkinElasticsearchAwsStorageAutoConfiguration.class);
-    context.refresh();
-
-    thrown.expect(NoSuchBeanDefinitionException.class);
-    context.getBean(AWSSignatureVersion4.class);
+    @Bean OkHttpClient okHttpClient() {
+      OkHttpClient.Builder builder = new OkHttpClient.Builder();
+      for (Interceptor interceptor : networkInterceptors) {
+        builder.addNetworkInterceptor(interceptor);
+      }
+      return builder.build();
+    }
   }
 }
