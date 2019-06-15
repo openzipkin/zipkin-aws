@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -41,6 +41,7 @@ public final class SQSCollector extends CollectorComponent {
   public static final class Builder extends CollectorComponent.Builder {
 
     Collector.Builder delegate = Collector.newBuilder(SQSCollector.class);
+    CollectorMetrics metrics = CollectorMetrics.NOOP_METRICS;
 
     String queueUrl;
     int waitTimeSeconds = 20; // aws sqs max wait time is 20 seconds
@@ -58,7 +59,7 @@ public final class SQSCollector extends CollectorComponent {
     @Override
     public Builder metrics(CollectorMetrics metrics) {
       if (metrics == null) throw new NullPointerException("metrics == null");
-      delegate.metrics(metrics.forTransport("sqs"));
+      delegate.metrics(this.metrics = metrics.forTransport("sqs"));
       return this;
     }
 
@@ -119,19 +120,21 @@ public final class SQSCollector extends CollectorComponent {
     Builder() {}
   }
 
-  private final AtomicBoolean closed = new AtomicBoolean(false);
-  private final LazyAmazonSQSClient client;
-  private final List<SQSSpanProcessor> processors = new ArrayList<>();
-  private final ExecutorService pool;
-  private final int parallelism;
-  private final int waitTimeSeconds;
-  private final int maxNumberOfMessages;
-  private final String queueUrl;
-  private final Collector collector;
+  final AtomicBoolean closed = new AtomicBoolean(false);
+  final LazyAmazonSQSClient client;
+  final List<SQSSpanProcessor> processors = new ArrayList<>();
+  final ExecutorService pool;
+  final int parallelism;
+  final int waitTimeSeconds;
+  final int maxNumberOfMessages;
+  final String queueUrl;
+  final Collector collector;
+  final CollectorMetrics metrics;
 
   SQSCollector(Builder builder) {
     client = new LazyAmazonSQSClient(builder);
     collector = builder.delegate.build();
+    metrics = builder.metrics;
     parallelism = builder.parallelism;
     waitTimeSeconds = builder.waitTimeSeconds;
     maxNumberOfMessages = builder.maxNumberOfMessages;
@@ -147,10 +150,7 @@ public final class SQSCollector extends CollectorComponent {
   public SQSCollector start() {
     if (!closed.get()) {
       for (int i = 0; i < parallelism; i++) {
-        SQSSpanProcessor processor =
-            new SQSSpanProcessor(
-                client.get(), collector, queueUrl, waitTimeSeconds, maxNumberOfMessages, closed);
-
+        SQSSpanProcessor processor = new SQSSpanProcessor(this);
         Future<?> task = pool.submit(processor);
         if (task.isDone()) throw new IllegalStateException("processor quit " + processor);
         processors.add(processor);
@@ -162,7 +162,7 @@ public final class SQSCollector extends CollectorComponent {
   @Override
   public CheckResult check() {
     try {
-      client.get(); // make sure compute doesn't throw an exception
+      client(); // make sure compute doesn't throw an exception
       for (SQSSpanProcessor processor : processors) { // check if any processor have failed
         if (!processor.check().equals(CheckResult.OK)) {
           return processor.check();
@@ -172,6 +172,10 @@ public final class SQSCollector extends CollectorComponent {
     } catch (RuntimeException e) {
       return CheckResult.failed(e);
     }
+  }
+
+  AmazonSQS client() {
+    return client.get();
   }
 
   @Override

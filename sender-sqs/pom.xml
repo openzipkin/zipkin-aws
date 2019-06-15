@@ -42,9 +42,8 @@
     </dependency>
 
     <dependency>
-      <groupId>io.zipkin.reporter2</groupId>
-      <artifactId>zipkin-reporter</artifactId>
-      <type>test-jar</type>
+      <groupId>io.zipkin.zipkin2</groupId>
+      <artifactId>zipkin-tests</artifactId>
       <scope>test</scope>
     </dependency>
 

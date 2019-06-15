@@ -31,6 +31,7 @@ import zipkin2.Callback;
 import zipkin2.CheckResult;
 import zipkin2.Component;
 import zipkin2.collector.Collector;
+import zipkin2.collector.CollectorMetrics;
 
 final class SQSSpanProcessor extends Component implements Runnable {
 
@@ -40,30 +41,24 @@ final class SQSSpanProcessor extends Component implements Runnable {
   private static final long DEFAULT_BACKOFF = 100;
   private static final long MAX_BACKOFF = 30000;
 
-  private final AmazonSQS client;
-  private final Collector collector;
-  private final String queueUrl;
-  private AtomicReference<CheckResult> status = new AtomicReference<>(CheckResult.OK);
-  private final AtomicBoolean closed;
-  private final ReceiveMessageRequest request;
-  private long failureBackoff = DEFAULT_BACKOFF;
+  final AmazonSQS client;
+  final Collector collector;
+  final CollectorMetrics metrics;
+  final String queueUrl;
+  final AtomicReference<CheckResult> status = new AtomicReference<>(CheckResult.OK);
+  final AtomicBoolean closed;
+  final ReceiveMessageRequest request;
+  long failureBackoff = DEFAULT_BACKOFF;
 
-  SQSSpanProcessor(
-      AmazonSQS client,
-      Collector collector,
-      String queueUrl,
-      int waitTimeSeconds,
-      int maxNumberOfMessages,
-      AtomicBoolean closed) {
-    this.client = client;
-    this.collector = collector;
-    this.queueUrl = queueUrl;
-    this.closed = closed;
-
-    request =
-        new ReceiveMessageRequest(queueUrl)
-            .withWaitTimeSeconds(waitTimeSeconds)
-            .withMaxNumberOfMessages(maxNumberOfMessages);
+  SQSSpanProcessor(SQSCollector sqsCollector) {
+    client = sqsCollector.client();
+    collector = sqsCollector.collector;
+    metrics = sqsCollector.metrics;
+    queueUrl = sqsCollector.queueUrl;
+    closed = sqsCollector.closed;
+    request = new ReceiveMessageRequest(queueUrl)
+        .withWaitTimeSeconds(sqsCollector.waitTimeSeconds)
+        .withMaxNumberOfMessages(sqsCollector.maxNumberOfMessages);
   }
 
   @Override
@@ -111,10 +106,12 @@ final class SQSSpanProcessor extends Component implements Runnable {
         String stringBody = message.getBody();
         if (stringBody.isEmpty() || stringBody.equals("[]")) continue;
         // allow plain-text json, but permit base64 encoded thrift or json
-        byte[] spans =
+        byte[] serialized =
             stringBody.charAt(0) == '[' ? stringBody.getBytes(UTF_8) : Base64.decode(stringBody);
+        metrics.incrementMessages();
+        metrics.incrementBytes(serialized.length);
         collector.acceptSpans(
-            spans,
+            serialized,
             new Callback<Void>() {
               @Override
               public void onSuccess(Void value) {

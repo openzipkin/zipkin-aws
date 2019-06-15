@@ -1,6 +1,6 @@
 [![Gitter chat](http://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg)](https://gitter.im/openzipkin/zipkin)
 [![Build Status](https://circleci.com/gh/openzipkin/zipkin-aws.svg?style=svg)](https://circleci.com/gh/openzipkin/zipkin-aws)
-[![Download](https://api.bintray.com/packages/openzipkin/maven/zipkin-aws/images/download.svg)](https://bintray.com/openzipkin/maven/zipkin-aws/_latestVersion)
+[![Maven Central](https://img.shields.io/maven-central/v/io.zipkin.gcp/zipkin-autoconfigure-storage-stackdriver.svg)](https://search.maven.org/search?q=g:io.zipkin.gcp%20AND%20a:zipkin-autoconfigure-storage-stackdriver)
 
 # zipkin-aws
 Shared libraries that provide Zipkin integration with AWS Kinesis and SQS. Requires JRE 6 or later.
@@ -56,11 +56,11 @@ If you cannot use our [Docker image](https://github.com/openzipkin/docker-zipkin
 yourself by downloading a couple jars. Here's an example of integrating the SQS Collector.
 
 ### Step 1: Download zipkin-server jar
-Download the [latest released server](https://search.maven.org/remote_content?g=org.apache.zipkin&a=zipkin-server&v=LATEST&c=exec) as zipkin.jar:
+Download the [latest released server](https://search.maven.org/remote_content?g=io.zipkin&a=zipkin-server&v=LATEST&c=exec) as zipkin.jar:
 
-```
+```bash
 cd /tmp
-wget -O zipkin.jar 'https://search.maven.org/remote_content?g=org.apache.zipkin&a=zipkin-server&v=LATEST&c=exec'
+curl -sSL https://zipkin.io/quickstart.sh | bash -s
 ```
 
 ### Step 2: Download the latest sqs-module jar
@@ -68,7 +68,7 @@ Download the [latest released SQS module](https://search.maven.org/remote_conten
 
 ```
 cd /tmp
-wget -O sqs.jar 'https://search.maven.org/remote_content?g=io.zipkin.aws&a=zipkin-autoconfigure-collector-sqs&v=LATEST&c=module'
+curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-collector-sqs:LATEST:module sqs.jar
 ```
 
 ### Step 3: Run the server with the "sqs" profile active
@@ -78,6 +78,19 @@ short environment variables similar to other [Zipkin integrations](https://githu
 ``` bash
 cd /tmp
 SQS_QUEUE_URL=<from aws sqs list-queues> \
-java -Dloader.path=sqs.jar -Dspring.profiles.active=sqs -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
+    java \
+    -Dloader.path='sqs.jar,sqs.jar!/lib' \
+    -Dspring.profiles.active=sqs \
+    -cp zipkin.jar \
+    org.springframework.boot.loader.PropertiesLauncher
 ```
 ** NOTE: Make sure the parameters are defined in the same line or use environment variables **
+
+## Artifacts
+All artifacts publish to the group ID "io.zipkin.gcp". We use a common
+release version for all components.
+
+### Library Releases
+Releases are uploaded to [Bintray](https://bintray.com/openzipkin/maven/zipkin) and synchronized to [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.zipkin.gcp%22)
+### Library Snapshots
+Snapshots are uploaded to [JFrog](https://oss.jfrog.org/artifactory/oss-snapshot-local) after commits to master.

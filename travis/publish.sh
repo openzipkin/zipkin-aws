@@ -72,8 +72,12 @@ check_release_tag() {
     fi
 }
 
+print_project_version() {
+  ./mvnw help:evaluate -N -Dexpression=project.version|sed -n '/^[0-9]/p'
+}
+
 is_release_commit() {
-  project_version=$(./mvnw help:evaluate -N -Dexpression=project.version|sed -n '/^[0-9]/p')
+  project_version="$(print_project_version)"
   if [[ "$project_version" =~ ^[[:digit:]]+\.[[:digit:]]+\.[[:digit:]]+$ ]]; then
     echo "Build started by release commit $project_version. Will synchronize to maven central."
     return 0
@@ -109,15 +113,17 @@ if ! is_pull_request && build_started_by_tag; then
   check_release_tag
 fi
 
-./mvnw install -nsu
+# skip license on travis due to #1512
+./mvnw install -nsu -Dlicense.skip=true
 
 # If we are on a pull request, our only job is to run tests, which happened above via ./mvnw install
 if is_pull_request; then
   true
+
 # If we are on master, we will deploy the latest snapshot or release version
 #   - If a release commit fails to deploy for a transient reason, delete the broken version from bintray and click rebuild
 elif is_travis_branch_master; then
-  ./mvnw --batch-mode -s ./.settings.xml -Prelease -nsu -DskipTests deploy
+  ./mvnw --batch-mode -s ./.settings.xml -Prelease -nsu -DskipTests -Dlicense.skip=true deploy
 
   # If the deployment succeeded, sync it to Maven Central. Note: this needs to be done once per project, not module, hence -N
   if is_release_commit; then
@@ -127,6 +133,6 @@ elif is_travis_branch_master; then
 # If we are on a release tag, the following will update any version references and push a version tag for deployment.
 elif build_started_by_tag; then
   safe_checkout_master
-  ./mvnw --batch-mode -s ./.settings.xml -Prelease -nsu -DreleaseVersion="$(release_version)" -Darguments="-DskipTests" release:prepare
+  # skip license on travis due to #1512
+  ./mvnw --batch-mode -s ./.settings.xml -Prelease -nsu -DreleaseVersion="$(release_version)" -Darguments="-DskipTests -Dlicense.skip=true" release:prepare
 fi
-

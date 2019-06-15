@@ -34,7 +34,7 @@
 
   <dependencies>
     <dependency>
-      <groupId>org.apache.zipkin.zipkin2</groupId>
+      <groupId>io.zipkin.zipkin2</groupId>
       <artifactId>zipkin-collector</artifactId>
     </dependency>
 
@@ -59,7 +59,7 @@
     </dependency>
 
     <dependency>
-      <groupId>org.apache.zipkin.zipkin2</groupId>
+      <groupId>io.zipkin.zipkin2</groupId>
       <artifactId>zipkin-tests</artifactId>
       <scope>test</scope>
     </dependency>

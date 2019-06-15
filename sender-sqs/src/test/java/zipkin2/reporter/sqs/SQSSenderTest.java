@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -33,7 +33,7 @@ import zipkin2.junit.aws.AmazonSQSRule;
 
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
-import static zipkin2.reporter.TestObjects.CLIENT_SPAN;
+import static zipkin2.TestObjects.CLIENT_SPAN;
 
 public class SQSSenderTest {
 

@@ -18,7 +18,7 @@ $ aws es describe-elasticsearch-domain --domain-name mydomain|jq .DomainStatus.E
 ```
 
 Fetch the latest released
-[executable jar for Zipkin server](https://search.maven.org/remote_content?g=org.apache.zipkin&a=zipkin-server&v=LATEST&c=exec)
+[executable jar for Zipkin server](https://search.maven.org/remote_content?g=io.zipkin&a=zipkin-server&v=LATEST&c=exec)
 and
 [autoconfigure module jar for the Elasticsearch AWS storage](https://search.maven.org/remote_content?g=io.zipkin.aws&a=zipkin-autoconfigure-storage-elasticsearch-aws&v=LATEST&c=module).
 Run Zipkin with elasticsearch storage enabled and your AWS URL

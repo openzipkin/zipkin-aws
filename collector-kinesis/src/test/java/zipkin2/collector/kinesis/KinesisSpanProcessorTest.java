@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -48,13 +48,12 @@ public class KinesisSpanProcessorTest {
   @Before
   public void setup() {
     storage = InMemoryStorage.newBuilder().build();
-    collector =
-        Collector.newBuilder(KinesisSpanProcessorTest.class)
-            .storage(storage)
-            .metrics(metrics)
-            .build();
+    collector = Collector.newBuilder(KinesisSpanProcessorTest.class)
+        .storage(storage)
+        .metrics(metrics)
+        .build();
 
-    kinesisSpanProcessor = new KinesisSpanProcessor(collector);
+    kinesisSpanProcessor = new KinesisSpanProcessor(collector, metrics);
   }
 
   @After
@@ -111,6 +110,7 @@ public class KinesisSpanProcessorTest {
 
     assertThat(storage.spanStore().getTraces().size()).isEqualTo(0);
 
+    assertThat(metrics.messages()).isEqualTo(1);
     assertThat(metrics.messagesDropped()).isEqualTo(1);
     assertThat(metrics.bytes()).isEqualTo(encodedSpan.length);
   }
