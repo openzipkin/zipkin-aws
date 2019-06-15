@@ -41,15 +41,9 @@
       <artifactId>zipkin-collector</artifactId>
     </dependency>
     <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-java-sdk-sqs</artifactId>
-    </dependency>
-    <!-- com.amazonaws.util.Base64 static initialization looks up jaxb -->
-    <dependency>
-      <groupId>javax.xml.bind</groupId>
-      <artifactId>jaxb-api</artifactId>
-      <version>2.2.12</version>
-      <scope>provided</scope>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>sqs</artifactId>
+      <version>${awssdk.version}</version>
     </dependency>
 
     <dependency>

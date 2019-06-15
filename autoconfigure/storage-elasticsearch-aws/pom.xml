@@ -37,15 +37,14 @@
     </dependency>
 
     <dependency>
-      <artifactId>aws-java-sdk-core</artifactId>
-      <groupId>com.amazonaws</groupId>
-      <version>${aws-java-sdk.version}</version>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>sdk-core</artifactId>
+      <version>${awssdk.version}</version>
     </dependency>
-    <!-- Used indirectly by ProfileCredentialsProvider -->
     <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-java-sdk-sts</artifactId>
-      <version>${aws-java-sdk.version}</version>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>sts</artifactId>
+      <version>${awssdk.version}</version>
     </dependency>
 
     <dependency>

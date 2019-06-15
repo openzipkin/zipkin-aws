@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,11 +13,7 @@
  */
 package zipkin.autoconfigure.collector.kinesis;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
@@ -25,6 +21,9 @@ import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import zipkin2.collector.CollectorMetrics;
 import zipkin2.collector.CollectorSampler;
 import zipkin2.collector.kinesis.KinesisCollector;
@@ -36,20 +35,13 @@ import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 public class ZipkinKinesisCollectorAutoConfigurationTest {
 
-  AnnotationConfigApplicationContext context;
+  AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 
-  @Before
-  public void init() {
-    context = new AnnotationConfigApplicationContext();
+  @After public void close() {
+    context.close();
   }
 
-  @After
-  public void close() {
-    if (context != null) context.close();
-  }
-
-  @Test
-  public void kinesisCollectorNotCreatedWhenMissingRequiredConfigValue() {
+  @Test public void kinesisCollectorNotCreatedWhenMissingRequiredConfigValue() {
     context.register(
         PropertyPlaceholderAutoConfiguration.class, ZipkinKinesisCollectorAutoConfiguration.class);
     context.refresh();
@@ -58,8 +50,7 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
         .isThrownBy(() -> context.getBean(KinesisCollector.class));
   }
 
-  @Test
-  public void kinesisCollectorCreatedWhenAllRequiredValuesAreProvided() {
+  @Test public void kinesisCollectorCreatedWhenAllRequiredValuesAreProvided() {
     TestPropertyValues.of(
         "zipkin.collector.kinesis.stream-name: zipkin-test",
         // The yaml file has a default for this
@@ -76,8 +67,7 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
     assertThat(context.getBean(ZipkinKinesisCollectorProperties.class)).isNotNull();
   }
 
-  @Test
-  public void kinesisCollectorConfiguredForAWSWithGivenCredentials() {
+  @Test public void kinesisCollectorConfiguredForAWSWithGivenCredentials() {
     TestPropertyValues.of(
         "zipkin.collector.kinesis.stream-name: zipkin-test",
         "zipkin.collector.kinesis.app-name: zipkin",
@@ -94,17 +84,16 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
     context.refresh();
 
     assertThat(context.getBean(KinesisCollector.class)).isNotNull();
-    assertThat(context.getBean(AWSSecurityTokenService.class)).isNotNull();
-    assertThat(context.getBean(AWSCredentialsProvider.class))
-        .isInstanceOf(STSAssumeRoleSessionCredentialsProvider.class);
+    assertThat(context.getBean(StsClient.class)).isNotNull();
+    assertThat(context.getBean(AwsCredentialsProvider.class))
+        .isInstanceOf(StsAssumeRoleCredentialsProvider.class);
   }
 
-  @Test
-  public void kinesisCollectorConfiguredWithCorrectRegion() {
+  @Test public void kinesisCollectorConfiguredWithCorrectRegion() {
     TestPropertyValues.of(
         "zipkin.collector.kinesis.stream-name: zipkin-test",
         "zipkin.collector.kinesis.app-name: zipkin",
-        "zipkin.collector.kinesis.aws-sts-region: us-east-1",
+        "zipkin.collector.kinesis.aws-sts-region: us-west-1",
         "zipkin.collector.kinesis.aws-kinesis-region: us-east-1",
         "zipkin.collector.kinesis.aws-access-key-id: x",
         "zipkin.collector.kinesis.aws-secret-access-key: x",
@@ -128,18 +117,15 @@ public class ZipkinKinesisCollectorAutoConfigurationTest {
 
   @Configuration
   static class InMemoryConfiguration {
-    @Bean
-    CollectorSampler sampler() {
+    @Bean CollectorSampler sampler() {
       return CollectorSampler.ALWAYS_SAMPLE;
     }
 
-    @Bean
-    CollectorMetrics metrics() {
+    @Bean CollectorMetrics metrics() {
       return CollectorMetrics.NOOP_METRICS;
     }
 
-    @Bean
-    StorageComponent storage() {
+    @Bean StorageComponent storage() {
       return InMemoryStorage.newBuilder().build();
     }
   }

@@ -13,10 +13,6 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSSessionCredentials;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.regions.DefaultAwsRegionProviderChain;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -36,6 +32,9 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.type.AnnotatedTypeMetadata;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 import zipkin2.elasticsearch.ElasticsearchStorage;
 
 import static java.lang.String.format;
@@ -51,7 +50,7 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
 
   @Bean @Qualifier("zipkinElasticsearchHttp")
   Interceptor awsSignatureVersion4(String region, ZipkinElasticsearchAwsStorageProperties aws,
-      AWSCredentials.Provider credentials) {
+      AwsCredentialsProvider credentials) {
     return new AWSSignatureVersion4(region, "es", credentials);
   }
 
@@ -71,7 +70,7 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
     if (aws.getRegion() != null) {
       return aws.getRegion();
     } else if (domain != null) {
-      return new DefaultAwsRegionProviderChain().getRegion();
+      return new DefaultAwsRegionProviderChain().getRegion().id();
     } else {
       String awsRegion = regionFromAwsUrls(hosts);
       if (awsRegion == null) throw new IllegalArgumentException("Couldn't find region in " + hosts);
@@ -79,22 +78,10 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
     }
   }
 
-  /** By default, get credentials from the {@link DefaultAWSCredentialsProviderChain} */
+  /** By default, get credentials from the {@link DefaultCredentialsProvider} */
   @Bean @ConditionalOnMissingBean
-  AWSCredentials.Provider credentials() {
-    return new AWSCredentials.Provider() {
-      AWSCredentialsProvider delegate = new DefaultAWSCredentialsProviderChain();
-
-      @Override public AWSCredentials get() {
-        com.amazonaws.auth.AWSCredentials result = delegate.getCredentials();
-        String sessionToken =
-            result instanceof AWSSessionCredentials
-                ? ((AWSSessionCredentials) result).getSessionToken()
-                : null;
-        return new AWSCredentials(
-            result.getAWSAccessKeyId(), result.getAWSSecretKey(), sessionToken);
-      }
-    };
+  AwsCredentialsProvider credentials() {
+    return DefaultCredentialsProvider.create();
   }
 
   /**

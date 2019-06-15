@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,13 +13,6 @@
  */
 package zipkin.autoconfigure.collector.sqs;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -30,50 +23,57 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.type.AnnotatedTypeMetadata;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 @Configuration
 @EnableConfigurationProperties(ZipkinSQSCollectorProperties.class)
 @Conditional(ZipkinSQSCollectorAutoConfiguration.SQSSetCondition.class)
 class ZipkinSQSCredentialsAutoConfiguration {
 
-  /** Setup {@link AWSSecurityTokenService} client an IAM role to assume is given. */
+  /** Setup {@link StsClient} client an IAM role to assume is given. */
   @Bean
   @ConditionalOnMissingBean
-  @Conditional(STSSetCondition.class)
-  AWSSecurityTokenService securityTokenService(ZipkinSQSCollectorProperties properties) {
-    return AWSSecurityTokenServiceClientBuilder.standard()
-        .withCredentials(getDefaultCredentialsProvider(properties))
-        .withRegion(properties.awsStsRegion)
-        .build();
+  @Conditional(StsSetCondition.class)
+  StsClient stsClient(ZipkinSQSCollectorProperties properties) {
+    return StsClient.builder()
+        .credentialsProvider(getDefaultCredentialsProvider(properties))
+        .region(Region.of(properties.awsStsRegion)).build();
   }
 
   @Autowired(required = false)
-  private AWSSecurityTokenService securityTokenService;
+  private StsClient stsClient;
 
-  /** By default, get credentials from the {@link DefaultAWSCredentialsProviderChain */
+  /** By default, get credentials from the {@link #getDefaultCredentialsProvider */
   @Bean
   @ConditionalOnMissingBean
-  AWSCredentialsProvider credentialsProvider(ZipkinSQSCollectorProperties properties) {
-    if (securityTokenService != null) {
-      return new STSAssumeRoleSessionCredentialsProvider.Builder(
-              properties.awsStsRoleArn, "zipkin-server")
-          .withStsClient(securityTokenService)
+  AwsCredentialsProvider credentialsProvider(ZipkinSQSCollectorProperties properties) {
+    if (stsClient != null) {
+      return StsAssumeRoleCredentialsProvider.builder()
+          .refreshRequest(AssumeRoleRequest.builder()
+              .roleArn(properties.awsStsRoleArn).roleSessionName("zipkin-server").build())
+          .stsClient(stsClient)
           .build();
     } else {
       return getDefaultCredentialsProvider(properties);
     }
   }
 
-  private static AWSCredentialsProvider getDefaultCredentialsProvider(
+  private static AwsCredentialsProvider getDefaultCredentialsProvider(
       ZipkinSQSCollectorProperties properties) {
-    AWSCredentialsProvider provider = new DefaultAWSCredentialsProviderChain();
+    AwsCredentialsProvider provider = DefaultCredentialsProvider.create();
 
     // Create credentials provider from ID and secret if given.
     if (!isNullOrEmpty(properties.awsAccessKeyId)
         && !isNullOrEmpty(properties.awsSecretAccessKey)) {
-      provider =
-          new AWSStaticCredentialsProvider(
-              new BasicAWSCredentials(properties.awsAccessKeyId, properties.awsSecretAccessKey));
+      provider = StaticCredentialsProvider.create(
+          AwsBasicCredentials.create(properties.awsAccessKeyId, properties.awsSecretAccessKey));
     }
 
     return provider;
@@ -91,19 +91,19 @@ class ZipkinSQSCredentialsAutoConfiguration {
    * doesn't have an option to treat empty properties as unset.
    *
    * <pre>{@code
-   * aws-sts-role-arn: ${SQS_AWS_STS_ROLE_ARN:}
+   * aws-sts-role-arn: ${SQS_Aws_Sts_ROLE_ARN:}
    * }</pre>
    */
-  static final class STSSetCondition extends SpringBootCondition {
+  static final class StsSetCondition extends SpringBootCondition {
 
     private static final String PROPERTY_NAME = "zipkin.collector.sqs.aws-sts-role-arn";
 
     @Override
     public ConditionOutcome getMatchOutcome(ConditionContext context, AnnotatedTypeMetadata a) {
 
-      String queueUrl = context.getEnvironment().getProperty(PROPERTY_NAME);
+      String stsRoleArn = context.getEnvironment().getProperty(PROPERTY_NAME);
 
-      return isEmpty(queueUrl)
+      return isEmpty(stsRoleArn)
           ? ConditionOutcome.noMatch(PROPERTY_NAME + " isn't set")
           : ConditionOutcome.match();
     }

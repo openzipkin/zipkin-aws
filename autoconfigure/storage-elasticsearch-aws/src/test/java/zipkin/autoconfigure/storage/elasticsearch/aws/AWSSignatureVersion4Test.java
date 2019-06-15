@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -25,6 +25,9 @@ import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -33,120 +36,109 @@ public class AWSSignatureVersion4Test {
   @Rule public MockWebServer es = new MockWebServer();
 
   String region = "us-east-1";
-  AWSCredentials.Provider credentials = () -> new AWSCredentials("access-key", "secret-key", null);
 
-  AWSSignatureVersion4 signer = new AWSSignatureVersion4(region, "es", () -> credentials.get());
+  AwsCredentialsProvider credentials =
+      StaticCredentialsProvider.create(AwsBasicCredentials.create("access-key", "secret-key"));
 
-  OkHttpClient client = new OkHttpClient.Builder().addNetworkInterceptor(signer).build();
+  OkHttpClient client = client(credentials);
 
-  @After
-  public void close() throws IOException {
+  @After public void close() {
     client.dispatcher().executorService().shutdownNow();
   }
 
-  @Test
-  public void propagatesExceptionGettingCredentials() throws InterruptedException, IOException {
+  @Test public void propagatesExceptionGettingCredentials() throws IOException {
     // makes sure this isn't wrapped.
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage("Unable to load AWS credentials from any provider in the chain");
 
-    credentials =
-        () -> {
-          throw new IllegalStateException(
-              "Unable to load AWS credentials from any provider in the chain");
-        };
+    client = client(() -> {
+      throw new IllegalStateException(
+          "Unable to load AWS credentials from any provider in the chain");
+    });
 
     client.newCall(new Request.Builder().url(es.url("/")).build()).execute();
   }
 
-  @Test
-  public void unwrapsJsonError() throws InterruptedException, IOException {
+  @Test public void unwrapsJsonError() throws IOException {
     // makes sure this isn't wrapped.
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage(
         "The request signature we calculated does not match the signature you provided.");
 
-    es.enqueue(
-        new MockResponse()
-            .setResponseCode(403)
-            .setBody(
-                "{\"message\":\"The request signature we calculated does not match the signature you provided.\"}"));
+    es.enqueue(new MockResponse().setResponseCode(403)
+        .setBody(
+            "{\"message\":\"The request signature we calculated does not match the signature you provided.\"}"));
 
     client
         .newCall(new Request.Builder().url(es.url("/_template/zipkin_template")).build())
         .execute();
   }
 
-  @Test
-  public void signsRequestsForRegionAndEsService() throws InterruptedException, IOException {
+  @Test public void signsRequestsForRegionAndEsService() throws InterruptedException, IOException {
     es.enqueue(new MockResponse());
 
-    client
-        .newCall(new Request.Builder().url(es.url("/_template/zipkin_template")).build())
+    client.newCall(new Request.Builder().url(es.url("/_template/zipkin_template")).build())
         .execute();
 
     RecordedRequest request = es.takeRequest();
     assertThat(request.getHeader("Authorization"))
-        .startsWith("AWS4-HMAC-SHA256 Credential=" + credentials.get().accessKey)
+        .startsWith("AWS4-HMAC-SHA256 Credential=" + credentials.resolveCredentials().accessKeyId())
         .contains(region + "/es/aws4_request"); // for the region and service
   }
 
-  @Test
-  public void canonicalString_commasInPath() throws InterruptedException, IOException {
+  @Test public void canonicalString_commasInPath() throws IOException {
     es.enqueue(new MockResponse());
 
-    Request request =
-        new Request.Builder()
-            .header(
-                "host", "search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com")
-            .header("x-amz-date", "20161004T132314Z")
-            .url(
-                es.url(
-                    "zipkin-2016-10-05,zipkin-2016-10-06/dependencylink/_search?allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true"))
-            .post(
-                RequestBody.create(
-                    MediaType.parse("application/json"),
-                    "{\n" + "    \"query\" : {\n" + "      \"match_all\" : { }\n" + "    }"))
-            .build();
+    Request request = new Request.Builder()
+        .header("host", "search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com")
+        .header("x-amz-date", "20161004T132314Z")
+        .url(es.url(
+            "zipkin-2016-10-05,zipkin-2016-10-06/dependencylink/_search?allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true"))
+        .post(RequestBody.create(MediaType.parse("application/json"),
+            "{\n" + "    \"query\" : {\n" + "      \"match_all\" : { }\n" + "    }"))
+        .build();
 
     // Ensure that the canonical string encodes commas with %2C
     assertThat(AWSSignatureVersion4.canonicalString(request).readUtf8())
-        .isEqualTo(
-            "POST\n"
-                + "/zipkin-2016-10-05%2Czipkin-2016-10-06/dependencylink/_search\n"
-                + "allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true\n"
-                + "host:search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com\n"
-                + "x-amz-date:20161004T132314Z\n"
-                + "\n"
-                + "host;x-amz-date\n"
-                + "2fd35cb36e5de91bbae279313c371fb630a6b3aab1478df378c5e73e667a1747");
+        .isEqualTo(""
+            + "POST\n"
+            + "/zipkin-2016-10-05%2Czipkin-2016-10-06/dependencylink/_search\n"
+            + "allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true\n"
+            + "host:search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com\n"
+            + "x-amz-date:20161004T132314Z\n"
+            + "\n"
+            + "host;x-amz-date\n"
+            + "2fd35cb36e5de91bbae279313c371fb630a6b3aab1478df378c5e73e667a1747");
   }
 
   /** Starting with Zipkin 1.31 colons are used to delimit index types in ES */
-  @Test
-  public void canonicalString_colonsInPath() throws InterruptedException, IOException {
+  @Test public void canonicalString_colonsInPath() throws IOException {
     es.enqueue(new MockResponse());
 
-    Request request =
-        new Request.Builder()
-            .header(
-                "host",
-                "search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com")
-            .header("x-amz-date", "20170830T143137Z")
-            .url(es.url("_cluster/health/zipkin:span-*"))
-            .get()
-            .build();
+    Request request = new Request.Builder()
+        .header("host",
+            "search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com")
+        .header("x-amz-date", "20170830T143137Z")
+        .url(es.url("_cluster/health/zipkin:span-*"))
+        .get()
+        .build();
 
     // Ensure that the canonical string encodes commas with %2C
     assertThat(AWSSignatureVersion4.canonicalString(request).readUtf8())
-        .isEqualTo(
-            "GET\n"
-                + "/_cluster/health/zipkin%3Aspan-%2A\n"
-                + "\n"
-                + "host:search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com\n"
-                + "x-amz-date:20170830T143137Z\n"
-                + "\n"
-                + "host;x-amz-date\n"
-                + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+        .isEqualTo(""
+            + "GET\n"
+            + "/_cluster/health/zipkin%3Aspan-%2A\n"
+            + "\n"
+            + "host:search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com\n"
+            + "x-amz-date:20170830T143137Z\n"
+            + "\n"
+            + "host;x-amz-date\n"
+            + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+  }
+
+  OkHttpClient client(AwsCredentialsProvider credentials) {
+    if (client != null) close();
+    return new OkHttpClient.Builder()
+        .addNetworkInterceptor(new AWSSignatureVersion4(region, "es", credentials)).build();
   }
 }

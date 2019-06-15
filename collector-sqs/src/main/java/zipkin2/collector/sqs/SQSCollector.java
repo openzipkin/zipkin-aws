@@ -13,11 +13,7 @@
  */
 package zipkin2.collector.sqs;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.services.sqs.AmazonSQS;
-import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -25,6 +21,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.SqsClientBuilder;
 import zipkin2.CheckResult;
 import zipkin2.collector.Collector;
 import zipkin2.collector.CollectorComponent;
@@ -46,25 +46,22 @@ public final class SQSCollector extends CollectorComponent {
     String queueUrl;
     int waitTimeSeconds = 20; // aws sqs max wait time is 20 seconds
     int maxNumberOfMessages = 10; // aws sqs max messages for a receive call is 10
-    EndpointConfiguration endpointConfiguration;
-    AWSCredentialsProvider credentialsProvider = new DefaultAWSCredentialsProviderChain();
+    AwsCredentialsProvider credentialsProvider = DefaultCredentialsProvider.create();
     int parallelism = 1;
+    URI endpointOverride;
 
-    @Override
-    public Builder storage(StorageComponent storageComponent) {
+    @Override public Builder storage(StorageComponent storageComponent) {
       delegate.storage(storageComponent);
       return this;
     }
 
-    @Override
-    public Builder metrics(CollectorMetrics metrics) {
+    @Override public Builder metrics(CollectorMetrics metrics) {
       if (metrics == null) throw new NullPointerException("metrics == null");
       delegate.metrics(this.metrics = metrics.forTransport("sqs"));
       return this;
     }
 
-    @Override
-    public Builder sampler(CollectorSampler sampler) {
+    @Override public Builder sampler(CollectorSampler sampler) {
       delegate.sampler(sampler);
       return this;
     }
@@ -76,13 +73,13 @@ public final class SQSCollector extends CollectorComponent {
     }
 
     /** Endpoint and signing configuration for SQS. */
-    public Builder endpointConfiguration(EndpointConfiguration endpointConfiguration) {
-      this.endpointConfiguration = endpointConfiguration;
+    public Builder endpointOverride(URI endpointOverride) {
+      this.endpointOverride = endpointOverride;
       return this;
     }
 
     /** AWS credentials for authenticating calls to SQS. */
-    public Builder credentialsProvider(AWSCredentialsProvider credentialsProvider) {
+    public Builder credentialsProvider(AwsCredentialsProvider credentialsProvider) {
       this.credentialsProvider = credentialsProvider;
       return this;
     }
@@ -112,12 +109,12 @@ public final class SQSCollector extends CollectorComponent {
       return this;
     }
 
-    @Override
-    public SQSCollector build() {
+    @Override public SQSCollector build() {
       return new SQSCollector(this);
     }
 
-    Builder() {}
+    Builder() {
+    }
   }
 
   final AtomicBoolean closed = new AtomicBoolean(false);
@@ -140,14 +137,12 @@ public final class SQSCollector extends CollectorComponent {
     maxNumberOfMessages = builder.maxNumberOfMessages;
     queueUrl = builder.queueUrl;
 
-    pool =
-        (builder.parallelism == 1)
-            ? Executors.newSingleThreadExecutor()
-            : Executors.newFixedThreadPool(builder.parallelism);
+    pool = (builder.parallelism == 1)
+        ? Executors.newSingleThreadExecutor()
+        : Executors.newFixedThreadPool(builder.parallelism);
   }
 
-  @Override
-  public SQSCollector start() {
+  @Override public SQSCollector start() {
     if (!closed.get()) {
       for (int i = 0; i < parallelism; i++) {
         SQSSpanProcessor processor = new SQSSpanProcessor(this);
@@ -159,8 +154,7 @@ public final class SQSCollector extends CollectorComponent {
     return this;
   }
 
-  @Override
-  public CheckResult check() {
+  @Override public CheckResult check() {
     try {
       client(); // make sure compute doesn't throw an exception
       for (SQSSpanProcessor processor : processors) { // check if any processor have failed
@@ -174,12 +168,11 @@ public final class SQSCollector extends CollectorComponent {
     }
   }
 
-  AmazonSQS client() {
+  SqsClient client() {
     return client.get();
   }
 
-  @Override
-  public void close() {
+  @Override public void close() {
     try {
       if (!pool.awaitTermination(1, TimeUnit.SECONDS)) {
         pool.shutdownNow();
@@ -192,17 +185,15 @@ public final class SQSCollector extends CollectorComponent {
   }
 
   private static final class LazyAmazonSQSClient {
-    final AmazonSQSClientBuilder builder;
-    volatile AmazonSQS client;
+    final SqsClientBuilder builder;
+    volatile SqsClient client;
 
     LazyAmazonSQSClient(Builder builder) {
-      this.builder =
-          AmazonSQSClientBuilder.standard()
-              .withEndpointConfiguration(builder.endpointConfiguration)
-              .withCredentials(builder.credentialsProvider);
+      this.builder = SqsClient.builder().credentialsProvider(builder.credentialsProvider);
+      if (builder.endpointOverride != null) this.builder.endpointOverride(builder.endpointOverride);
     }
 
-    AmazonSQS get() {
+    SqsClient get() {
       if (client == null) {
         synchronized (this) {
           if (client == null) {
@@ -214,9 +205,9 @@ public final class SQSCollector extends CollectorComponent {
     }
 
     void close() {
-      AmazonSQS maybeClient = client;
+      SqsClient maybeClient = client;
       if (maybeClient == null) return;
-      maybeClient.shutdown();
+      maybeClient.close();
     }
   }
 }

@@ -38,11 +38,38 @@
       <artifactId>zipkin-collector</artifactId>
     </dependency>
 
-    <!-- TODO: See if 'software.amazon.kinesis:amazon-kinesis-client:2.0.1' replaces this? -->
     <dependency>
-      <groupId>com.amazonaws</groupId>
+      <groupId>software.amazon.kinesis</groupId>
       <artifactId>amazon-kinesis-client</artifactId>
-      <version>1.10.0</version>
+      <version>2.2.0</version>
+      <exclusions>
+        <exclusion>
+          <groupId>software.amazon.awssdk</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+
+    <!-- the following ensures we are synchronized on awssdk versions -->
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>kinesis</artifactId>
+      <version>${awssdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>dynamodb</artifactId>
+      <version>${awssdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>cloudwatch</artifactId>
+      <version>${awssdk.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>netty-nio-client</artifactId>
+      <version>${awssdk.version}</version>
     </dependency>
 
     <dependency>

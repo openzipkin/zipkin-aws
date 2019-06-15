@@ -13,10 +13,8 @@
  */
 package zipkin2.collector.sqs;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -25,6 +23,8 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import zipkin2.Span;
 import zipkin2.TestObjects;
 import zipkin2.codec.SpanBytesEncoder;
@@ -46,60 +46,53 @@ public class ITSQSCollector {
       asList( // No unicode or data that doesn't translate between json formats
           TestObjects.LOTS_OF_SPANS[0], TestObjects.LOTS_OF_SPANS[1], TestObjects.LOTS_OF_SPANS[2]);
 
-  private InMemoryStorage store;
-  private InMemoryCollectorMetrics metrics;
-  private CollectorComponent collector;
+  InMemoryStorage store;
+  InMemoryCollectorMetrics metrics;
+  CollectorComponent collector;
 
-  @Before
-  public void setup() {
+  @Before public void setup() {
     store = InMemoryStorage.newBuilder().build();
     metrics = new InMemoryCollectorMetrics();
 
-    collector =
-        new SQSCollector.Builder()
-            .queueUrl(sqsRule.queueUrl())
-            .parallelism(2)
-            .waitTimeSeconds(1) // using short wait time to make test teardown faster
-            .endpointConfiguration(new EndpointConfiguration(sqsRule.queueUrl(), "us-east-1"))
-            .credentialsProvider(
-                new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
-            .metrics(metrics)
-            .sampler(CollectorSampler.ALWAYS_SAMPLE)
-            .storage(store)
-            .build()
-            .start();
+    collector = new SQSCollector.Builder()
+        .queueUrl(sqsRule.queueUrl())
+        .parallelism(2)
+        .waitTimeSeconds(1) // using short wait time to make test teardown faster
+        .endpointOverride(URI.create(sqsRule.queueUrl()))
+        .credentialsProvider(
+            StaticCredentialsProvider.create(AwsBasicCredentials.create("x", "x")))
+        .metrics(metrics)
+        .sampler(CollectorSampler.ALWAYS_SAMPLE)
+        .storage(store)
+        .build()
+        .start();
     metrics = metrics.forTransport("sqs");
   }
 
-  @After
-  public void teardown() throws IOException {
+  @After public void teardown() throws IOException {
     store.close();
     collector.close();
   }
 
   /** SQS has character constraints on json, so some traces will be base64 even if json */
-  @Test
-  public void collectBase64EncodedSpans() throws Exception {
+  @Test public void collectBase64EncodedSpans() throws Exception {
     sqsRule.send(Base64.getEncoder().encodeToString(SpanBytesEncoder.JSON_V1.encodeList(spans)));
     assertSpansAccepted(spans);
   }
 
   /** SQS has character constraints on json, but don't affect traces not using unicode */
-  @Test
-  public void collectUnencodedJsonSpans() throws Exception {
+  @Test public void collectUnencodedJsonSpans() throws Exception {
     sqsRule.send(new String(SpanBytesEncoder.JSON_V1.encodeList(spans), "UTF-8"));
     assertSpansAccepted(spans);
   }
 
   /** Ensures list encoding works: a version 2 json list of spans */
-  @Test
-  public void messageWithMultipleSpans_json2() throws Exception {
+  @Test public void messageWithMultipleSpans_json2() throws Exception {
     messageWithMultipleSpans(SpanBytesEncoder.JSON_V2);
   }
 
   /** Ensures list encoding works: proto3 ListOfSpans */
-  @Test
-  public void messageWithMultipleSpans_proto3() throws Exception {
+  @Test public void messageWithMultipleSpans_proto3() throws Exception {
     messageWithMultipleSpans(SpanBytesEncoder.PROTO3);
   }
 
@@ -109,8 +102,7 @@ public class ITSQSCollector {
     assertSpansAccepted(spans);
   }
 
-  @Test
-  public void collectLotsOfSpans() throws Exception {
+  @Test public void collectLotsOfSpans() throws Exception {
     List<Span> lots = new ArrayList<>(10000);
 
     int count = 0;
@@ -131,8 +123,7 @@ public class ITSQSCollector {
     assertSpansAccepted(lots);
   }
 
-  @Test
-  public void malformedSpansShouldBeDiscarded() throws Exception {
+  @Test public void malformedSpansShouldBeDiscarded() throws Exception {
     sqsRule.send("[not going to work]");
     sqsRule.send(new String(SpanBytesEncoder.JSON_V1.encodeList(spans)));
 

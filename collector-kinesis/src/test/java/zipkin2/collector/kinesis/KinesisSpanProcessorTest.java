@@ -13,16 +13,15 @@
  */
 package zipkin2.collector.kinesis;
 
-import com.amazonaws.services.kinesis.clientlibrary.types.ProcessRecordsInput;
-import com.amazonaws.services.kinesis.model.Record;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import software.amazon.kinesis.lifecycle.events.ProcessRecordsInput;
+import software.amazon.kinesis.retrieval.KinesisClientRecord;
 import zipkin2.Span;
 import zipkin2.TestObjects;
 import zipkin2.codec.SpanBytesEncoder;
@@ -31,6 +30,7 @@ import zipkin2.collector.InMemoryCollectorMetrics;
 import zipkin2.storage.InMemoryStorage;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.singletonList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** We can't integration test the KinesisCollector without a local version of the service */
@@ -45,8 +45,7 @@ public class KinesisSpanProcessorTest {
   private Collector collector;
   private KinesisSpanProcessor kinesisSpanProcessor;
 
-  @Before
-  public void setup() {
+  @Before public void setup() {
     storage = InMemoryStorage.newBuilder().build();
     collector = Collector.newBuilder(KinesisSpanProcessorTest.class)
         .storage(storage)
@@ -56,55 +55,52 @@ public class KinesisSpanProcessorTest {
     kinesisSpanProcessor = new KinesisSpanProcessor(collector, metrics);
   }
 
-  @After
-  public void teardown() {
+  @After public void teardown() {
     kinesisSpanProcessor = null;
     collector = null;
     storage = null;
   }
 
-  @Test
-  public void oneRecordCollected() {
+  @Test public void oneRecordCollected() {
     kinesisSpanProcessor.processRecords(createTestData(1));
 
     assertThat(storage.spanStore().getTraces().size()).isEqualTo(1);
   }
 
   /** Ensures list encoding works: a version 2 json list of spans */
-  @Test
-  public void messageWithMultipleSpans_json2() {
+  @Test public void messageWithMultipleSpans_json2() {
     messageWithMultipleSpans(SpanBytesEncoder.JSON_V2);
   }
 
   /** Ensures list encoding works: proto3 ListOfSpans */
-  @Test
-  public void messageWithMultipleSpans_proto3() {
+  @Test public void messageWithMultipleSpans_proto3() {
     messageWithMultipleSpans(SpanBytesEncoder.PROTO3);
   }
 
   void messageWithMultipleSpans(SpanBytesEncoder encoder) {
     byte[] message = encoder.encodeList(spans);
 
-    List<Record> records = Arrays.asList(new Record().withData(ByteBuffer.wrap(message)));
-    kinesisSpanProcessor.processRecords(new ProcessRecordsInput().withRecords(records));
+    KinesisClientRecord record =
+        KinesisClientRecord.builder().data(ByteBuffer.wrap(message)).build();
+    kinesisSpanProcessor.processRecords(
+        ProcessRecordsInput.builder().records(singletonList(record)).build());
 
     assertThat(storage.spanStore().getTraces().size()).isEqualTo(spans.size());
   }
 
-  @Test
-  public void lotsOfRecordsCollected() {
+  @Test public void lotsOfRecordsCollected() {
     kinesisSpanProcessor.processRecords(createTestData(10000));
 
     assertThat(storage.spanStore().getTraces().size()).isEqualTo(10000);
   }
 
-  @Test
-  public void collectorFailsWhenRecordEncodedAsSingleSpan() {
+  @Test public void collectorFailsWhenRecordEncodedAsSingleSpan() {
     Span span = TestObjects.LOTS_OF_SPANS[0];
     byte[] encodedSpan = SpanBytesEncoder.THRIFT.encode(span);
-    Record kinesisRecord = new Record().withData(ByteBuffer.wrap(encodedSpan));
-    ProcessRecordsInput kinesisInput =
-        new ProcessRecordsInput().withRecords(Collections.singletonList(kinesisRecord));
+    KinesisClientRecord record =
+        KinesisClientRecord.builder().data(ByteBuffer.wrap(encodedSpan)).build();
+    ProcessRecordsInput kinesisInput = ProcessRecordsInput.builder()
+        .records(singletonList(record)).build();
 
     kinesisSpanProcessor.processRecords(kinesisInput);
 
@@ -116,15 +112,15 @@ public class KinesisSpanProcessorTest {
   }
 
   private ProcessRecordsInput createTestData(int count) {
-    List<Record> records = new ArrayList<>();
+    List<KinesisClientRecord> records = new ArrayList<>();
 
     Span[] spans = Arrays.copyOfRange(TestObjects.LOTS_OF_SPANS, 0, count);
 
     Arrays.stream(spans)
-        .map(s -> ByteBuffer.wrap(SpanBytesEncoder.THRIFT.encodeList(Collections.singletonList(s))))
-        .map(b -> new Record().withData(b))
+        .map(s -> ByteBuffer.wrap(SpanBytesEncoder.THRIFT.encodeList(singletonList(s))))
+        .map(b -> KinesisClientRecord.builder().data(b).build())
         .forEach(records::add);
 
-    return new ProcessRecordsInput().withRecords(records);
+    return ProcessRecordsInput.builder().records(records).build();
   }
 }

@@ -13,20 +13,22 @@
  */
 package zipkin2.collector.sqs;
 
-import com.amazonaws.AbortedException;
-import com.amazonaws.services.sqs.AmazonSQS;
-import com.amazonaws.services.sqs.model.DeleteMessageBatchRequestEntry;
-import com.amazonaws.services.sqs.model.DeleteMessageBatchResult;
-import com.amazonaws.services.sqs.model.Message;
-import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
-import com.amazonaws.util.Base64;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import software.amazon.awssdk.core.exception.AbortedException;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.DeleteMessageBatchRequest;
+import software.amazon.awssdk.services.sqs.model.DeleteMessageBatchRequestEntry;
+import software.amazon.awssdk.services.sqs.model.DeleteMessageBatchResponse;
+import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
+import zipkin2.Call;
 import zipkin2.Callback;
 import zipkin2.CheckResult;
 import zipkin2.Component;
@@ -41,7 +43,7 @@ final class SQSSpanProcessor extends Component implements Runnable {
   private static final long DEFAULT_BACKOFF = 100;
   private static final long MAX_BACKOFF = 30000;
 
-  final AmazonSQS client;
+  final SqsClient client;
   final Collector collector;
   final CollectorMetrics metrics;
   final String queueUrl;
@@ -56,9 +58,10 @@ final class SQSSpanProcessor extends Component implements Runnable {
     metrics = sqsCollector.metrics;
     queueUrl = sqsCollector.queueUrl;
     closed = sqsCollector.closed;
-    request = new ReceiveMessageRequest(queueUrl)
-        .withWaitTimeSeconds(sqsCollector.waitTimeSeconds)
-        .withMaxNumberOfMessages(sqsCollector.maxNumberOfMessages);
+    request = ReceiveMessageRequest.builder()
+        .queueUrl(queueUrl)
+        .waitTimeSeconds(sqsCollector.waitTimeSeconds)
+        .maxNumberOfMessages(sqsCollector.maxNumberOfMessages).build();
   }
 
   @Override
@@ -75,7 +78,7 @@ final class SQSSpanProcessor extends Component implements Runnable {
   public void run() {
     while (!closed.get()) {
       try {
-        process(client.receiveMessage(request).getMessages());
+        process(client.receiveMessage(request).messages());
         status.lazySet(CheckResult.OK);
         failureBackoff = DEFAULT_BACKOFF;
       } catch (AbortedException ae) {
@@ -102,45 +105,42 @@ final class SQSSpanProcessor extends Component implements Runnable {
     int count = 0;
     for (Message message : messages) {
       final String deleteId = String.valueOf(count++);
+      DeleteMessageBatchRequestEntry deleteEntry = DeleteMessageBatchRequestEntry.builder()
+          .id(deleteId).receiptHandle(message.receiptHandle()).build();
       try {
-        String stringBody = message.getBody();
+        String stringBody = message.body();
         if (stringBody.isEmpty() || stringBody.equals("[]")) continue;
         // allow plain-text json, but permit base64 encoded thrift or json
         byte[] serialized =
-            stringBody.charAt(0) == '[' ? stringBody.getBytes(UTF_8) : Base64.decode(stringBody);
+            stringBody.charAt(0) == '[' ? stringBody.getBytes(UTF_8)
+                : Base64.getDecoder().decode(stringBody);
         metrics.incrementMessages();
         metrics.incrementBytes(serialized.length);
-        collector.acceptSpans(
-            serialized,
-            new Callback<Void>() {
-              @Override
-              public void onSuccess(Void value) {
-                toDelete.add(
-                    new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
-              }
+        collector.acceptSpans(serialized, new Callback<Void>() {
+          @Override public void onSuccess(Void value) {
+            toDelete.add(deleteEntry);
+          }
 
-              @Override
-              public void onError(Throwable t) {
-                logger.log(Level.WARNING, "collector accept failed", t);
-                // for cases that are not recoverable just discard the message,
-                // otherwise ignore so processing can be retried.
-                if (t instanceof IllegalArgumentException) {
-                  toDelete.add(
-                      new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
-                }
-              }
-            });
+          @Override public void onError(Throwable t) {
+            logger.log(Level.WARNING, "collector accept failed", t);
+            // for cases that are not recoverable just discard the message,
+            // otherwise ignore so processing can be retried.
+            if (t instanceof IllegalArgumentException) toDelete.add(deleteEntry);
+          }
+        });
       } catch (RuntimeException | Error e) {
+        Call.propagateIfFatal(e);
         logger.log(Level.WARNING, "message decoding failed", e);
-        toDelete.add(new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
+        toDelete.add(deleteEntry);
       }
     }
 
     delete(toDelete);
   }
 
-  private DeleteMessageBatchResult delete(List<DeleteMessageBatchRequestEntry> entries) {
-    return client.deleteMessageBatch(queueUrl, entries);
+  private DeleteMessageBatchResponse delete(List<DeleteMessageBatchRequestEntry> entries) {
+    return client.deleteMessageBatch(DeleteMessageBatchRequest.builder()
+        .queueUrl(queueUrl).entries(entries).build());
   }
 
   @Override public final String toString() {

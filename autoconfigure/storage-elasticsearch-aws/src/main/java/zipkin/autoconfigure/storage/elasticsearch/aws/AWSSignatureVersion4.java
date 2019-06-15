@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -24,6 +24,9 @@ import okhttp3.Response;
 import okhttp3.ResponseBody;
 import okio.Buffer;
 import okio.ByteString;
+import software.amazon.awssdk.auth.credentials.AwsCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
 
 import static java.lang.String.format;
 import static zipkin2.elasticsearch.internal.JsonReaders.enterPath;
@@ -40,21 +43,17 @@ final class AWSSignatureVersion4 implements Interceptor {
   static final String HOST_DATE_TOKEN = HOST_DATE + ";" + X_AMZ_SECURITY_TOKEN;
 
   // SimpleDateFormat isn't thread-safe
-  static final ThreadLocal<SimpleDateFormat> iso8601 =
-      new ThreadLocal<SimpleDateFormat>() {
-        @Override
-        protected SimpleDateFormat initialValue() {
-          SimpleDateFormat result = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'");
-          result.setTimeZone(TimeZone.getTimeZone("UTC"));
-          return result;
-        }
-      };
+  static final ThreadLocal<SimpleDateFormat> iso8601 = ThreadLocal.withInitial(() -> {
+    SimpleDateFormat result = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'");
+    result.setTimeZone(TimeZone.getTimeZone("UTC"));
+    return result;
+  });
 
   final String region;
   final String service;
-  final AWSCredentials.Provider credentials;
+  final AwsCredentialsProvider credentials;
 
-  AWSSignatureVersion4(String region, String service, AWSCredentials.Provider credentials) {
+  AWSSignatureVersion4(String region, String service, AwsCredentialsProvider credentials) {
     if (region == null) throw new NullPointerException("region == null");
     if (service == null) throw new NullPointerException("service == null");
     if (credentials == null) throw new NullPointerException("credentials == null");
@@ -63,8 +62,7 @@ final class AWSSignatureVersion4 implements Interceptor {
     this.credentials = credentials;
   }
 
-  @Override
-  public Response intercept(Chain chain) throws IOException {
+  @Override public Response intercept(Chain chain) throws IOException {
     Request input = chain.request();
     Request signed = sign(input);
     Response response = chain.proceed(signed);
@@ -85,9 +83,8 @@ final class AWSSignatureVersion4 implements Interceptor {
 
     // CanonicalURI + '\n' +
     // TODO: make this more efficient
-    result
-        .writeUtf8(
-            input.url().encodedPath().replace("*", "%2A").replace(",", "%2C").replace(":", "%3A"))
+    result.writeUtf8(
+        input.url().encodedPath().replace("*", "%2A").replace(",", "%2C").replace(":", "%3A"))
         .writeByte('\n');
 
     // CanonicalQueryString + '\n' +
@@ -135,7 +132,7 @@ final class AWSSignatureVersion4 implements Interceptor {
   }
 
   Request sign(Request input) throws IOException {
-    AWSCredentials credentials = this.credentials.get();
+    AwsCredentials credentials = this.credentials.resolveCredentials();
     if (credentials == null) throw new NullPointerException("credentials == null");
 
     String timestamp = iso8601.get().format(new Date());
@@ -146,23 +143,31 @@ final class AWSSignatureVersion4 implements Interceptor {
     Request.Builder builder = input.newBuilder();
     builder.header(HOST, input.url().host());
     builder.header(X_AMZ_DATE, timestamp);
-    if (credentials.sessionToken != null) {
-      builder.header(X_AMZ_SECURITY_TOKEN, credentials.sessionToken);
+
+    String sessionToken = null;
+    if (credentials instanceof AwsSessionCredentials) {
+      sessionToken = ((AwsSessionCredentials) credentials).sessionToken();
+    }
+
+    String signedHeaders;
+    if (sessionToken != null) {
+      builder.header(X_AMZ_SECURITY_TOKEN, sessionToken);
+      signedHeaders = HOST_DATE;
+    } else {
+      signedHeaders = HOST_DATE_TOKEN;
     }
 
     Buffer canonicalString = canonicalString(builder.build());
-    String signedHeaders = credentials.sessionToken == null ? HOST_DATE : HOST_DATE_TOKEN;
-
     Buffer toSign = toSign(timestamp, credentialScope, canonicalString);
 
     // TODO: this key is invalid when the secret key or the date change. both are very infrequent
-    ByteString signatureKey = signatureKey(credentials.secretKey, yyyyMMdd);
+    ByteString signatureKey = signatureKey(credentials.secretAccessKey(), yyyyMMdd);
     String signature = toSign.readByteString().hmacSha256(signatureKey).hex();
 
     String authorization =
         new StringBuilder()
             .append("AWS4-HMAC-SHA256 Credential=")
-            .append(credentials.accessKey)
+            .append(credentials.accessKeyId())
             .append('/')
             .append(credentialScope)
             .append(", SignedHeaders=")

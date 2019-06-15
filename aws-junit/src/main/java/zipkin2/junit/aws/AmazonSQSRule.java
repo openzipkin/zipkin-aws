@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,18 +13,9 @@
  */
 package zipkin2.junit.aws;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.services.sqs.AmazonSQS;
-import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
-import com.amazonaws.services.sqs.model.DeleteMessageRequest;
-import com.amazonaws.services.sqs.model.Message;
-import com.amazonaws.services.sqs.model.PurgeQueueRequest;
-import com.amazonaws.services.sqs.model.ReceiveMessageResult;
-import com.amazonaws.services.sqs.model.SendMessageRequest;
-import com.amazonaws.util.Base64;
+import java.net.URI;
 import java.nio.charset.Charset;
+import java.util.Base64;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -32,18 +23,28 @@ import org.elasticmq.rest.sqs.SQSLimits;
 import org.elasticmq.rest.sqs.SQSRestServer;
 import org.elasticmq.rest.sqs.SQSRestServerBuilder;
 import org.junit.rules.ExternalResource;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.model.CreateQueueRequest;
+import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest;
+import software.amazon.awssdk.services.sqs.model.GetQueueAttributesRequest;
+import software.amazon.awssdk.services.sqs.model.Message;
+import software.amazon.awssdk.services.sqs.model.PurgeQueueRequest;
+import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest;
+import software.amazon.awssdk.services.sqs.model.ReceiveMessageResponse;
+import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import zipkin2.Span;
 import zipkin2.codec.SpanBytesDecoder;
-
-import static java.util.Collections.singletonList;
 
 public class AmazonSQSRule extends ExternalResource {
 
   private SQSRestServer server;
-  private AmazonSQS client;
+  private SqsClient client;
   private String queueUrl;
 
-  public AmazonSQSRule() {}
+  public AmazonSQSRule() {
+  }
 
   public AmazonSQSRule start(int httpPort) {
     if (server == null) {
@@ -52,11 +53,12 @@ public class AmazonSQSRule extends ExternalResource {
     }
 
     if (client == null) {
-      client = AmazonSQSClientBuilder.standard()
-          .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
-          .withEndpointConfiguration(new EndpointConfiguration(String.format("http://localhost:%d", httpPort), null))
-          .build();
-      queueUrl = client.createQueue("zipkin").getQueueUrl();
+      client = SqsClient.builder()
+          .credentialsProvider(
+              StaticCredentialsProvider.create(AwsBasicCredentials.create("x", "x")))
+          .endpointOverride(URI.create(String.format("http://localhost:%d", httpPort))).build();
+      queueUrl =
+          client.createQueue(CreateQueueRequest.builder().queueName("zipkin").build()).queueUrl();
     }
     return this;
   }
@@ -65,36 +67,32 @@ public class AmazonSQSRule extends ExternalResource {
     return queueUrl;
   }
 
-  @Override
-  protected void before() {
+  @Override protected void before() {
     if (client != null && queueUrl != null) {
-      client.purgeQueue(new PurgeQueueRequest(queueUrl));
+      client.purgeQueue(PurgeQueueRequest.builder().queueUrl(queueUrl).build());
     }
   }
 
-  @Override
-  protected void after() {
-    if (server != null) {
-      server.stopAndWait();
-    }
+  @Override protected void after() {
+    if (server != null) server.stopAndWait();
   }
 
   public int queueCount() {
-    String count =
-        client
-            .getQueueAttributes(queueUrl, singletonList("ApproximateNumberOfMessages"))
-            .getAttributes()
-            .get("ApproximateNumberOfMessages");
-
-    return Integer.valueOf(count);
+    return getAttribute("ApproximateNumberOfMessages");
   }
 
   public int notVisibleCount() {
-    String count =
-        client
-            .getQueueAttributes(queueUrl, singletonList("ApproximateNumberOfMessagesNotVisible"))
-            .getAttributes()
-            .get("ApproximateNumberOfMessagesNotVisible");
+    return getAttribute("ApproximateNumberOfMessagesNotVisible");
+  }
+
+  private int getAttribute(String approximateNumberOfMessagesNotVisible) {
+    String count = client
+        .getQueueAttributes(GetQueueAttributesRequest.builder()
+            .queueUrl(queueUrl)
+            .attributeNamesWithStrings(approximateNumberOfMessagesNotVisible)
+            .build())
+        .attributesAsStrings()
+        .get(approximateNumberOfMessagesNotVisible);
 
     return Integer.valueOf(count);
   }
@@ -107,23 +105,21 @@ public class AmazonSQSRule extends ExternalResource {
 
     Stream<Span> spans = Stream.empty();
 
-    ReceiveMessageResult result = client.receiveMessage(queueUrl);
+    ReceiveMessageResponse result =
+        client.receiveMessage(ReceiveMessageRequest.builder().queueUrl(queueUrl).build());
 
-    while (result != null && result.getMessages().size() > 0) {
+    while (result != null && result.messages().size() > 0) {
+      spans = Stream.concat(spans, result.messages().stream().flatMap(AmazonSQSRule::decodeSpans));
 
-      spans =
-          Stream.concat(spans, result.getMessages().stream().flatMap(AmazonSQSRule::decodeSpans));
-
-      result = client.receiveMessage(queueUrl);
+      result = client.receiveMessage(ReceiveMessageRequest.builder().queueUrl(queueUrl).build());
 
       if (delete) {
-        List<DeleteMessageRequest> deletes =
-            result
-                .getMessages()
-                .stream()
-                .map(m -> new DeleteMessageRequest(queueUrl, m.getReceiptHandle()))
-                .collect(Collectors.toList());
-        deletes.forEach(d -> client.deleteMessage(d));
+        result.messages().forEach(m -> {
+          client.deleteMessage(DeleteMessageRequest.builder()
+              .queueUrl(queueUrl)
+              .receiptHandle(m.receiptHandle())
+              .build());
+        });
       }
     }
 
@@ -131,14 +127,13 @@ public class AmazonSQSRule extends ExternalResource {
   }
 
   public void send(String body) {
-    client.sendMessage(new SendMessageRequest(queueUrl, body));
+    client.sendMessage(SendMessageRequest.builder().queueUrl(queueUrl).messageBody(body).build());
   }
 
   static Stream<? extends Span> decodeSpans(Message m) {
-    byte[] bytes =
-        m.getBody().charAt(0) == '['
-            ? m.getBody().getBytes(Charset.forName("UTF-8"))
-            : Base64.decode(m.getBody());
+    byte[] bytes = m.body().charAt(0) == '['
+        ? m.body().getBytes(Charset.forName("UTF-8"))
+        : Base64.getDecoder().decode(m.body());
     if (bytes[0] == '[') {
       return SpanBytesDecoder.JSON_V2.decodeList(bytes).stream();
     }

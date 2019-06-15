@@ -99,7 +99,7 @@ $ aws sqs send-message --queue-url $SQS_QUEUE_URL --message-body '[{
     "http.path": "/api"
   }
 }]'
-# read it back using the zipkin v1 api
-$ curl -s localhost:9411/api/v1/trace/86154a4ba6e91385|jq .[].traceId
+# read it back using the zipkin v2 api
+$ curl -s localhost:9411/api/v2/trace/86154a4ba6e91385|jq .[].traceId
 "86154a4ba6e91385"
 ```

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,13 +13,6 @@
  */
 package zipkin.autoconfigure.collector.kinesis;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -30,50 +23,57 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.type.AnnotatedTypeMetadata;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 @Configuration
 @EnableConfigurationProperties(ZipkinKinesisCollectorProperties.class)
 @Conditional(ZipkinKinesisCollectorAutoConfiguration.KinesisSetCondition.class)
 class ZipkinKinesisCredentialsAutoConfiguration {
 
-  /** Setup {@link AWSSecurityTokenService} client an IAM role to assume is given. */
+  /** Setup {@link StsClient} client an IAM role to assume is given. */
   @Bean
   @ConditionalOnMissingBean
-  @Conditional(STSSetCondition.class)
-  AWSSecurityTokenService securityTokenService(ZipkinKinesisCollectorProperties properties) {
-    return AWSSecurityTokenServiceClientBuilder.standard()
-        .withCredentials(getDefaultCredentialsProvider(properties))
-        .withRegion(properties.getAwsStsRegion())
-        .build();
+  @Conditional(StsSetCondition.class)
+  StsClient stsClient(ZipkinKinesisCollectorProperties properties) {
+    return StsClient.builder()
+        .credentialsProvider(getDefaultCredentialsProvider(properties))
+        .region(Region.of(properties.awsStsRegion)).build();
   }
 
   @Autowired(required = false)
-  private AWSSecurityTokenService securityTokenService;
+  private StsClient stsClient;
 
-  /** By default, get credentials from the {@link DefaultAWSCredentialsProviderChain */
+  /** By default, get credentials from the {@link #getDefaultCredentialsProvider */
   @Bean
   @ConditionalOnMissingBean
-  AWSCredentialsProvider credentialsProvider(ZipkinKinesisCollectorProperties properties) {
-    if (securityTokenService != null) {
-      return new STSAssumeRoleSessionCredentialsProvider.Builder(
-              properties.getAwsStsRoleArn(), "zipkin-server")
-          .withStsClient(securityTokenService)
+  AwsCredentialsProvider credentialsProvider(ZipkinKinesisCollectorProperties properties) {
+    if (stsClient != null) {
+      return StsAssumeRoleCredentialsProvider.builder()
+          .refreshRequest(AssumeRoleRequest.builder()
+              .roleArn(properties.awsStsRoleArn).roleSessionName("zipkin-server").build())
+          .stsClient(stsClient)
           .build();
     } else {
       return getDefaultCredentialsProvider(properties);
     }
   }
 
-  private static AWSCredentialsProvider getDefaultCredentialsProvider(
+  private static AwsCredentialsProvider getDefaultCredentialsProvider(
       ZipkinKinesisCollectorProperties properties) {
-    AWSCredentialsProvider provider = new DefaultAWSCredentialsProviderChain();
+    AwsCredentialsProvider provider = DefaultCredentialsProvider.create();
 
     // Create credentials provider from ID and secret if given.
-    if (!isNullOrEmpty(properties.getAwsAccessKeyId())
-        && !isNullOrEmpty(properties.getAwsSecretAccessKey())) {
-      provider =
-          new AWSStaticCredentialsProvider(
-              new BasicAWSCredentials(properties.getAwsAccessKeyId(), properties.getAwsSecretAccessKey()));
+    if (!isNullOrEmpty(properties.awsAccessKeyId)
+        && !isNullOrEmpty(properties.awsSecretAccessKey)) {
+      provider = StaticCredentialsProvider.create(
+          AwsBasicCredentials.create(properties.awsAccessKeyId, properties.awsSecretAccessKey));
     }
 
     return provider;
@@ -94,7 +94,7 @@ class ZipkinKinesisCredentialsAutoConfiguration {
    * aws-sts-role-arn: ${KINESIS_AWS_STS_ROLE_ARN:}
    * }</pre>
    */
-  static final class STSSetCondition extends SpringBootCondition {
+  static final class StsSetCondition extends SpringBootCondition {
 
     private static final String PROPERTY_NAME = "zipkin.collector.kinesis.aws-sts-role-arn";
 

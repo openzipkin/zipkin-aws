@@ -55,7 +55,9 @@
     <log4j.version>2.11.2</log4j.version>
 
     <aws-java-sdk.version>1.11.573</aws-java-sdk.version>
-    <sdk-core.version>2.5.64</sdk-core.version>
+    <awssdk.version>2.5.64</awssdk.version>
+    <!-- This should only be used in tests, and be careful to avoid >= v20 apis -->
+    <guava.version>27.1-jre</guava.version>
 
     <!-- make sure this matches spring-boot's version -->
     <jackson.version>2.9.8</jackson.version>

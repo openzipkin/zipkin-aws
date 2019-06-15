@@ -13,24 +13,34 @@
  */
 package zipkin2.collector.kinesis;
 
-import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessor;
-import com.amazonaws.services.kinesis.clientlibrary.types.InitializationInput;
-import com.amazonaws.services.kinesis.clientlibrary.types.ProcessRecordsInput;
-import com.amazonaws.services.kinesis.clientlibrary.types.ShutdownInput;
-import com.amazonaws.services.kinesis.model.Record;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
+import software.amazon.kinesis.lifecycle.events.InitializationInput;
+import software.amazon.kinesis.lifecycle.events.LeaseLostInput;
+import software.amazon.kinesis.lifecycle.events.ProcessRecordsInput;
+import software.amazon.kinesis.lifecycle.events.ShardEndedInput;
+import software.amazon.kinesis.lifecycle.events.ShutdownRequestedInput;
+import software.amazon.kinesis.processor.ShardRecordProcessor;
+import software.amazon.kinesis.retrieval.KinesisClientRecord;
 import zipkin2.Callback;
+import zipkin2.Span;
+import zipkin2.SpanBytesDecoderDetector;
+import zipkin2.codec.SpanBytesDecoder;
 import zipkin2.collector.Collector;
 import zipkin2.collector.CollectorMetrics;
 
-final class KinesisSpanProcessor implements IRecordProcessor {
-  static final Callback<Void> NOOP =
-      new Callback<Void>() {
-        @Override
-        public void onSuccess(Void value) {}
+final class KinesisSpanProcessor implements ShardRecordProcessor {
+  static final Logger LOGGER = Logger.getLogger(KinesisCollector.class.getName());
+  static final Callback<Void> NOOP = new Callback<Void>() {
+    @Override public void onSuccess(Void value) {
+    }
 
-        @Override
-        public void onError(Throwable t) {}
-      };
+    @Override public void onError(Throwable t) {
+    }
+  };
 
   final Collector collector;
   final CollectorMetrics metrics;
@@ -40,19 +50,43 @@ final class KinesisSpanProcessor implements IRecordProcessor {
     this.metrics = metrics;
   }
 
-  @Override
-  public void initialize(InitializationInput initializationInput) {}
+  @Override public void initialize(InitializationInput initializationInput) {
+  }
 
-  @Override
-  public void processRecords(ProcessRecordsInput processRecordsInput) {
-    for (Record record : processRecordsInput.getRecords()) {
-      byte[] serialized = record.getData().array();
+  @Override public void processRecords(ProcessRecordsInput processRecordsInput) {
+    boolean shouldLog = LOGGER.isLoggable(Level.FINE);
+
+    for (KinesisClientRecord record : processRecordsInput.records()) {
+      ByteBuffer nioBuffer = record.data();
       metrics.incrementMessages();
-      metrics.incrementBytes(serialized.length);
-      collector.acceptSpans(serialized, NOOP); // async
+      metrics.incrementBytes(record.data().remaining());
+
+      SpanBytesDecoder decoder;
+      try {
+        decoder = (SpanBytesDecoder) SpanBytesDecoderDetector.decoderForListMessage(nioBuffer);
+      } catch (IllegalArgumentException e) {
+        if (shouldLog) LOGGER.log(Level.FINE, "error detecting encoding", e);
+        metrics.incrementMessagesDropped();
+        continue;
+      }
+
+      List<Span> spans = new ArrayList<>();
+      if (!decoder.decodeList(nioBuffer, spans)) {
+        if (shouldLog) LOGGER.log(Level.FINE, "Empty " + decoder.name() + " message");
+        continue;
+      }
+
+      // UnzippingBytesRequestConverter handles incrementing message and bytes
+      collector.accept(spans, NOOP); // async
     }
   }
 
-  @Override
-  public void shutdown(ShutdownInput shutdownInput) {}
+  @Override public void leaseLost(LeaseLostInput leaseLostInput) {
+  }
+
+  @Override public void shardEnded(ShardEndedInput shardEndedInput) {
+  }
+
+  @Override public void shutdownRequested(ShutdownRequestedInput shutdownRequestedInput) {
+  }
 }

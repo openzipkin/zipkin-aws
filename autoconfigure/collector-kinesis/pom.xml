@@ -45,17 +45,31 @@
       <groupId>${project.groupId}</groupId>
       <artifactId>zipkin-collector-kinesis</artifactId>
       <version>${project.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.google.guava</groupId>
+          <artifactId>*</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
+
     <dependency>
-      <groupId>com.amazonaws</groupId>
-      <artifactId>aws-java-sdk-sts</artifactId>
-      <version>${aws-java-sdk.version}</version>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>sts</artifactId>
+      <version>${awssdk.version}</version>
     </dependency>
 
     <dependency>
       <groupId>${project.groupId}</groupId>
       <artifactId>zipkin-aws-junit</artifactId>
       <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+      <version>${guava.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>

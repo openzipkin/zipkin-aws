@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,7 +13,6 @@
  */
 package zipkin.autoconfigure.collector.kinesis;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.SpringBootCondition;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -22,6 +21,7 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.type.AnnotatedTypeMetadata;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import zipkin2.collector.CollectorMetrics;
 import zipkin2.collector.CollectorSampler;
 import zipkin2.collector.kinesis.KinesisCollector;
@@ -32,10 +32,9 @@ import zipkin2.storage.StorageComponent;
 @Conditional(ZipkinKinesisCollectorAutoConfiguration.KinesisSetCondition.class)
 class ZipkinKinesisCollectorAutoConfiguration {
 
-  @Bean
-  KinesisCollector kinesisCollector(
+  @Bean KinesisCollector kinesisCollector(
       ZipkinKinesisCollectorProperties properties,
-      AWSCredentialsProvider credentialsProvider,
+      AwsCredentialsProvider credentialsProvider,
       CollectorSampler sampler,
       CollectorMetrics metrics,
       StorageComponent storage) {
@@ -55,8 +54,7 @@ class ZipkinKinesisCollectorAutoConfiguration {
 
     private static final String PROPERTY_NAME = "zipkin.collector.kinesis.stream-name";
 
-    @Override
-    public ConditionOutcome getMatchOutcome(
+    @Override public ConditionOutcome getMatchOutcome(
         ConditionContext context, AnnotatedTypeMetadata annotatedTypeMetadata) {
       String streamName = context.getEnvironment().getProperty(PROPERTY_NAME);
 

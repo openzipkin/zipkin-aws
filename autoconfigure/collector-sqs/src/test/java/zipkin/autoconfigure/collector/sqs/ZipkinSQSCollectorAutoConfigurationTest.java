@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,9 +13,6 @@
  */
 package zipkin.autoconfigure.collector.sqs;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
@@ -26,6 +23,9 @@ import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import zipkin2.collector.CollectorMetrics;
 import zipkin2.collector.CollectorSampler;
 import zipkin2.collector.sqs.SQSCollector;
@@ -33,37 +33,23 @@ import zipkin2.junit.aws.AmazonSQSRule;
 import zipkin2.storage.InMemoryStorage;
 import zipkin2.storage.StorageComponent;
 
-import static com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 public class ZipkinSQSCollectorAutoConfigurationTest {
-  /** Don't crash if CI box doesn't have .aws directory defined */
-  @Configuration
-  static class Region {
-    @Bean
-    EndpointConfiguration endpointConfiguration() {
-      return new EndpointConfiguration("sqs.us-east-1.amazonaws.com", "us-east-1");
-    }
-  }
-
   @Rule public ExpectedException thrown = ExpectedException.none();
 
   @Rule public AmazonSQSRule sqsRule = new AmazonSQSRule().start(9324);
 
-  AnnotationConfigApplicationContext context;
+  AnnotationConfigApplicationContext context= new AnnotationConfigApplicationContext();
 
-  @After
-  public void close() {
+  @After public void close() {
     if (context != null) context.close();
   }
 
-  @Test
-  public void doesntProvideCollectorComponent_whenSqsQueueUrlUnset() {
-    context = new AnnotationConfigApplicationContext();
+  @Test public void doesntProvideCollectorComponent_whenSqsQueueUrlUnset() {
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
-        Region.class,
         ZipkinSQSCollectorAutoConfiguration.class,
         ZipkinSQSCredentialsAutoConfiguration.class,
         InMemoryConfiguration.class);
@@ -73,9 +59,7 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
     context.getBean(SQSCollector.class);
   }
 
-  @Test
-  public void provideCollectorComponent_whenSqsQueueUrlIsSet() {
-    context = new AnnotationConfigApplicationContext();
+  @Test  public void provideCollectorComponent_whenSqsQueueUrlIsSet() {
     TestPropertyValues.of(
         "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl(),
         "zipkin.collector.sqs.wait-time-seconds:1",
@@ -84,21 +68,18 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
         .applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
-        Region.class,
         ZipkinSQSCollectorAutoConfiguration.class,
         ZipkinSQSCredentialsAutoConfiguration.class,
         InMemoryConfiguration.class);
     context.refresh();
 
     assertThat(context.getBean(SQSCollector.class)).isNotNull();
-    assertThat(context.getBean(AWSCredentialsProvider.class)).isNotNull();
+    assertThat(context.getBean(AwsCredentialsProvider.class)).isNotNull();
     assertThatExceptionOfType(NoSuchBeanDefinitionException.class)
-        .isThrownBy(() -> context.getBean(AWSSecurityTokenService.class));
+        .isThrownBy(() -> context.getBean(StsClient.class));
   }
 
-  @Test
-  public void provideCollectorComponent_setsZipkinSqsCollectorProperties() {
-    context = new AnnotationConfigApplicationContext();
+  @Test public void provideCollectorComponent_setsZipkinSqsCollectorProperties() {
     TestPropertyValues.of(
         "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl(),
         "zipkin.collector.sqs.wait-time-seconds:1",
@@ -108,7 +89,6 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
         .applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
-        Region.class,
         ZipkinSQSCollectorAutoConfiguration.class,
         ZipkinSQSCredentialsAutoConfiguration.class,
         InMemoryConfiguration.class);
@@ -121,9 +101,7 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
     assertThat(properties.getParallelism()).isEqualTo(3);
   }
 
-  @Test
-  public void provideSecurityTokenService_whenAwsStsRoleArnIsSet() {
-    context = new AnnotationConfigApplicationContext();
+  @Test public void provideSecurityTokenService_whenAwsStsRoleArnIsSet() {
     TestPropertyValues.of(
         "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl(),
         "zipkin.collector.sqs.wait-time-seconds:1",
@@ -133,32 +111,28 @@ public class ZipkinSQSCollectorAutoConfigurationTest {
         .applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
-        Region.class,
         ZipkinSQSCollectorAutoConfiguration.class,
         ZipkinSQSCredentialsAutoConfiguration.class,
         InMemoryConfiguration.class);
     context.refresh();
 
     assertThat(context.getBean(SQSCollector.class)).isNotNull();
-    assertThat(context.getBean(AWSSecurityTokenService.class)).isNotNull();
-    assertThat(context.getBean(AWSCredentialsProvider.class))
-        .isInstanceOf(STSAssumeRoleSessionCredentialsProvider.class);
+    assertThat(context.getBean(StsClient.class)).isNotNull();
+    assertThat(context.getBean(AwsCredentialsProvider.class))
+        .isInstanceOf(StsAssumeRoleCredentialsProvider.class);
   }
 
   @Configuration
   static class InMemoryConfiguration {
-    @Bean
-    CollectorSampler sampler() {
+    @Bean CollectorSampler sampler() {
       return CollectorSampler.ALWAYS_SAMPLE;
     }
 
-    @Bean
-    CollectorMetrics metrics() {
+    @Bean CollectorMetrics metrics() {
       return CollectorMetrics.NOOP_METRICS;
     }
 
-    @Bean
-    StorageComponent storage() {
+    @Bean StorageComponent storage() {
       return InMemoryStorage.newBuilder().build();
     }
   }

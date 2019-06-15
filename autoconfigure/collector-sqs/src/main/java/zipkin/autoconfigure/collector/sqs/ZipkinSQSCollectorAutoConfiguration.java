@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,9 +13,6 @@
  */
 package zipkin.autoconfigure.collector.sqs;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.SpringBootCondition;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -24,6 +21,7 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.type.AnnotatedTypeMetadata;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import zipkin2.collector.CollectorMetrics;
 import zipkin2.collector.CollectorSampler;
 import zipkin2.collector.sqs.SQSCollector;
@@ -33,14 +31,9 @@ import zipkin2.storage.StorageComponent;
 @EnableConfigurationProperties(ZipkinSQSCollectorProperties.class)
 @Conditional(ZipkinSQSCollectorAutoConfiguration.SQSSetCondition.class)
 class ZipkinSQSCollectorAutoConfiguration {
-
-  @Autowired(required = false)
-  EndpointConfiguration endpointConfiguration;
-
-  @Bean
-  SQSCollector sqsCollector(
+  @Bean SQSCollector sqsCollector(
       ZipkinSQSCollectorProperties properties,
-      AWSCredentialsProvider credentialsProvider,
+      AwsCredentialsProvider credentialsProvider,
       CollectorSampler sampler,
       CollectorMetrics metrics,
       StorageComponent storage) {
@@ -49,7 +42,6 @@ class ZipkinSQSCollectorAutoConfiguration {
         .queueUrl(properties.getQueueUrl())
         .waitTimeSeconds(properties.getWaitTimeSeconds())
         .parallelism(properties.getParallelism())
-        .endpointConfiguration(endpointConfiguration)
         .credentialsProvider(credentialsProvider)
         .sampler(sampler)
         .metrics(metrics)
