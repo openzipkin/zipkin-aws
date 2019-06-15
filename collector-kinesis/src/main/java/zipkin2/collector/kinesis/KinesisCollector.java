@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -40,6 +40,7 @@ public final class KinesisCollector extends CollectorComponent {
   public static final class Builder extends CollectorComponent.Builder {
 
     Collector.Builder delegate = Collector.newBuilder(KinesisCollector.class);
+    CollectorMetrics metrics = CollectorMetrics.NOOP_METRICS;
 
     AWSCredentialsProvider credentialsProvider;
     String appName;
@@ -55,7 +56,7 @@ public final class KinesisCollector extends CollectorComponent {
     @Override
     public Builder metrics(CollectorMetrics metrics) {
       if (metrics == null) throw new NullPointerException("metrics == null");
-      delegate.metrics(metrics.forTransport("kinesis"));
+      delegate.metrics(this.metrics = metrics.forTransport("kinesis"));
       return this;
     }
 
@@ -94,6 +95,7 @@ public final class KinesisCollector extends CollectorComponent {
   }
 
   private final Collector collector;
+  private final CollectorMetrics metrics;
   private final String appName;
   private final String streamName;
   private final AWSCredentialsProvider credentialsProvider;
@@ -105,7 +107,7 @@ public final class KinesisCollector extends CollectorComponent {
 
   KinesisCollector(Builder builder) {
     this.collector = builder.delegate.build();
-
+    this.metrics = builder.metrics;
     this.appName = builder.appName;
     this.streamName = builder.streamName;
     this.credentialsProvider = builder.credentialsProvider;
@@ -131,7 +133,7 @@ public final class KinesisCollector extends CollectorComponent {
         new KinesisClientLibConfiguration(appName, streamName, credentialsProvider, workerId);
     config.withRegionName(regionName);
 
-    processor = new KinesisRecordProcessorFactory(collector);
+    processor = new KinesisRecordProcessorFactory(collector, metrics);
     worker = new Worker.Builder().recordProcessorFactory(processor).config(config).build();
 
     executor.execute(worker);
@@ -154,14 +156,16 @@ public final class KinesisCollector extends CollectorComponent {
   private static final class KinesisRecordProcessorFactory implements IRecordProcessorFactory {
 
     final Collector collector;
+    final CollectorMetrics metrics;
 
-    KinesisRecordProcessorFactory(Collector collector) {
+    KinesisRecordProcessorFactory(Collector collector, CollectorMetrics metrics) {
       this.collector = collector;
+      this.metrics = metrics;
     }
 
     @Override
     public IRecordProcessor createProcessor() {
-      return new KinesisSpanProcessor(collector);
+      return new KinesisSpanProcessor(collector, metrics);
     }
   }
 }

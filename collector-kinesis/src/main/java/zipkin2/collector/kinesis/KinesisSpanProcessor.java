@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -20,6 +20,7 @@ import com.amazonaws.services.kinesis.clientlibrary.types.ShutdownInput;
 import com.amazonaws.services.kinesis.model.Record;
 import zipkin2.Callback;
 import zipkin2.collector.Collector;
+import zipkin2.collector.CollectorMetrics;
 
 final class KinesisSpanProcessor implements IRecordProcessor {
   static final Callback<Void> NOOP =
@@ -31,10 +32,12 @@ final class KinesisSpanProcessor implements IRecordProcessor {
         public void onError(Throwable t) {}
       };
 
-  private final Collector collector;
+  final Collector collector;
+  final CollectorMetrics metrics;
 
-  KinesisSpanProcessor(Collector collector) {
+  KinesisSpanProcessor(Collector collector, CollectorMetrics metrics) {
     this.collector = collector;
+    this.metrics = metrics;
   }
 
   @Override
@@ -43,7 +46,10 @@ final class KinesisSpanProcessor implements IRecordProcessor {
   @Override
   public void processRecords(ProcessRecordsInput processRecordsInput) {
     for (Record record : processRecordsInput.getRecords()) {
-      collector.acceptSpans(record.getData().array(), NOOP);
+      byte[] serialized = record.getData().array();
+      metrics.incrementMessages();
+      metrics.incrementBytes(serialized.length);
+      collector.acceptSpans(serialized, NOOP); // async
     }
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -47,9 +47,7 @@ public class ITSQSCollector {
           TestObjects.LOTS_OF_SPANS[0], TestObjects.LOTS_OF_SPANS[1], TestObjects.LOTS_OF_SPANS[2]);
 
   private InMemoryStorage store;
-
   private InMemoryCollectorMetrics metrics;
-
   private CollectorComponent collector;
 
   @Before
@@ -70,6 +68,7 @@ public class ITSQSCollector {
             .storage(store)
             .build()
             .start();
+    metrics = metrics.forTransport("sqs");
   }
 
   @After
@@ -136,7 +135,12 @@ public class ITSQSCollector {
   public void malformedSpansShouldBeDiscarded() throws Exception {
     sqsRule.send("[not going to work]");
     sqsRule.send(new String(SpanBytesEncoder.JSON_V1.encodeList(spans)));
-    assertSpansAccepted(spans);
+
+    await().atMost(15, TimeUnit.SECONDS).until(() -> store.acceptedSpanCount() == spans.size());
+
+    assertThat(metrics.messages()).isEqualTo(2);
+    assertThat(metrics.messagesDropped()).isEqualTo(1); // only one failed
+    assertThat(metrics.bytes()).isPositive();
 
     // ensure corrupt spans are deleted
     await().atMost(5, TimeUnit.SECONDS).until(() -> sqsRule.notVisibleCount() == 0);
@@ -147,6 +151,8 @@ public class ITSQSCollector {
 
     List<Span> someSpans = store.spanStore().getTrace(spans.get(0).traceId()).execute();
 
+    assertThat(metrics.messages()).as("check accept metrics.").isPositive();
+    assertThat(metrics.bytes()).as("check bytes metrics.").isPositive();
     assertThat(metrics.messagesDropped()).as("check dropped metrics.").isEqualTo(0);
     assertThat(someSpans).as("recorded spans should not be null").isNotNull();
     assertThat(spans).as("some spans have been recorded").containsAll(someSpans);
