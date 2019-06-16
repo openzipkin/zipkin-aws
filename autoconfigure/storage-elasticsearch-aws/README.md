@@ -26,8 +26,8 @@ Run Zipkin with elasticsearch storage enabled and your AWS URL
 For example:
 
 ```bash
-$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s
-$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-storage-elasticsearch-aws:LATEST:module elasticsearch-aws.jar
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-storage-elasticsearch-aws:LATEST:module elasticsearch-aws.jar
 $ STORAGE_TYPE=elasticsearch ES_HOSTS=https://search-mydomain-2rlih66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com \
     java \
     -Dloader.path='elasticsearch-aws.jar,elasticsearch-aws.jar!/lib' \

@@ -21,8 +21,8 @@ Run Zipkin server with the Kinesis collector enabled.
 For example:
 
 ```bash
-$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s
-$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-collector-kinesis:LATEST:module kinesis.jar
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-collector-kinesis:LATEST:module kinesis.jar
 $ KINESIS_STREAM_NAME=zipkin \
     java \
     -Dloader.path='kinesis.jar,kinesis.jar!/lib' \

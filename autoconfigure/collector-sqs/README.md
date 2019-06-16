@@ -21,8 +21,8 @@ Run Zipkin server with the SQS collector enabled.
 For example:
 
 ```bash
-$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s
-$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-collector-sqs:LATEST:module sqs.jar
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-collector-sqs:LATEST:module sqs.jar
 $ SQS_QUEUE_URL=https://ap-southeast-1.queue.amazonaws.com/012345678901/zipkin \
       java \
       -Dloader.path='sqs.jar,sqs.jar!/lib' \

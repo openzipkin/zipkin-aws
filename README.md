@@ -1,6 +1,6 @@
 [![Gitter chat](http://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg)](https://gitter.im/openzipkin/zipkin)
 [![Build Status](https://circleci.com/gh/openzipkin/zipkin-aws.svg?style=svg)](https://circleci.com/gh/openzipkin/zipkin-aws)
-[![Maven Central](https://img.shields.io/maven-central/v/io.zipkin.gcp/zipkin-autoconfigure-storage-stackdriver.svg)](https://search.maven.org/search?q=g:io.zipkin.gcp%20AND%20a:zipkin-autoconfigure-storage-stackdriver)
+[![Maven Central](https://img.shields.io/maven-central/v/io.zipkin.aws.svg)](https://search.maven.org/search?q=g:io.zipkin.aws)
 
 # zipkin-aws
 Shared libraries that provide Zipkin integration with AWS Kinesis and SQS. Requires JRE 6 or later.
@@ -87,10 +87,10 @@ SQS_QUEUE_URL=<from aws sqs list-queues> \
 ** NOTE: Make sure the parameters are defined in the same line or use environment variables **
 
 ## Artifacts
-All artifacts publish to the group ID "io.zipkin.gcp". We use a common
+All artifacts publish to the group ID "io.zipkin.aws". We use a common
 release version for all components.
 
 ### Library Releases
-Releases are uploaded to [Bintray](https://bintray.com/openzipkin/maven/zipkin) and synchronized to [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.zipkin.gcp%22)
+Releases are uploaded to [Bintray](https://bintray.com/openzipkin/maven/zipkin) and synchronized to [Maven Central](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22io.zipkin.aws%22)
 ### Library Snapshots
 Snapshots are uploaded to [JFrog](https://oss.jfrog.org/artifactory/oss-snapshot-local) after commits to master.

@@ -28,8 +28,8 @@ Run Zipkin server with the XRAY storage enabled.
 For example:
 
 ```bash
-$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s
-$ curl -sSL https://zipkin.apache.org/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-storage-xray:LATEST:module xray.jar
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s
+$ curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-storage-xray:LATEST:module xray.jar
 $ STORAGE_TYPE=xray \
     java \
     -Dloader.path='xray.jar,xray.jar!/lib' \
