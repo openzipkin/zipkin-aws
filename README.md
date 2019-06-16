@@ -1,5 +1,5 @@
 [![Gitter chat](http://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg)](https://gitter.im/openzipkin/zipkin)
-[![Build Status](https://circleci.com/gh/openzipkin/zipkin-aws.svg?style=svg)](https://circleci.com/gh/openzipkin/zipkin-aws)
+[![Build Status](https://travis-ci.org/openzipkin/zipkin-aws.svg?branch=master)](https://travis-ci.org/openzipkin/zipkin-aws)
 [![Maven Central](https://img.shields.io/maven-central/v/io.zipkin.aws.svg)](https://search.maven.org/search?q=g:io.zipkin.aws)
 
 # zipkin-aws
