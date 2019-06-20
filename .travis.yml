@@ -26,6 +26,14 @@ branches:
   except:
     - /^[0-9]/
 
+notifications:
+  webhooks:
+    urls:
+      - https://webhooks.gitter.im/e/ead3c37d57527214e9f2
+      - https://webhooks.gitter.im/e/e57478303f87ecd7bffc
+    on_success: change
+    on_failure: always
+
 env:
   global:
   # Ex. travis encrypt BINTRAY_USER=your_github_account
@@ -38,11 +46,3 @@ env:
   - secure: "cgD+Vaiyof6x2vPZuVuoSwqebyEq8k7YOSiE5n9KY5Z6qHselEPEmisF0+u/SnGox1wwNgIlftk1sB9i46qQAVPWzrgT/1DeISQ/I+48MLGMXvMn70ccgsj76SMxLXaGjWK8s1/8FoeWJ8HB93+aAGGL4rgoNQA4FVSAJOAXjXbQc5PH5sgfd+jz9wakFOPiy5/0er/DPKql70T1lkkqbjddrAmNrH2IwQCJOjfyG4FmnKZu0Wp5yhYTlS14xfAT7zk//RoEcV6hXZcv/dqJb5Uoml7J6qJwaqtR52j4FpdRvQCGJCNDiaGEMoAk+080ub8GPQR8mY9yFPpBVGx/fsWqosLv3YhBCJifvFRKyTqXTE9wMmnxzZdDN3MyzG+Unvtsn5ww9sUnQ8WOvQ/QiDnCLhO7lB0xpIvwBHXA+UBnoUb8NBhmilX779hYebeJTcxI58j2/AuchuC76aY6Tcxxm850LmG0eJU9jafypdtUuBr0zWbU9wk3ajpKcP5LDrnsf3bVVbgch7DJeznhMnJiwJM48/h7PvKypVxftkAvwPvQNKFR/ufXOFPiSTlS7t2WLddsdz/IYY8XShGobJiEcNT5qVxHsxMS05KqAxMxBoOrchngy+lcbGDCOztON+kNwtLe5ZaPd3ewlfisPzEVNP2wn0eTA5BXqZW1LgU="
   # Ex. travis encrypt SONATYPE_PASSWORD=your_sonatype_password
   - secure: "U4szTwwaGvDT8vg9hHH6/1h9yysl9RgZWT+3uRx8ZFIuMCtmnBOhQxuThy//2a9XPEcwzEFh9bbr9W4c2nMPsxSamj4dS9yxTfLSLUxLgHbVY+mmcLlrpsGXuGLOnVA9nJ/sux5nD4mKnfMaGpUmaOA+5Ab2DNSEG6jnXzdfZLc4QSCeydi0VQDlq7ScRkFyIkbyQ8xUB1us5fjp4F3tfGXl7lWVXvd/i12yNUMAa1joHSLFuZBen2cSCBt/O9YNHAx5vGTGs1pnX6FQQ/sr+Whtz+VmUGtfCbTYkCjnNCT4Spi9Oa2qzegWHeKuIzvnKwMK9JP/NUlmQAK4G/DcHO5gBWXCjBGbrhENr4xHqOpK2Na13VgO31/B/hb+0tJXgQBfxamuHIptq14Ntsv7w23LSHSSSSbBdSLX6xu30qEzF+LAzKEZqoLgnVAwE2btImov2KLwuMe4OEE36iiEdZp8FMRNtdeTwNFXhq+yLMp5/WWdW3+eafh7v/kDKRVL4PtAHwmxmirrmUfXRElZPEj66OdtsV6erxG5XVg92mH8/YarzLyjB19d1MSQA/78EqO1Fz900RerXx0XsCuZrFyjn1GA9235x6IxOmWaEFU0LfrUTJVdWvvsET1Kida0TBAj3Ko1GY/92y/F/49Dd4JQjfLL/caLK/tRdaH5UmI="
-
-notifications:
-  webhooks:
-    urls:
-      - https://webhooks.gitter.im/e/637e968b45032d16ee26
-    on_success: change
-    on_failure: always
-    on_start: false
