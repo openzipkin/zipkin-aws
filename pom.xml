@@ -47,19 +47,19 @@
 
     <license-maven-plugin.version>3.0</license-maven-plugin.version>
 
-    <zipkin.version>2.14.2</zipkin.version>
-    <zipkin-reporter.version>2.8.4</zipkin-reporter.version>
-    <brave.version>5.6.5</brave.version>
+    <zipkin.version>2.15.0</zipkin.version>
+    <zipkin-reporter.version>2.10.0</zipkin-reporter.version>
+    <brave.version>5.6.8</brave.version>
 
-    <slf4j.version>1.7.25</slf4j.version>
-    <log4j.version>2.11.2</log4j.version>
+    <slf4j.version>1.7.26</slf4j.version>
+    <log4j.version>2.12.0</log4j.version>
 
-    <aws-java-sdk.version>1.11.573</aws-java-sdk.version>
-    <sdk-core.version>2.5.64</sdk-core.version>
+    <aws-java-sdk.version>1.11.587</aws-java-sdk.version>
+    <sdk-core.version>2.7.0</sdk-core.version>
 
     <!-- make sure this matches spring-boot's version -->
-    <jackson.version>2.9.8</jackson.version>
-    <spring-boot.version>2.1.5.RELEASE</spring-boot.version>
+    <jackson.version>2.9.9</jackson.version>
+    <spring-boot.version>2.1.6.RELEASE</spring-boot.version>
 
     <!-- override to set exclusions per-project -->
     <errorprone.args />
@@ -272,7 +272,7 @@
 
       <plugin>
         <artifactId>maven-jar-plugin</artifactId>
-        <version>3.1.1</version>
+        <version>3.1.2</version>
       </plugin>
 
       <plugin>
@@ -305,7 +305,7 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>animal-sniffer-maven-plugin</artifactId>
-        <version>1.17</version>
+        <version>1.18</version>
         <configuration>
           <signature>
             <groupId>org.codehaus.mojo.signature</groupId>
