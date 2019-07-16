@@ -29,11 +29,18 @@
     <main.basedir>${project.basedir}/../..</main.basedir>
   </properties>
 
+  <repositories>
+    <repository>
+      <id>jitpack.io</id>
+      <url>https://jitpack.io</url>
+    </repository>
+  </repositories>
+
   <dependencies>
     <dependency>
-      <groupId>io.zipkin.zipkin2</groupId>
+      <groupId>com.github.openzipkin.zipkin</groupId>
       <artifactId>zipkin-storage-elasticsearch</artifactId>
-      <version>${zipkin.version}</version>
+      <version>73c2a84561</version>
     </dependency>
 
     <dependency>
@@ -49,9 +56,15 @@
     </dependency>
 
     <dependency>
-      <groupId>com.squareup.okhttp3</groupId>
-      <artifactId>mockwebserver</artifactId>
+      <groupId>com.linecorp.armeria</groupId>
+      <artifactId>armeria-testing-junit4</artifactId>
+      <version>${armeria.version}</version>
       <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>${mockito.version}</version>
     </dependency>
   </dependencies>
 </project>

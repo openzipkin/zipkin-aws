@@ -13,15 +13,17 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
+import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.common.AggregatedHttpRequest;
+import com.linecorp.armeria.common.AggregatedHttpResponse;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpStatusClass;
 import com.squareup.moshi.JsonReader;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.concurrent.CompletionException;
 import java.util.logging.Logger;
-import okhttp3.HttpUrl;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
 import okio.Buffer;
 import zipkin2.elasticsearch.ElasticsearchStorage;
 
@@ -30,30 +32,30 @@ import static zipkin2.elasticsearch.internal.JsonReaders.enterPath;
 final class ElasticsearchDomainEndpoint implements ElasticsearchStorage.HostsSupplier {
   static final Logger log = Logger.getLogger(ElasticsearchDomainEndpoint.class.getName());
 
-  final OkHttpClient client;
-  final Request describeElasticsearchDomain;
+  final HttpClient client;
+  final AggregatedHttpRequest describeElasticsearchDomain;
 
-  ElasticsearchDomainEndpoint(OkHttpClient client, HttpUrl baseUrl, String domain) {
+  ElasticsearchDomainEndpoint(HttpClient client, String domain) {
     if (client == null) throw new NullPointerException("client == null");
-    if (baseUrl == null) throw new NullPointerException("baseUrl == null");
     if (domain == null) throw new NullPointerException("domain == null");
     this.client = client;
     this.describeElasticsearchDomain =
-        new Request.Builder()
-            .url(baseUrl.newBuilder("2015-01-01/es/domain").addPathSegment(domain).build())
-            .tag("get-es-domain")
-            .build();
+        AggregatedHttpRequest.of(HttpMethod.GET, "/2015-01-01/es/domain/" + domain);
   }
 
   @Override
   public List<String> get() {
-    try (Response response = client.newCall(describeElasticsearchDomain).execute()) {
-      String body = response.body().string();
-      if (!response.isSuccessful()) {
+    final AggregatedHttpResponse response;
+    try {
+      response = client.execute(describeElasticsearchDomain)
+          .aggregate().join();
+
+      String body = response.contentUtf8();
+      if (!response.status().codeClass().equals(HttpStatusClass.SUCCESS)) {
         String message =
-            describeElasticsearchDomain.url().encodedPath()
+            describeElasticsearchDomain.path()
                 + " failed with status "
-                + response.code();
+                + response.status();
         if (!body.isEmpty()) message += ": " + body;
         throw new IllegalStateException(message);
       }
@@ -78,8 +80,8 @@ final class ElasticsearchDomainEndpoint implements ElasticsearchStorage.HostsSup
       }
       log.fine("using endpoint " + endpoint);
       return Collections.singletonList(endpoint);
-    } catch (IOException e) {
-      throw new IllegalStateException("couldn't lookup domain endpoint", e);
+    } catch (CompletionException | IOException t) {
+      throw new IllegalStateException("couldn't lookup domain endpoint", t);
     }
   }
 }

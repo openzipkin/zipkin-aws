@@ -13,9 +13,17 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
-import okhttp3.OkHttpClient;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
+import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.common.AggregatedHttpRequest;
+import com.linecorp.armeria.common.AggregatedHttpResponse;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.server.ServerBuilder;
+import com.linecorp.armeria.testing.junit4.server.ServerRule;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
@@ -23,23 +31,41 @@ import org.junit.rules.ExpectedException;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ElasticsearchDomainEndpointTest {
-  @Rule public ExpectedException thrown = ExpectedException.none();
-  @Rule public MockWebServer es = new MockWebServer();
 
-  ElasticsearchDomainEndpoint client =
-      new ElasticsearchDomainEndpoint(new OkHttpClient(), es.url(""), "zipkin53");
+  static final AtomicReference<AggregatedHttpRequest> CAPTURED_REQUEST =
+      new AtomicReference<>();
+  static final AtomicReference<AggregatedHttpResponse> MOCK_RESPONSE =
+      new AtomicReference<>();
+
+  @ClassRule public static ServerRule server = new ServerRule() {
+    @Override protected void configure(ServerBuilder sb) {
+      sb.serviceUnder("/", (ctx, req) -> HttpResponse.from(
+          req.aggregate().thenApply(agg -> {
+            CAPTURED_REQUEST.set(agg);
+            return HttpResponse.of(MOCK_RESPONSE.get());
+          })));
+    }
+  };
+
+  @Rule public ExpectedException thrown = ExpectedException.none();
+
+  ElasticsearchDomainEndpoint client;
+
+  @Before public void setUp() {
+    client = new ElasticsearchDomainEndpoint(HttpClient.of(server.httpUri("/")), "zipkin53");
+  }
 
   @Test
-  public void publicUrl() throws Exception {
-    es.enqueue(
-        new MockResponse()
-            .setBody(
-                "{\n"
-                    + "  \"DomainStatus\": {\n"
-                    + "    \"Endpoint\": \"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\",\n"
-                    + "    \"Endpoints\": null\n"
-                    + "  }\n"
-                    + "}"));
+  public void publicUrl() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        "{\n"
+            + "  \"DomainStatus\": {\n"
+            + "    \"Endpoint\": \"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\",\n"
+            + "    \"Endpoints\": null\n"
+            + "  }\n"
+            + "}"));
 
     assertThat(client.get())
         .containsExactly(
@@ -47,18 +73,18 @@ public class ElasticsearchDomainEndpointTest {
   }
 
   @Test
-  public void vpcUrl() throws Exception {
-    es.enqueue(
-        new MockResponse()
-            .setBody(
-                "{\n"
-                    + "  \"DomainStatus\": {\n"
-                    + "    \"Endpoint\": null,\n"
-                    + "    \"Endpoints\": {\n"
-                    + "      \"vpc\":\"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\"\n"
-                    + "    }\n"
-                    + "  }\n"
-                    + "}"));
+  public void vpcUrl() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        "{\n"
+            + "  \"DomainStatus\": {\n"
+            + "    \"Endpoint\": null,\n"
+            + "    \"Endpoints\": {\n"
+            + "      \"vpc\":\"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\"\n"
+            + "    }\n"
+            + "  }\n"
+            + "}"));
 
     assertThat(client.get())
         .containsExactly(
@@ -67,17 +93,17 @@ public class ElasticsearchDomainEndpointTest {
 
   @Test
   public void vpcPreferred() {
-    es.enqueue(
-        new MockResponse()
-            .setBody(
-                "{\n"
-                    + "  \"DomainStatus\": {\n"
-                    + "    \"Endpoint\": \"isnotvpc\",\n"
-                    + "    \"Endpoints\": {\n"
-                    + "      \"vpc\":\"isvpc\"\n"
-                    + "    }\n"
-                    + "  }\n"
-                    + "}"));
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        "{\n"
+            + "  \"DomainStatus\": {\n"
+            + "    \"Endpoint\": \"isnotvpc\",\n"
+            + "    \"Endpoints\": {\n"
+            + "      \"vpc\":\"isvpc\"\n"
+            + "    }\n"
+            + "  }\n"
+            + "}"));
 
     assertThat(client.get())
         .containsExactly("https://isvpc");
@@ -85,15 +111,15 @@ public class ElasticsearchDomainEndpointTest {
 
   @Test
   public void vpcMissing() {
-    es.enqueue(
-        new MockResponse()
-            .setBody(
-                "{\n"
-                    + "  \"DomainStatus\": {\n"
-                    + "    \"Endpoint\": \"isnotvpc\",\n"
-                    + "    \"Endpoints\": {}\n"
-                    + "  }\n"
-                    + "}"));
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        "{\n"
+            + "  \"DomainStatus\": {\n"
+            + "    \"Endpoint\": \"isnotvpc\",\n"
+            + "    \"Endpoints\": {}\n"
+            + "  }\n"
+            + "}"));
 
     assertThat(client.get())
         .containsExactly("https://isnotvpc");
@@ -104,7 +130,10 @@ public class ElasticsearchDomainEndpointTest {
   public void noUrl() throws Exception {
     // simplified.. URL is usually the only thing actually missing
     String body = "{\"DomainStatus\": {}}";
-    es.enqueue(new MockResponse().setBody(body));
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        body));
 
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage(
@@ -117,7 +146,7 @@ public class ElasticsearchDomainEndpointTest {
   /** Not quite sure why, but some have reported receiving no URLs at all */
   @Test
   public void unauthorizedNoMessage() throws Exception {
-    es.enqueue(new MockResponse().setResponseCode(403));
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.FORBIDDEN));
 
     thrown.expect(IllegalStateException.class);
     thrown.expectMessage("/2015-01-01/es/domain/zipkin53 failed with status 403");
