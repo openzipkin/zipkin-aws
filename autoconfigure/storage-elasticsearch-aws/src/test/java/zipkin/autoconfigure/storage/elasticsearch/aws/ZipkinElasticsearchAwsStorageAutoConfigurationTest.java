@@ -13,24 +13,33 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
-import java.util.Collections;
-import java.util.List;
-import okhttp3.Interceptor;
-import okhttp3.OkHttpClient;
+import com.linecorp.armeria.client.Client;
+import com.linecorp.armeria.client.HttpClientBuilder;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import java.util.function.Consumer;
 import org.junit.After;
+import org.junit.Rule;
 import org.junit.Test;
+import org.mockito.Mock;
+import org.mockito.junit.MockitoJUnit;
+import org.mockito.junit.MockitoRule;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.context.annotation.Bean;
 import zipkin2.elasticsearch.ElasticsearchStorage;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
 
 public class ZipkinElasticsearchAwsStorageAutoConfigurationTest {
+
+  @Rule public MockitoRule mocks = MockitoJUnit.rule();
+
+  @Mock Client<HttpRequest, HttpResponse> mockHttpClient;
+
   AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 
   @After public void close() {
@@ -81,9 +90,18 @@ public class ZipkinElasticsearchAwsStorageAutoConfigurationTest {
   }
 
   void expectSignatureInterceptor() {
-    assertThat(context.getBean(OkHttpClient.class).networkInterceptors())
-        .extracting(Interceptor::getClass)
-        .contains((Class) AWSSignatureVersion4.class);
+    @SuppressWarnings("unchecked")
+    Consumer<HttpClientBuilder> customizer =
+        (Consumer<HttpClientBuilder>) context.getBean("awsSignatureVersion4", Consumer.class);
+
+    HttpClientBuilder clientBuilder = new HttpClientBuilder("http://foo");
+
+    // TODO(anuraaga): Can be simpler after https://github.com/line/armeria/issues/1883
+    customizer.accept(clientBuilder);
+    Client<HttpRequest, HttpResponse> decorated =
+        clientBuilder.build().options().decoration().decorate(HttpRequest.class, HttpResponse.class,
+            mockHttpClient);
+    assertThat(decorated).isInstanceOf(AWSSignatureVersion4.class);
   }
 
   void expectDomainEndpoint() {
@@ -92,8 +110,8 @@ public class ZipkinElasticsearchAwsStorageAutoConfigurationTest {
   }
 
   void expectNoInterceptors() {
-    assertThat(context.getBean(OkHttpClient.class).networkInterceptors())
-        .isEmpty();
+    assertThatThrownBy(() -> context.getBean("awsSignatureVersion4", Consumer.class))
+        .isInstanceOf(NoSuchBeanDefinitionException.class);
   }
 
   void expectNoDomainEndpoint() {
@@ -109,21 +127,7 @@ public class ZipkinElasticsearchAwsStorageAutoConfigurationTest {
     TestPropertyValues.of(pairs).applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
-        ZipkinElasticsearchAwsStorageAutoConfiguration.class,
-        ZipkinTestAutoConfiguration.class);
+        ZipkinElasticsearchAwsStorageAutoConfiguration.class);
     context.refresh();
-  }
-
-  // Relevant parts copied from ZipkinElasticsearchStorageAutoConfiguration for use in tests
-  static class ZipkinTestAutoConfiguration {
-    @Autowired(required = false) List<Interceptor> networkInterceptors = Collections.emptyList();
-
-    @Bean OkHttpClient okHttpClient() {
-      OkHttpClient.Builder builder = new OkHttpClient.Builder();
-      for (Interceptor interceptor : networkInterceptors) {
-        builder.addNetworkInterceptor(interceptor);
-      }
-      return builder.build();
-    }
   }
 }

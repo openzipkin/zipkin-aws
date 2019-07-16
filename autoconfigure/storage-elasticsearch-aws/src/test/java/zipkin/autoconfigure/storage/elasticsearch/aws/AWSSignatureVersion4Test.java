@@ -13,104 +13,128 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
+import com.linecorp.armeria.client.ClientRequestContext;
+import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.client.HttpClientBuilder;
+import com.linecorp.armeria.common.AggregatedHttpRequest;
+import com.linecorp.armeria.common.AggregatedHttpResponse;
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.common.RequestHeaders;
+import com.linecorp.armeria.server.ServerBuilder;
+import com.linecorp.armeria.testing.junit4.server.ServerRule;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
 import java.io.IOException;
-import okhttp3.MediaType;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.RequestBody;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.RecordedRequest;
-import org.junit.After;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class AWSSignatureVersion4Test {
+
+  static final AtomicReference<AggregatedHttpRequest> CAPTURED_REQUEST =
+      new AtomicReference<>();
+  static final AtomicReference<AggregatedHttpResponse> MOCK_RESPONSE =
+      new AtomicReference<>();
+
+  @ClassRule public static ServerRule server = new ServerRule() {
+    @Override protected void configure(ServerBuilder sb) {
+      sb.serviceUnder("/", (ctx, req) -> HttpResponse.from(
+          req.aggregate().thenApply(agg -> {
+            CAPTURED_REQUEST.set(agg);
+            return HttpResponse.of(MOCK_RESPONSE.get());
+          })));
+    }
+  };
+
   @Rule public ExpectedException thrown = ExpectedException.none();
-  @Rule public MockWebServer es = new MockWebServer();
 
   String region = "us-east-1";
   AWSCredentials.Provider credentials = () -> new AWSCredentials("access-key", "secret-key", null);
 
-  AWSSignatureVersion4 signer = new AWSSignatureVersion4(region, "es", () -> credentials.get());
+  HttpClient client;
 
-  OkHttpClient client = new OkHttpClient.Builder().addNetworkInterceptor(signer).build();
-
-  @After
-  public void close() throws IOException {
-    client.dispatcher().executorService().shutdownNow();
+  @Before public void setUp() {
+    client = new HttpClientBuilder(server.httpUri("/"))
+        .decorator(AWSSignatureVersion4.newDecorator(region, "es", () -> credentials.get()))
+        .build();
   }
 
   @Test
-  public void propagatesExceptionGettingCredentials() throws InterruptedException, IOException {
-    // makes sure this isn't wrapped.
-    thrown.expect(IllegalStateException.class);
-    thrown.expectMessage("Unable to load AWS credentials from any provider in the chain");
-
+  public void propagatesExceptionGettingCredentials() {
     credentials =
         () -> {
           throw new IllegalStateException(
               "Unable to load AWS credentials from any provider in the chain");
         };
 
-    client.newCall(new Request.Builder().url(es.url("/")).build()).execute();
+    assertThatThrownBy(() -> client.get("/").aggregate().join())
+        .isInstanceOfSatisfying(CompletionException.class,
+            t -> assertThat(t.getCause())
+                // makes sure this isn't wrapped.
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Unable to load AWS credentials from any provider in the chain"));
   }
 
   @Test
-  public void unwrapsJsonError() throws InterruptedException, IOException {
-    // makes sure this isn't wrapped.
-    thrown.expect(IllegalStateException.class);
-    thrown.expectMessage(
-        "The request signature we calculated does not match the signature you provided.");
+  public void unwrapsJsonError() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.FORBIDDEN,
+        MediaType.JSON_UTF_8,
+        "{\"message\":\"The request signature we calculated does not match the signature you "
+            + "provided.\"}"));
 
-    es.enqueue(
-        new MockResponse()
-            .setResponseCode(403)
-            .setBody(
-                "{\"message\":\"The request signature we calculated does not match the signature you provided.\"}"));
-
-    client
-        .newCall(new Request.Builder().url(es.url("/_template/zipkin_template")).build())
-        .execute();
+    assertThatThrownBy(() -> client.get("/_template/zipkin_template").aggregate().join())
+        .isInstanceOfSatisfying(CompletionException.class,
+            t -> assertThat(t.getCause())
+                // makes sure this isn't wrapped.
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("The request signature we calculated does not match the signature you "
+                    + "provided."));
   }
 
   @Test
-  public void signsRequestsForRegionAndEsService() throws InterruptedException, IOException {
-    es.enqueue(new MockResponse());
+  public void signsRequestsForRegionAndEsService() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.OK));
 
-    client
-        .newCall(new Request.Builder().url(es.url("/_template/zipkin_template")).build())
-        .execute();
+    client.get("/_template/zipkin_template").aggregate().join();
 
-    RecordedRequest request = es.takeRequest();
-    assertThat(request.getHeader("Authorization"))
+    AggregatedHttpRequest request = CAPTURED_REQUEST.get();
+    assertThat(request.headers().get(HttpHeaderNames.AUTHORIZATION))
         .startsWith("AWS4-HMAC-SHA256 Credential=" + credentials.get().accessKey)
         .contains(region + "/es/aws4_request"); // for the region and service
   }
 
   @Test
-  public void canonicalString_commasInPath() throws InterruptedException, IOException {
-    es.enqueue(new MockResponse());
+  public void canonicalString_commasInPath() {
+    AggregatedHttpRequest request = AggregatedHttpRequest.of(
+        RequestHeaders.builder(HttpMethod.POST,
+            "/zipkin-2016-10-05,zipkin-2016-10-06/dependencylink/_search?allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true")
+            .set(HttpHeaderNames.HOST, "search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com")
+            .set(AWSSignatureVersion4.X_AMZ_DATE, "20161004T132314Z")
+            .contentType(MediaType.JSON_UTF_8)
+        .build(),
+        HttpData.ofUtf8("{\n" + "    \"query\" : {\n" + "      \"match_all\" : { }\n" + "    }")
+    );
+    ClientRequestContext ctx = ClientRequestContext.of(HttpRequest.of(request));
+    ByteBuf result = Unpooled.buffer();
 
-    Request request =
-        new Request.Builder()
-            .header(
-                "host", "search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com")
-            .header("x-amz-date", "20161004T132314Z")
-            .url(
-                es.url(
-                    "zipkin-2016-10-05,zipkin-2016-10-06/dependencylink/_search?allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true"))
-            .post(
-                RequestBody.create(
-                    MediaType.parse("application/json"),
-                    "{\n" + "    \"query\" : {\n" + "      \"match_all\" : { }\n" + "    }"))
-            .build();
-
+    AWSSignatureVersion4.writeCanonicalString(ctx, request.headers(), request.content(), result);
     // Ensure that the canonical string encodes commas with %2C
-    assertThat(AWSSignatureVersion4.canonicalString(request).readUtf8())
+    assertThat(result.toString(StandardCharsets.UTF_8))
         .isEqualTo(
             "POST\n"
                 + "/zipkin-2016-10-05%2Czipkin-2016-10-06/dependencylink/_search\n"
@@ -125,20 +149,20 @@ public class AWSSignatureVersion4Test {
   /** Starting with Zipkin 1.31 colons are used to delimit index types in ES */
   @Test
   public void canonicalString_colonsInPath() throws InterruptedException, IOException {
-    es.enqueue(new MockResponse());
+    AggregatedHttpRequest request = AggregatedHttpRequest.of(
+        RequestHeaders.builder(HttpMethod.GET,
+            "/_cluster/health/zipkin:span-*")
+            .set(HttpHeaderNames.HOST, "search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com")
+            .set(AWSSignatureVersion4.X_AMZ_DATE, "20170830T143137Z")
+            .build()
+    );
+    ClientRequestContext ctx = ClientRequestContext.of(HttpRequest.of(request));
+    ByteBuf result = Unpooled.buffer();
 
-    Request request =
-        new Request.Builder()
-            .header(
-                "host",
-                "search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com")
-            .header("x-amz-date", "20170830T143137Z")
-            .url(es.url("_cluster/health/zipkin:span-*"))
-            .get()
-            .build();
+    AWSSignatureVersion4.writeCanonicalString(ctx, request.headers(), request.content(), result);
 
     // Ensure that the canonical string encodes commas with %2C
-    assertThat(AWSSignatureVersion4.canonicalString(request).readUtf8())
+    assertThat(result.toString(StandardCharsets.UTF_8))
         .isEqualTo(
             "GET\n"
                 + "/_cluster/health/zipkin%3Aspan-%2A\n"

@@ -17,12 +17,12 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSSessionCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.regions.DefaultAwsRegionProviderChain;
+import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.client.HttpClientBuilder;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import okhttp3.HttpUrl;
-import okhttp3.Interceptor;
-import okhttp3.OkHttpClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
@@ -50,9 +50,9 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
       Logger.getLogger(ZipkinElasticsearchAwsStorageAutoConfiguration.class.getName());
 
   @Bean @Qualifier("zipkinElasticsearchHttp")
-  Interceptor awsSignatureVersion4(String region, ZipkinElasticsearchAwsStorageProperties aws,
-      AWSCredentials.Provider credentials) {
-    return new AWSSignatureVersion4(region, "es", credentials);
+  Consumer<HttpClientBuilder> awsSignatureVersion4(String region,
+      ZipkinElasticsearchAwsStorageProperties aws, AWSCredentials.Provider credentials) {
+    return client -> client.decorator(AWSSignatureVersion4.newDecorator(region, "es", credentials));
   }
 
   @Bean String region(@Value("${zipkin.storage.elasticsearch.hosts:}") String hosts,
@@ -104,10 +104,9 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
   @Bean @Conditional(AwsDomainSetCondition.class)
   ElasticsearchStorage.HostsSupplier hostsSupplier(
       String region,
-      ZipkinElasticsearchAwsStorageProperties aws,
-      OkHttpClient client) {
+      ZipkinElasticsearchAwsStorageProperties aws) {
     return new ElasticsearchDomainEndpoint(
-        client, HttpUrl.parse("https://es." + region + ".amazonaws.com"), aws.getDomain());
+        HttpClient.of("https://es." + region + ".amazonaws.com/"), aws.getDomain());
   }
 
   static final class AwsDomainSetCondition extends SpringBootCondition {

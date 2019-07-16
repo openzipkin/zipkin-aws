@@ -13,31 +13,58 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
+import com.linecorp.armeria.client.Client;
+import com.linecorp.armeria.client.ClientRequestContext;
+import com.linecorp.armeria.client.SimpleDecoratingClient;
+import com.linecorp.armeria.common.AggregatedHttpRequest;
+import com.linecorp.armeria.common.AggregatedHttpResponse;
+import com.linecorp.armeria.common.HttpData;
+import com.linecorp.armeria.common.HttpHeaderNames;
+import com.linecorp.armeria.common.HttpRequest;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.RequestHeaders;
+import com.linecorp.armeria.common.RequestHeadersBuilder;
 import com.squareup.moshi.JsonReader;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.ByteBufHolder;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.util.AsciiString;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.security.InvalidKeyException;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
-import okhttp3.Interceptor;
-import okhttp3.Request;
-import okhttp3.Response;
-import okhttp3.ResponseBody;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Function;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
 import okio.Buffer;
-import okio.ByteString;
 
 import static java.lang.String.format;
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static zipkin2.elasticsearch.internal.JsonReaders.enterPath;
 
 // http://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
-final class AWSSignatureVersion4 implements Interceptor {
+final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, HttpResponse> {
   static final String EMPTY_STRING_HASH =
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
-  static final String HOST = "host";
-  static final String X_AMZ_DATE = "x-amz-date";
-  static final String X_AMZ_SECURITY_TOKEN = "x-amz-security-token";
-  static final String[] CANONICAL_HEADERS = {HOST, X_AMZ_DATE, X_AMZ_SECURITY_TOKEN};
-  static final String HOST_DATE = HOST + ";" + X_AMZ_DATE;
+  static final AsciiString X_AMZ_DATE = HttpHeaderNames.of("x-amz-date");
+  static final AsciiString X_AMZ_SECURITY_TOKEN = HttpHeaderNames.of("x-amz-security-token");
+  static final AsciiString[] CANONICAL_HEADERS =
+      {HttpHeaderNames.HOST, X_AMZ_DATE, X_AMZ_SECURITY_TOKEN};
+  static final String HOST_DATE = HttpHeaderNames.HOST + ";" + X_AMZ_DATE;
   static final String HOST_DATE_TOKEN = HOST_DATE + ";" + X_AMZ_SECURITY_TOKEN;
+
+  static final byte[] AWS4_REQUEST = "aws4_request".getBytes(UTF_8);
+
+  static Function<Client<HttpRequest, HttpResponse>, Client<HttpRequest, HttpResponse>>
+  newDecorator(String region, String service, AWSCredentials.Provider credentials) {
+    return client -> new AWSSignatureVersion4(client, region, service, credentials);
+  }
 
   // SimpleDateFormat isn't thread-safe
   static final ThreadLocal<SimpleDateFormat> iso8601 =
@@ -51,90 +78,140 @@ final class AWSSignatureVersion4 implements Interceptor {
       };
 
   final String region;
+  final byte[] regionBytes;
   final String service;
+  final byte[] serviceBytes;
   final AWSCredentials.Provider credentials;
 
-  AWSSignatureVersion4(String region, String service, AWSCredentials.Provider credentials) {
+  AWSSignatureVersion4(Client<HttpRequest, HttpResponse> delegate, String region, String service,
+      AWSCredentials.Provider credentials) {
+    super(delegate);
     if (region == null) throw new NullPointerException("region == null");
     if (service == null) throw new NullPointerException("service == null");
     if (credentials == null) throw new NullPointerException("credentials == null");
     this.region = region;
+    this.regionBytes = region.getBytes(UTF_8);
     this.service = service;
+    this.serviceBytes = service.getBytes(UTF_8);
     this.credentials = credentials;
   }
 
-  @Override
-  public Response intercept(Chain chain) throws IOException {
-    Request input = chain.request();
-    Request signed = sign(input);
-    Response response = chain.proceed(signed);
-    if (response.code() == 403) {
-      try (ResponseBody body = response.body()) {
-        JsonReader message = enterPath(JsonReader.of(body.source()), "message");
-        if (message != null) throw new IllegalStateException(message.nextString());
-      }
-      throw new IllegalStateException(response.toString());
-    }
-    return response;
+  @Override public HttpResponse execute(ClientRequestContext ctx, HttpRequest req)
+      throws Exception {
+    return HttpResponse.from(
+        req.aggregateWithPooledObjects(ctx.eventLoop(), ctx.alloc())
+            .thenCompose(aggReg -> {
+              try {
+                AggregatedHttpRequest signed = sign(ctx, aggReg);
+                return delegate().execute(ctx, HttpRequest.of(signed)).aggregate();
+              } catch (Exception e) {
+                CompletableFuture<AggregatedHttpResponse> future = new CompletableFuture<>();
+                future.completeExceptionally(e);
+                return future;
+              }
+            })
+            .thenApply(aggResp -> {
+              if (!aggResp.status().equals(HttpStatus.FORBIDDEN)) {
+                return HttpResponse.of(aggResp);
+              }
+              try {
+                JsonReader message = enterPath(
+                    JsonReader.of(new Buffer().write(aggResp.content().array())), "message");
+                if (message != null) throw new IllegalStateException(message.nextString());
+              } catch (IOException e) {
+                // Ignore JSON parse failure.
+              }
+              throw new IllegalStateException(aggResp.contentUtf8());
+            }));
   }
 
-  static Buffer canonicalString(Request input) throws IOException {
-    Buffer result = new Buffer();
+  static void writeCanonicalString(
+      ClientRequestContext ctx, RequestHeaders headers, HttpData content, ByteBuf result) {
     // HTTPRequestMethod + '\n' +
-    result.writeUtf8(input.method()).writeByte('\n');
+    ByteBufUtil.writeUtf8(result, ctx.method().name());
+    result.writeByte('\n');
 
     // CanonicalURI + '\n' +
     // TODO: make this more efficient
-    result
-        .writeUtf8(
-            input.url().encodedPath().replace("*", "%2A").replace(",", "%2C").replace(":", "%3A"))
-        .writeByte('\n');
+    ByteBufUtil.writeUtf8(result,
+        ctx.path().replace("*", "%2A").replace(",", "%2C").replace(":", "%3A"));
+    result.writeByte('\n');
 
     // CanonicalQueryString + '\n' +
-    String query = input.url().encodedQuery();
-    result.writeUtf8(query == null ? "" : query).writeByte('\n');
+    String query = ctx.query();
+    if (query != null) {
+      ByteBufUtil.writeUtf8(result, query);
+    }
+    result.writeByte('\n');
 
     // CanonicalHeaders + '\n' +
-    Buffer signedHeaders = new Buffer();
-    for (String canonicalHeader : CANONICAL_HEADERS) {
-      String value = input.header(canonicalHeader);
-      if (value != null) {
-        result.writeUtf8(canonicalHeader).writeByte(':').writeUtf8(value).writeByte('\n');
-        signedHeaders.writeByte(';').writeUtf8(canonicalHeader);
-      }
-    }
-    result.writeByte('\n'); // end headers
+    ByteBuf signedHeaders = ctx.alloc().buffer();
+    try {
+      for (AsciiString canonicalHeader : CANONICAL_HEADERS) {
+        String value = headers.get(canonicalHeader);
+        if (value != null) {
+          ByteBufUtil.writeUtf8(result, canonicalHeader);
+          result.writeByte(':');
+          ByteBufUtil.writeUtf8(result, value);
+          result.writeByte('\n');
 
-    // SignedHeaders + '\n' +
-    signedHeaders.readByte(); // throw away the first semicolon
-    result.writeAll(signedHeaders);
+          signedHeaders.writeByte(';');
+          ByteBufUtil.writeUtf8(signedHeaders, canonicalHeader);
+        }
+      }
+      result.writeByte('\n'); // end headers
+
+      // SignedHeaders + '\n' +
+      signedHeaders.readByte(); // throw away the first semicolon
+      result.writeBytes(signedHeaders);
+    } finally {
+      signedHeaders.release();
+    }
     result.writeByte('\n');
 
     // HexEncode(Hash(Payload))
-    if (input.body() != null && input.body().contentLength() != 0) {
-      Buffer body = new Buffer();
-      input.body().writeTo(body);
-      result.writeUtf8(body.sha256().hex());
+    if (!content.isEmpty()) {
+      ByteBufUtil.writeUtf8(result, ByteBufUtil.hexDump(sha256(content)));
     } else {
-      result.writeUtf8(EMPTY_STRING_HASH);
+      ByteBufUtil.writeUtf8(result, EMPTY_STRING_HASH);
     }
-    return result;
   }
 
-  static Buffer toSign(String timestamp, String credentialScope, Buffer canonicalRequest) {
-    Buffer result = new Buffer();
+  static void writeToSign(
+      String timestamp, String credentialScope, ByteBuf canonicalRequest, ByteBuf result) {
     // Algorithm + '\n' +
-    result.writeUtf8("AWS4-HMAC-SHA256\n");
+    ByteBufUtil.writeUtf8(result, "AWS4-HMAC-SHA256\n");
     // RequestDate + '\n' +
-    result.writeUtf8(timestamp).writeByte('\n');
+    ByteBufUtil.writeUtf8(result, timestamp);
+    result.writeByte('\n');
     // CredentialScope + '\n' +
-    result.writeUtf8(credentialScope).writeByte('\n');
+    ByteBufUtil.writeUtf8(result, credentialScope);
+    result.writeByte('\n');
     // HexEncode(Hash(CanonicalRequest))
-    result.writeUtf8(canonicalRequest.sha256().hex());
-    return result;
+    ByteBufUtil.writeUtf8(result, ByteBufUtil.hexDump(sha256(canonicalRequest.nioBuffer())));
   }
 
-  Request sign(Request input) throws IOException {
+  static byte[] sha256(HttpData data) {
+    final ByteBuffer buf;
+    if (data instanceof ByteBufHolder) {
+      buf = ((ByteBufHolder) data).content().nioBuffer();
+    } else {
+      buf = ByteBuffer.wrap(data.array());
+    }
+    return sha256(buf);
+  }
+
+  static byte[] sha256(ByteBuffer buf) {
+    try {
+      MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
+      messageDigest.update(buf);
+      return messageDigest.digest();
+    } catch (NoSuchAlgorithmException e) {
+      throw new AssertionError();
+    }
+  }
+
+  AggregatedHttpRequest sign(ClientRequestContext ctx, AggregatedHttpRequest req) throws IOException {
     AWSCredentials credentials = this.credentials.get();
     if (credentials == null) throw new NullPointerException("credentials == null");
 
@@ -143,43 +220,77 @@ final class AWSSignatureVersion4 implements Interceptor {
 
     String credentialScope = format("%s/%s/%s/%s", yyyyMMdd, region, service, "aws4_request");
 
-    Request.Builder builder = input.newBuilder();
-    builder.header(HOST, input.url().host());
-    builder.header(X_AMZ_DATE, timestamp);
+    RequestHeadersBuilder builder = req.headers().toBuilder()
+        .set(X_AMZ_DATE, timestamp);
     if (credentials.sessionToken != null) {
-      builder.header(X_AMZ_SECURITY_TOKEN, credentials.sessionToken);
+      builder.set(X_AMZ_SECURITY_TOKEN, credentials.sessionToken);
     }
 
-    Buffer canonicalString = canonicalString(builder.build());
     String signedHeaders = credentials.sessionToken == null ? HOST_DATE : HOST_DATE_TOKEN;
+    ByteBuf canonicalString = ctx.alloc().heapBuffer();
+    ByteBuf toSign = ctx.alloc().heapBuffer();
+    try {
+      writeCanonicalString(ctx, builder.build(), req.content(), canonicalString);
+      writeToSign(timestamp, credentialScope, canonicalString, toSign);
 
-    Buffer toSign = toSign(timestamp, credentialScope, canonicalString);
+      // TODO: this key is invalid when the secret key or the date change. both are very infrequent
+      byte[] signatureKey = signatureKey(credentials.secretKey, yyyyMMdd);
+      String signature = ByteBufUtil.hexDump(hmacSha256(signatureKey, toSign.nioBuffer()));
 
-    // TODO: this key is invalid when the secret key or the date change. both are very infrequent
-    ByteString signatureKey = signatureKey(credentials.secretKey, yyyyMMdd);
-    String signature = toSign.readByteString().hmacSha256(signatureKey).hex();
+      String authorization =
+          "AWS4-HMAC-SHA256 Credential="
+              + credentials.accessKey
+              + '/'
+              + credentialScope
+              + ", SignedHeaders="
+              + signedHeaders
+              + ", Signature="
+              + signature;
 
-    String authorization =
-        new StringBuilder()
-            .append("AWS4-HMAC-SHA256 Credential=")
-            .append(credentials.accessKey)
-            .append('/')
-            .append(credentialScope)
-            .append(", SignedHeaders=")
-            .append(signedHeaders)
-            .append(", Signature=")
-            .append(signature)
-            .toString();
-
-    return builder.header("authorization", authorization).build();
+      return AggregatedHttpRequest.of(
+          req.headers().toBuilder().add(HttpHeaderNames.AUTHORIZATION, authorization).build(),
+          req.content(),
+          req.trailers());
+    } finally {
+      canonicalString.release();
+      toSign.release();
+    }
   }
 
-  ByteString signatureKey(String secretKey, String yyyyMMdd) {
-    ByteString kSecret = ByteString.encodeUtf8("AWS4" + secretKey);
-    ByteString kDate = ByteString.encodeUtf8(yyyyMMdd).hmacSha256(kSecret);
-    ByteString kRegion = ByteString.encodeUtf8(region).hmacSha256(kDate);
-    ByteString kService = ByteString.encodeUtf8(service).hmacSha256(kRegion);
-    ByteString kSigning = ByteString.encodeUtf8("aws4_request").hmacSha256(kService);
+  byte[] signatureKey(String secretKey, String yyyyMMdd) {
+    byte[] kSecret = ("AWS4" + secretKey).getBytes(UTF_8);
+
+    byte[] kDate = hmacSha256(kSecret, yyyyMMdd.getBytes(UTF_8));
+    byte[] kRegion = hmacSha256(kDate, regionBytes);
+    byte[] kService = hmacSha256(kRegion, serviceBytes);
+    byte[] kSigning = hmacSha256(kService, AWS4_REQUEST);
+
     return kSigning;
+  }
+
+  static byte[] hmacSha256(byte[] secret, byte[] payload) {
+    try {
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(new SecretKeySpec(secret, "HmacSHA256"));
+      mac.update(payload);
+      return mac.doFinal();
+    } catch (NoSuchAlgorithmException e) {
+      throw new AssertionError();
+    } catch (InvalidKeyException e) {
+      throw new IllegalArgumentException(e);
+    }
+  }
+
+  static byte[] hmacSha256(byte[] secret, ByteBuffer payload) {
+    try {
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(new SecretKeySpec(secret, "HmacSHA256"));
+      mac.update(payload);
+      return mac.doFinal();
+    } catch (NoSuchAlgorithmException e) {
+      throw new AssertionError();
+    } catch (InvalidKeyException e) {
+      throw new IllegalArgumentException(e);
+    }
   }
 }
