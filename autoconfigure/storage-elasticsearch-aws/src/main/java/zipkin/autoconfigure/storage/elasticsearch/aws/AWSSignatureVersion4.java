@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -96,8 +96,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
     this.credentials = credentials;
   }
 
-  @Override public HttpResponse execute(ClientRequestContext ctx, HttpRequest req)
-      throws Exception {
+  @Override public HttpResponse execute(ClientRequestContext ctx, HttpRequest req) {
     return HttpResponse.from(
         req.aggregateWithPooledObjects(ctx.eventLoop(), ctx.alloc())
             .thenCompose(aggReg -> {
@@ -222,6 +221,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
 
     RequestHeadersBuilder builder = req.headers().toBuilder()
         .set(X_AMZ_DATE, timestamp);
+
     if (credentials.sessionToken != null) {
       builder.set(X_AMZ_SECURITY_TOKEN, credentials.sessionToken);
     }
@@ -248,7 +248,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
               + signature;
 
       return AggregatedHttpRequest.of(
-          req.headers().toBuilder().add(HttpHeaderNames.AUTHORIZATION, authorization).build(),
+          builder.add(HttpHeaderNames.AUTHORIZATION, authorization).build(),
           req.content(),
           req.trailers());
     } finally {
