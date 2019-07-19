@@ -32,6 +32,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collections;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Before;
@@ -69,7 +70,10 @@ public class AWSSignatureVersion4Test {
 
   @Before public void setUp() {
     client = new HttpClientBuilder(server.httpUri("/"))
-        .decorator(AWSSignatureVersion4.newDecorator(region, "es", () -> credentials.get()))
+        .decorator(AWSSignatureVersion4.newDecorator(region,
+            () -> Collections.singletonList(
+                "https://search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com"),
+            () -> credentials.get()))
         .build();
   }
 

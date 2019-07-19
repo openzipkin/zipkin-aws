@@ -31,18 +31,21 @@ import io.netty.buffer.ByteBufHolder;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.util.AsciiString;
 import java.io.IOException;
+import java.net.URI;
 import java.nio.ByteBuffer;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
+import java.util.List;
 import java.util.TimeZone;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import okio.Buffer;
+import zipkin2.elasticsearch.ElasticsearchStorage.HostsSupplier;
 
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -62,38 +65,53 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
   static final byte[] AWS4_REQUEST = "aws4_request".getBytes(UTF_8);
 
   static Function<Client<HttpRequest, HttpResponse>, Client<HttpRequest, HttpResponse>>
-  newDecorator(String region, String service, AWSCredentials.Provider credentials) {
-    return client -> new AWSSignatureVersion4(client, region, service, credentials);
+  newDecorator(String region, HostsSupplier hostsSupplier, AWSCredentials.Provider credentials) {
+    return client -> new AWSSignatureVersion4(client, region, hostsSupplier, credentials);
   }
 
   // SimpleDateFormat isn't thread-safe
-  static final ThreadLocal<SimpleDateFormat> iso8601 =
-      new ThreadLocal<SimpleDateFormat>() {
-        @Override
-        protected SimpleDateFormat initialValue() {
-          SimpleDateFormat result = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'");
-          result.setTimeZone(TimeZone.getTimeZone("UTC"));
-          return result;
-        }
-      };
+  static final ThreadLocal<SimpleDateFormat> iso8601 = ThreadLocal.withInitial(() -> {
+    SimpleDateFormat result = new SimpleDateFormat("yyyyMMdd'T'HHmmss'Z'");
+    result.setTimeZone(TimeZone.getTimeZone("UTC"));
+    return result;
+  });
 
   final String region;
   final byte[] regionBytes;
+  final HostsSupplier hostsSupplier;
   final String service;
   final byte[] serviceBytes;
   final AWSCredentials.Provider credentials;
 
-  AWSSignatureVersion4(Client<HttpRequest, HttpResponse> delegate, String region, String service,
-      AWSCredentials.Provider credentials) {
+  AWSSignatureVersion4(Client<HttpRequest, HttpResponse> delegate, String region,
+      HostsSupplier hostsSupplier, AWSCredentials.Provider credentials) {
     super(delegate);
     if (region == null) throw new NullPointerException("region == null");
-    if (service == null) throw new NullPointerException("service == null");
     if (credentials == null) throw new NullPointerException("credentials == null");
     this.region = region;
     this.regionBytes = region.getBytes(UTF_8);
-    this.service = service;
+    this.hostsSupplier = hostsSupplier;
+    this.service = "es";
     this.serviceBytes = service.getBytes(UTF_8);
     this.credentials = credentials;
+  }
+
+  volatile String host;
+
+  String host(){
+    if (host == null) {
+      synchronized (this) {
+        if (host == null) {
+          // We currently cannot access the hostname during decoration. Instead, we proceed knowing
+          // that our implementation of AWS ES only returns a single endpoint.
+          List<String> hosts = hostsSupplier.get();
+          if (hosts.isEmpty()) throw new RuntimeException("No AWS ES hosts!");
+          if (hosts.size() > 1) throw new RuntimeException("Expected one AWS ES host: " + hosts);
+          host = URI.create(hosts.get(0)).getHost();
+        }
+      }
+    }
+    return host;
   }
 
   @Override public HttpResponse execute(ClientRequestContext ctx, HttpRequest req) {
@@ -210,7 +228,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
     }
   }
 
-  AggregatedHttpRequest sign(ClientRequestContext ctx, AggregatedHttpRequest req) throws IOException {
+  AggregatedHttpRequest sign(ClientRequestContext ctx, AggregatedHttpRequest req) {
     AWSCredentials credentials = this.credentials.get();
     if (credentials == null) throw new NullPointerException("credentials == null");
 
@@ -220,7 +238,8 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
     String credentialScope = format("%s/%s/%s/%s", yyyyMMdd, region, service, "aws4_request");
 
     RequestHeadersBuilder builder = req.headers().toBuilder()
-        .set(X_AMZ_DATE, timestamp);
+        .set(X_AMZ_DATE, timestamp)
+        .set(HttpHeaderNames.HOST, host());
 
     if (credentials.sessionToken != null) {
       builder.set(X_AMZ_SECURITY_TOKEN, credentials.sessionToken);
