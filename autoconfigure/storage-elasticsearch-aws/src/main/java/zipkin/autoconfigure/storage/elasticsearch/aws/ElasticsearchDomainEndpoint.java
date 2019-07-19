@@ -20,20 +20,22 @@ import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpStatusClass;
 import com.squareup.moshi.JsonReader;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.logging.Logger;
 import okio.Buffer;
-import zipkin2.elasticsearch.ElasticsearchStorage;
+import zipkin2.elasticsearch.ElasticsearchStorage.HostsSupplier;
 
 import static zipkin2.elasticsearch.internal.JsonReaders.enterPath;
 
-final class ElasticsearchDomainEndpoint implements ElasticsearchStorage.HostsSupplier {
+final class ElasticsearchDomainEndpoint implements HostsSupplier {
   static final Logger log = Logger.getLogger(ElasticsearchDomainEndpoint.class.getName());
 
   final HttpClient client;
   final AggregatedHttpRequest describeElasticsearchDomain;
+  volatile String endpoint;
 
   ElasticsearchDomainEndpoint(HttpClient client, String domain) {
     if (client == null) throw new NullPointerException("client == null");
@@ -43,8 +45,18 @@ final class ElasticsearchDomainEndpoint implements ElasticsearchStorage.HostsSup
         AggregatedHttpRequest.of(HttpMethod.GET, "/2015-01-01/es/domain/" + domain);
   }
 
-  @Override
-  public List<String> get() {
+  @Override public List<String> get() { // memoized on success to prevent redundant calls
+    if (endpoint == null) {
+      synchronized (this) {
+        if (endpoint == null) {
+          endpoint = getEndpoint();
+        }
+      }
+    }
+    return Collections.singletonList(endpoint);
+  }
+
+  String getEndpoint() {
     final AggregatedHttpResponse response;
     try {
       response = client.execute(describeElasticsearchDomain)
@@ -52,10 +64,9 @@ final class ElasticsearchDomainEndpoint implements ElasticsearchStorage.HostsSup
 
       String body = response.contentUtf8();
       if (!response.status().codeClass().equals(HttpStatusClass.SUCCESS)) {
-        String message =
-            describeElasticsearchDomain.path()
-                + " failed with status "
-                + response.status();
+        String message = describeElasticsearchDomain.path()
+            + " failed with status "
+            + response.status();
         if (!body.isEmpty()) message += ": " + body;
         throw new IllegalStateException(message);
       }
@@ -69,7 +80,7 @@ final class ElasticsearchDomainEndpoint implements ElasticsearchStorage.HostsSup
       }
 
       if (endpointReader == null) {
-        throw new IllegalStateException(
+        throw new RuntimeException(
             "Neither DomainStatus.Endpoints.vpc nor DomainStatus.Endpoint were present in response: "
                 + body);
       }
@@ -79,9 +90,11 @@ final class ElasticsearchDomainEndpoint implements ElasticsearchStorage.HostsSup
         endpoint = "https://" + endpoint;
       }
       log.fine("using endpoint " + endpoint);
-      return Collections.singletonList(endpoint);
-    } catch (CompletionException | IOException t) {
-      throw new IllegalStateException("couldn't lookup domain endpoint", t);
+      return endpoint;
+    } catch (CompletionException e) {
+      throw new RuntimeException("couldn't lookup AWS ES domain endpoint", e.getCause());
+    } catch (IOException e) {
+      throw new UncheckedIOException("couldn't lookup AWS ES domain endpoint", e);
     }
   }
 }

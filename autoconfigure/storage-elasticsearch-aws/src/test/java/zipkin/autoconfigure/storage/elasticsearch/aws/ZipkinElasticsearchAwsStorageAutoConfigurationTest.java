@@ -14,9 +14,10 @@
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
 import com.linecorp.armeria.client.Client;
-import com.linecorp.armeria.client.HttpClientBuilder;
+import com.linecorp.armeria.client.ClientOptionsBuilder;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
+import java.util.Collections;
 import java.util.function.Consumer;
 import org.junit.After;
 import org.junit.Rule;
@@ -25,14 +26,19 @@ import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import zipkin2.elasticsearch.ElasticsearchStorage;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageAutoConfiguration.StaticHostsSupplier;
+import zipkin2.elasticsearch.ElasticsearchStorage.HostsSupplier;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.failBecauseExceptionWasNotThrown;
 
 public class ZipkinElasticsearchAwsStorageAutoConfigurationTest {
 
@@ -91,21 +97,21 @@ public class ZipkinElasticsearchAwsStorageAutoConfigurationTest {
 
   void expectSignatureInterceptor() {
     @SuppressWarnings("unchecked")
-    Consumer<HttpClientBuilder> customizer =
-        (Consumer<HttpClientBuilder>) context.getBean("awsSignatureVersion4", Consumer.class);
+    Consumer<ClientOptionsBuilder> customizer =
+        (Consumer<ClientOptionsBuilder>) context.getBean("awsSignatureVersion4", Consumer.class);
 
-    HttpClientBuilder clientBuilder = new HttpClientBuilder("http://foo");
+    ClientOptionsBuilder clientBuilder = new ClientOptionsBuilder();
 
     // TODO(anuraaga): Can be simpler after https://github.com/line/armeria/issues/1883
     customizer.accept(clientBuilder);
     Client<HttpRequest, HttpResponse> decorated =
-        clientBuilder.build().options().decoration().decorate(HttpRequest.class, HttpResponse.class,
+        clientBuilder.build().decoration().decorate(HttpRequest.class, HttpResponse.class,
             mockHttpClient);
     assertThat(decorated).isInstanceOf(AWSSignatureVersion4.class);
   }
 
   void expectDomainEndpoint() {
-    assertThat(context.getBean(ElasticsearchStorage.HostsSupplier.class))
+    assertThat(context.getBean(HostsSupplier.class))
         .isInstanceOf(ElasticsearchDomainEndpoint.class);
   }
 
@@ -116,10 +122,9 @@ public class ZipkinElasticsearchAwsStorageAutoConfigurationTest {
 
   void expectNoDomainEndpoint() {
     try {
-      context.getBean(ElasticsearchStorage.HostsSupplier.class);
-
-      failBecauseExceptionWasNotThrown(NoSuchBeanDefinitionException.class);
-    } catch (NoSuchBeanDefinitionException expected) {
+      assertThat(context.getBean(HostsSupplier.class))
+          .isInstanceOf(StaticHostsSupplier.class);
+    } catch (NoSuchBeanDefinitionException okIfNotElasticSearch) {
     }
   }
 
@@ -127,7 +132,17 @@ public class ZipkinElasticsearchAwsStorageAutoConfigurationTest {
     TestPropertyValues.of(pairs).applyTo(context);
     context.register(
         PropertyPlaceholderAutoConfiguration.class,
+        DefaultHostsConfiguration.class,
         ZipkinElasticsearchAwsStorageAutoConfiguration.class);
     context.refresh();
+  }
+
+  @Configuration
+  @ConditionalOnProperty("zipkin.storage.elasticsearch.hosts")
+  static class DefaultHostsConfiguration { // this is otherwise supplied by zipkin-server
+    @Bean @ConditionalOnMissingBean HostsSupplier hostsSupplier(
+        @Value("${zipkin.storage.elasticsearch.hosts}") String host) {
+      return new StaticHostsSupplier(Collections.singletonList(host));
+    }
   }
 }

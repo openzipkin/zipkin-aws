@@ -127,7 +127,7 @@ public class ElasticsearchDomainEndpointTest {
 
   /** Not quite sure why, but some have reported receiving no URLs at all */
   @Test
-  public void noUrl() throws Exception {
+  public void noUrl() {
     // simplified.. URL is usually the only thing actually missing
     String body = "{\"DomainStatus\": {}}";
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
@@ -135,7 +135,7 @@ public class ElasticsearchDomainEndpointTest {
         MediaType.JSON_UTF_8,
         body));
 
-    thrown.expect(IllegalStateException.class);
+    thrown.expect(RuntimeException.class);
     thrown.expectMessage(
         "Neither DomainStatus.Endpoints.vpc nor DomainStatus.Endpoint were present in response: "
             + body);
