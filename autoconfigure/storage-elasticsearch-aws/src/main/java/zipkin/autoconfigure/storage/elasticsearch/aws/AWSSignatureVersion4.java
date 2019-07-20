@@ -13,6 +13,7 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.linecorp.armeria.client.Client;
 import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.client.SimpleDecoratingClient;
@@ -25,7 +26,6 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.RequestHeaders;
 import com.linecorp.armeria.common.RequestHeadersBuilder;
-import com.squareup.moshi.JsonReader;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufHolder;
 import io.netty.buffer.ByteBufUtil;
@@ -44,12 +44,12 @@ import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import okio.Buffer;
 import zipkin2.elasticsearch.ElasticsearchStorage.HostsSupplier;
 
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static zipkin2.elasticsearch.internal.JsonReaders.enterPath;
+import static zipkin2.elasticsearch.internal.JsonSerializers.JSON_FACTORY;
 
 // http://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
 final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, HttpResponse> {
@@ -98,7 +98,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
 
   volatile String host;
 
-  String host(){
+  String host() {
     if (host == null) {
       synchronized (this) {
         if (host == null) {
@@ -131,10 +131,10 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
               if (!aggResp.status().equals(HttpStatus.FORBIDDEN)) {
                 return HttpResponse.of(aggResp);
               }
+              String body = aggResp.contentUtf8();
               try {
-                JsonReader message = enterPath(
-                    JsonReader.of(new Buffer().write(aggResp.content().array())), "message");
-                if (message != null) throw new IllegalStateException(message.nextString());
+                JsonParser message = enterPath(jsonParser(body), "message");
+                if (message != null) throw new IllegalStateException(message.getValueAsString());
               } catch (IOException e) {
                 // Ignore JSON parse failure.
               }
@@ -310,6 +310,16 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
       throw new AssertionError();
     } catch (InvalidKeyException e) {
       throw new IllegalArgumentException(e);
+    }
+  }
+
+  static JsonParser jsonParser(String content) {
+    try {
+      JsonParser jsonParser = JSON_FACTORY.createParser(content);
+      jsonParser.nextToken();
+      return jsonParser;
+    } catch (IOException e) {
+      throw new AssertionError("Could not create JsonParser from string " + content, e);
     }
   }
 }

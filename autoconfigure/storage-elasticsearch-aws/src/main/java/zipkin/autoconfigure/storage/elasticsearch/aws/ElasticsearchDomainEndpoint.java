@@ -13,21 +13,21 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
+import com.fasterxml.jackson.core.JsonParser;
 import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpStatusClass;
-import com.squareup.moshi.JsonReader;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.logging.Logger;
-import okio.Buffer;
 import zipkin2.elasticsearch.ElasticsearchStorage.HostsSupplier;
 
+import static zipkin.autoconfigure.storage.elasticsearch.aws.AWSSignatureVersion4.jsonParser;
 import static zipkin2.elasticsearch.internal.JsonReaders.enterPath;
 
 final class ElasticsearchDomainEndpoint implements HostsSupplier {
@@ -70,13 +70,11 @@ final class ElasticsearchDomainEndpoint implements HostsSupplier {
         if (!body.isEmpty()) message += ": " + body;
         throw new IllegalStateException(message);
       }
-      JsonReader endpointReader = JsonReader.of(new Buffer().writeUtf8(body));
-      endpointReader = enterPath(endpointReader, "DomainStatus", "Endpoints");
+      JsonParser endpointReader = enterPath(jsonParser(body), "DomainStatus", "Endpoints");
       if (endpointReader != null) endpointReader = enterPath(endpointReader, "vpc");
 
-      if (endpointReader == null) {
-        endpointReader =
-            enterPath(JsonReader.of(new Buffer().writeUtf8(body)), "DomainStatus", "Endpoint");
+      if (endpointReader == null) { // rewind and look under another path
+        endpointReader = enterPath(jsonParser(body), "DomainStatus", "Endpoint");
       }
 
       if (endpointReader == null) {
@@ -85,7 +83,7 @@ final class ElasticsearchDomainEndpoint implements HostsSupplier {
                 + body);
       }
 
-      String endpoint = endpointReader.nextString();
+      String endpoint = endpointReader.getValueAsString();
       if (!endpoint.startsWith("https://")) {
         endpoint = "https://" + endpoint;
       }
