@@ -29,6 +29,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufHolder;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.util.AsciiString;
+import io.netty.util.ReferenceCountUtil;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -97,7 +98,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
             return delegate().execute(ctx, HttpRequest.of(signed))
                 // We aggregate the response with pooled objects because it could be large. This
                 // reduces heap usage when parsing json or when http body logging is enabled.
-                .aggregateWithPooledObjects(ctx.eventLoop(), ctx.alloc());
+                .aggregateWithPooledObjects(ctx.contextAwareEventLoop(), ctx.alloc());
           } catch (Exception e) {
             CompletableFuture<AggregatedHttpResponse> future = new CompletableFuture<>();
             future.completeExceptionally(e);
@@ -114,6 +115,8 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
             awsMessage = JSON.readTree(stream).at("/message").textValue();
           } catch (IOException e) {
             // Ignore JSON parse failure.
+          } finally {
+            ReferenceCountUtil.safeRelease(aggResp.content());
           }
           message.append(awsMessage != null ? awsMessage : aggResp.status());
 
