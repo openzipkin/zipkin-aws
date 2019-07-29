@@ -91,7 +91,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
   @Override public HttpResponse execute(ClientRequestContext ctx, HttpRequest req) {
     // We aggregate the request body with pooled objects because signing implies reading it before
     // sending it to Elasticsearch.
-    return HttpResponse.from(req.aggregateWithPooledObjects(ctx.eventLoop(), ctx.alloc())
+    return HttpResponse.from(req.aggregateWithPooledObjects(ctx.contextAwareEventLoop(), ctx.alloc())
         .thenCompose(aggReg -> {
           try {
             AggregatedHttpRequest signed = sign(ctx, aggReg);
