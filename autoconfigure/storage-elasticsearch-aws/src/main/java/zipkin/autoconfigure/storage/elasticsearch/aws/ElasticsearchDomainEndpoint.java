@@ -44,13 +44,13 @@ final class ElasticsearchDomainEndpoint implements HostsSupplier {
   }
 
   @Override public List<String> get() {
+    // The domain endpoint is read only once per startup. Hence, there is less impact to allocating
+    // strings. We retain the string so that it can be logged if the AWS response is malformed.
     HttpStatus status;
     String body;
     try {
       AggregatedHttpResponse res = client.execute(describeElasticsearchDomain).aggregate().join();
       status = res.status();
-      // As the domain endpoint is read only once per startup. We don't worry about pooling etc.
-      // This allows for easier debugging and less try/finally state management.
       body = res.contentUtf8();
     } catch (RuntimeException | Error e) {
       throw new RuntimeException("couldn't lookup AWS ES domain endpoint",
