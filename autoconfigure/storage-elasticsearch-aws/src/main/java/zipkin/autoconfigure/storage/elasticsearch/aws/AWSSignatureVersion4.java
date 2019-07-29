@@ -112,7 +112,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
           StringBuilder message = new StringBuilder().append(req.path()).append(" failed: ");
           String awsMessage = null;
           try (InputStream stream = aggResp.content().toInputStream()) {
-            awsMessage = JSON.readTree(stream).get("message").textValue();
+            awsMessage = JSON.readTree(stream).path("message").textValue();
           } catch (IOException e) {
             // Ignore JSON parse failure.
           } finally {
