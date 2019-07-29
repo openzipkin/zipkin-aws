@@ -55,8 +55,7 @@ public class ElasticsearchDomainEndpointTest {
     client = new ElasticsearchDomainEndpoint(HttpClient.of(server.httpUri("/")), "zipkin53");
   }
 
-  @Test
-  public void publicUrl() {
+  @Test public void publicUrl() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
@@ -72,8 +71,7 @@ public class ElasticsearchDomainEndpointTest {
             "https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
-  @Test
-  public void vpcUrl() {
+  @Test public void vpcUrl() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
@@ -91,8 +89,7 @@ public class ElasticsearchDomainEndpointTest {
             "https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
-  @Test
-  public void vpcPreferred() {
+  @Test public void vpcPreferred() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
@@ -109,8 +106,7 @@ public class ElasticsearchDomainEndpointTest {
         .containsExactly("https://isvpc");
   }
 
-  @Test
-  public void vpcMissing() {
+  @Test public void vpcMissing() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
@@ -126,8 +122,7 @@ public class ElasticsearchDomainEndpointTest {
   }
 
   /** Not quite sure why, but some have reported receiving no URLs at all */
-  @Test
-  public void noUrl() {
+  @Test public void noUrl() {
     // simplified.. URL is usually the only thing actually missing
     String body = "{\"DomainStatus\": {}}";
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
@@ -144,11 +139,10 @@ public class ElasticsearchDomainEndpointTest {
   }
 
   /** Not quite sure why, but some have reported receiving no URLs at all */
-  @Test
-  public void unauthorizedNoMessage() throws Exception {
+  @Test public void unauthorizedNoMessage() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.FORBIDDEN));
 
-    thrown.expect(IllegalStateException.class);
+    thrown.expect(RuntimeException.class);
     thrown.expectMessage("/2015-01-01/es/domain/zipkin53 failed with status 403");
 
     client.get();

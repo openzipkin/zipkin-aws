@@ -13,7 +13,6 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
-import com.fasterxml.jackson.core.JsonParser;
 import com.linecorp.armeria.client.Client;
 import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.client.SimpleDecoratingClient;
@@ -31,25 +30,22 @@ import io.netty.buffer.ByteBufHolder;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.util.AsciiString;
 import java.io.IOException;
-import java.net.URI;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
 import java.util.TimeZone;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
-import zipkin2.elasticsearch.ElasticsearchStorage.HostsSupplier;
 
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static zipkin2.elasticsearch.internal.JsonReaders.enterPath;
-import static zipkin2.elasticsearch.internal.JsonSerializers.JSON_FACTORY;
+import static zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageAutoConfiguration.JSON;
 
 // http://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
 final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, HttpResponse> {
@@ -61,12 +57,13 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
       {HttpHeaderNames.HOST, X_AMZ_DATE, X_AMZ_SECURITY_TOKEN};
   static final String HOST_DATE = HttpHeaderNames.HOST + ";" + X_AMZ_DATE;
   static final String HOST_DATE_TOKEN = HOST_DATE + ";" + X_AMZ_SECURITY_TOKEN;
-
+  static final String SERVICE = "es";
+  static final byte[] SERVICE_BYTES = {'e', 's'};
   static final byte[] AWS4_REQUEST = "aws4_request".getBytes(UTF_8);
 
   static Function<Client<HttpRequest, HttpResponse>, Client<HttpRequest, HttpResponse>>
-  newDecorator(String region, HostsSupplier hostsSupplier, AWSCredentials.Provider credentials) {
-    return client -> new AWSSignatureVersion4(client, region, hostsSupplier, credentials);
+  newDecorator(String region, AWSCredentials.Provider credentials) {
+    return client -> new AWSSignatureVersion4(client, region, credentials);
   }
 
   // SimpleDateFormat isn't thread-safe
@@ -78,68 +75,50 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
 
   final String region;
   final byte[] regionBytes;
-  final HostsSupplier hostsSupplier;
-  final String service;
-  final byte[] serviceBytes;
   final AWSCredentials.Provider credentials;
 
   AWSSignatureVersion4(Client<HttpRequest, HttpResponse> delegate, String region,
-      HostsSupplier hostsSupplier, AWSCredentials.Provider credentials) {
+      AWSCredentials.Provider credentials) {
     super(delegate);
     if (region == null) throw new NullPointerException("region == null");
     if (credentials == null) throw new NullPointerException("credentials == null");
     this.region = region;
     this.regionBytes = region.getBytes(UTF_8);
-    this.hostsSupplier = hostsSupplier;
-    this.service = "es";
-    this.serviceBytes = service.getBytes(UTF_8);
     this.credentials = credentials;
   }
 
-  volatile String host;
-
-  String host() {
-    if (host == null) {
-      synchronized (this) {
-        if (host == null) {
-          // We currently cannot access the hostname during decoration. Instead, we proceed knowing
-          // that our implementation of AWS ES only returns a single endpoint.
-          List<String> hosts = hostsSupplier.get();
-          if (hosts.isEmpty()) throw new RuntimeException("No AWS ES hosts!");
-          if (hosts.size() > 1) throw new RuntimeException("Expected one AWS ES host: " + hosts);
-          host = URI.create(hosts.get(0)).getHost();
-        }
-      }
-    }
-    return host;
-  }
-
   @Override public HttpResponse execute(ClientRequestContext ctx, HttpRequest req) {
-    return HttpResponse.from(
-        req.aggregateWithPooledObjects(ctx.eventLoop(), ctx.alloc())
-            .thenCompose(aggReg -> {
-              try {
-                AggregatedHttpRequest signed = sign(ctx, aggReg);
-                return delegate().execute(ctx, HttpRequest.of(signed)).aggregate();
-              } catch (Exception e) {
-                CompletableFuture<AggregatedHttpResponse> future = new CompletableFuture<>();
-                future.completeExceptionally(e);
-                return future;
-              }
-            })
-            .thenApply(aggResp -> {
-              if (!aggResp.status().equals(HttpStatus.FORBIDDEN)) {
-                return HttpResponse.of(aggResp);
-              }
-              String body = aggResp.contentUtf8();
-              try {
-                JsonParser message = enterPath(jsonParser(body), "message");
-                if (message != null) throw new IllegalStateException(message.getValueAsString());
-              } catch (IOException e) {
-                // Ignore JSON parse failure.
-              }
-              throw new IllegalStateException(aggResp.contentUtf8());
-            }));
+    // We aggregate the reqiest body with pooled objects because signing implies reading it before
+    // sending it to Elasticsearch.
+    return HttpResponse.from(req.aggregateWithPooledObjects(ctx.eventLoop(), ctx.alloc())
+        .thenCompose(aggReg -> {
+          try {
+            AggregatedHttpRequest signed = sign(ctx, aggReg);
+            return delegate().execute(ctx, HttpRequest.of(signed))
+                // We aggregate the response with pooled objects because it could be large. This
+                // reduces heap usage when parsing json or when http body logging is enabled.
+                .aggregateWithPooledObjects(ctx.eventLoop(), ctx.alloc());
+          } catch (Exception e) {
+            CompletableFuture<AggregatedHttpResponse> future = new CompletableFuture<>();
+            future.completeExceptionally(e);
+            return future;
+          }
+        })
+        .thenApply(aggResp -> {
+          if (!aggResp.status().equals(HttpStatus.FORBIDDEN)) return HttpResponse.of(aggResp);
+
+          // We only set a body-related message when it Amazon's format
+          StringBuilder message = new StringBuilder().append(req.path()).append(" failed: ");
+          String awsMessage = null;
+          try (InputStream stream = aggResp.content().toInputStream()) {
+            awsMessage = JSON.readTree(stream).at("/message").textValue();
+          } catch (IOException e) {
+            // Ignore JSON parse failure.
+          }
+          message.append(awsMessage != null ? awsMessage : aggResp.status());
+
+          throw new RuntimeException(message.toString());
+        }));
   }
 
   static void writeCanonicalString(
@@ -235,11 +214,11 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
     String timestamp = iso8601.get().format(new Date());
     String yyyyMMdd = timestamp.substring(0, 8);
 
-    String credentialScope = format("%s/%s/%s/%s", yyyyMMdd, region, service, "aws4_request");
+    String credentialScope = format("%s/%s/%s/%s", yyyyMMdd, region, SERVICE, "aws4_request");
 
     RequestHeadersBuilder builder = req.headers().toBuilder()
         .set(X_AMZ_DATE, timestamp)
-        .set(HttpHeaderNames.HOST, host());
+        .set(HttpHeaderNames.HOST, ctx.endpoint().host());
 
     if (credentials.sessionToken != null) {
       builder.set(X_AMZ_SECURITY_TOKEN, credentials.sessionToken);
@@ -281,10 +260,8 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
 
     byte[] kDate = hmacSha256(kSecret, yyyyMMdd.getBytes(UTF_8));
     byte[] kRegion = hmacSha256(kDate, regionBytes);
-    byte[] kService = hmacSha256(kRegion, serviceBytes);
-    byte[] kSigning = hmacSha256(kService, AWS4_REQUEST);
-
-    return kSigning;
+    byte[] kService = hmacSha256(kRegion, SERVICE_BYTES);
+    return hmacSha256(kService, AWS4_REQUEST);
   }
 
   static byte[] hmacSha256(byte[] secret, byte[] payload) {
@@ -310,16 +287,6 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
       throw new AssertionError();
     } catch (InvalidKeyException e) {
       throw new IllegalArgumentException(e);
-    }
-  }
-
-  static JsonParser jsonParser(String content) {
-    try {
-      JsonParser jsonParser = JSON_FACTORY.createParser(content);
-      jsonParser.nextToken();
-      return jsonParser;
-    } catch (IOException e) {
-      throw new AssertionError("Could not create JsonParser from string " + content, e);
     }
   }
 }

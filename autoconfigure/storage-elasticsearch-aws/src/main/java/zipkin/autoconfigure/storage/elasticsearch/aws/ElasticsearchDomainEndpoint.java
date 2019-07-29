@@ -13,29 +13,27 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
-import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpMethod;
+import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.HttpStatusClass;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CompletionException;
 import java.util.logging.Logger;
 import zipkin2.elasticsearch.ElasticsearchStorage.HostsSupplier;
 
-import static zipkin.autoconfigure.storage.elasticsearch.aws.AWSSignatureVersion4.jsonParser;
-import static zipkin2.elasticsearch.internal.JsonReaders.enterPath;
+import static zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageAutoConfiguration.JSON;
 
 final class ElasticsearchDomainEndpoint implements HostsSupplier {
   static final Logger log = Logger.getLogger(ElasticsearchDomainEndpoint.class.getName());
 
   final HttpClient client;
   final AggregatedHttpRequest describeElasticsearchDomain;
-  volatile String endpoint;
 
   ElasticsearchDomainEndpoint(HttpClient client, String domain) {
     if (client == null) throw new NullPointerException("client == null");
@@ -45,54 +43,45 @@ final class ElasticsearchDomainEndpoint implements HostsSupplier {
         AggregatedHttpRequest.of(HttpMethod.GET, "/2015-01-01/es/domain/" + domain);
   }
 
-  @Override public List<String> get() { // memoized on success to prevent redundant calls
-    if (endpoint == null) {
-      synchronized (this) {
-        if (endpoint == null) {
-          endpoint = getEndpoint();
-        }
-      }
-    }
-    return Collections.singletonList(endpoint);
-  }
-
-  String getEndpoint() {
-    final AggregatedHttpResponse response;
+  @Override public List<String> get() {
+    HttpStatus status;
+    String body;
     try {
-      response = client.execute(describeElasticsearchDomain)
-          .aggregate().join();
-
-      String body = response.contentUtf8();
-      if (!response.status().codeClass().equals(HttpStatusClass.SUCCESS)) {
-        String message = describeElasticsearchDomain.path()
-            + " failed with status "
-            + response.status();
-        if (!body.isEmpty()) message += ": " + body;
-        throw new IllegalStateException(message);
-      }
-      JsonParser endpointReader = enterPath(jsonParser(body), "DomainStatus", "Endpoints");
-      if (endpointReader != null) endpointReader = enterPath(endpointReader, "vpc");
-
-      if (endpointReader == null) { // rewind and look under another path
-        endpointReader = enterPath(jsonParser(body), "DomainStatus", "Endpoint");
-      }
-
-      if (endpointReader == null) {
-        throw new RuntimeException(
-            "Neither DomainStatus.Endpoints.vpc nor DomainStatus.Endpoint were present in response: "
-                + body);
-      }
-
-      String endpoint = endpointReader.getValueAsString();
-      if (!endpoint.startsWith("https://")) {
-        endpoint = "https://" + endpoint;
-      }
-      log.fine("using endpoint " + endpoint);
-      return endpoint;
-    } catch (CompletionException e) {
-      throw new RuntimeException("couldn't lookup AWS ES domain endpoint", e.getCause());
-    } catch (IOException e) {
-      throw new UncheckedIOException("couldn't lookup AWS ES domain endpoint", e);
+      AggregatedHttpResponse res = client.execute(describeElasticsearchDomain).aggregate().join();
+      status = res.status();
+      // As the domain endpoint is read only once per startup. We don't worry about pooling etc.
+      // This allows for easier debugging and less try/finally state management.
+      body = res.contentUtf8();
+    } catch (RuntimeException | Error e) {
+      throw new RuntimeException("couldn't lookup AWS ES domain endpoint",
+          e instanceof CompletionException ? e.getCause() : e
+      );
     }
+
+    if (!status.codeClass().equals(HttpStatusClass.SUCCESS)) {
+      String message = describeElasticsearchDomain.path() + " failed with status " + status;
+      if (!body.isEmpty()) message += ": " + body;
+      throw new RuntimeException(message);
+    }
+
+    String endpoint;
+    try {
+      JsonNode root = JSON.readTree(body);
+      endpoint = root.at("/DomainStatus/Endpoints/vpc").textValue();
+      if (endpoint == null) endpoint = root.at("/DomainStatus/Endpoint").textValue();
+    } catch (IOException e) {
+      throw new AssertionError("Unexpected to have IOException reading a string", e);
+    }
+
+    if (endpoint == null) {
+      throw new RuntimeException(
+          "Neither DomainStatus.Endpoints.vpc nor DomainStatus.Endpoint were present in response: "
+              + body);
+    }
+
+    if (!endpoint.startsWith("https://")) endpoint = "https://" + endpoint;
+
+    log.fine("using endpoint " + endpoint);
+    return Collections.singletonList(endpoint);
   }
 }

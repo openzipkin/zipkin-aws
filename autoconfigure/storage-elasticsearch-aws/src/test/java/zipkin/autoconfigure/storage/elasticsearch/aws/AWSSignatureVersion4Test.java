@@ -14,6 +14,7 @@
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
 import com.linecorp.armeria.client.ClientRequestContext;
+import com.linecorp.armeria.client.Endpoint;
 import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.client.HttpClientBuilder;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
@@ -26,20 +27,17 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.RequestHeaders;
+import com.linecorp.armeria.common.SessionProtocol;
 import com.linecorp.armeria.server.ServerBuilder;
 import com.linecorp.armeria.testing.junit4.server.ServerRule;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Collections;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Before;
 import org.junit.ClassRule;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -61,40 +59,36 @@ public class AWSSignatureVersion4Test {
     }
   };
 
-  @Rule public ExpectedException thrown = ExpectedException.none();
-
   String region = "us-east-1";
   AWSCredentials.Provider credentials = () -> new AWSCredentials("access-key", "secret-key", null);
 
   HttpClient client;
 
   @Before public void setUp() {
-    client = new HttpClientBuilder(server.httpUri("/"))
-        .decorator(AWSSignatureVersion4.newDecorator(region,
-            () -> Collections.singletonList(
-                "https://search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com"),
-            () -> credentials.get()))
+    // Make a manual endpoint so that we can get a hostname
+    Endpoint endpoint = Endpoint.of(
+        "search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com",
+        server.httpPort())
+        .withIpAddr("127.0.0.1");
+
+    client = new HttpClientBuilder(SessionProtocol.HTTP, endpoint)
+        .decorator(AWSSignatureVersion4.newDecorator(region, () -> credentials.get()))
         .build();
   }
 
-  @Test
-  public void propagatesExceptionGettingCredentials() {
-    credentials =
-        () -> {
-          throw new IllegalStateException(
-              "Unable to load AWS credentials from any provider in the chain");
-        };
+  @Test public void propagatesExceptionGettingCredentials() {
+    credentials = () -> {
+      throw new RuntimeException(
+          "Unable to load AWS credentials from any provider in the chain");
+    };
 
     assertThatThrownBy(() -> client.get("/").aggregate().join())
-        .isInstanceOfSatisfying(CompletionException.class,
-            t -> assertThat(t.getCause())
-                // makes sure this isn't wrapped.
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("Unable to load AWS credentials from any provider in the chain"));
+        .isInstanceOf(CompletionException.class)
+        .hasCauseInstanceOf(RuntimeException.class)
+        .hasMessageContaining("Unable to load AWS credentials from any provider in the chain");
   }
 
-  @Test
-  public void unwrapsJsonError() {
+  @Test public void unwrapsJsonError() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.FORBIDDEN,
         MediaType.JSON_UTF_8,
@@ -102,16 +96,33 @@ public class AWSSignatureVersion4Test {
             + "provided.\"}"));
 
     assertThatThrownBy(() -> client.get("/_template/zipkin_template").aggregate().join())
-        .isInstanceOfSatisfying(CompletionException.class,
-            t -> assertThat(t.getCause())
-                // makes sure this isn't wrapped.
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessage("The request signature we calculated does not match the signature you "
-                    + "provided."));
+        .isInstanceOf(CompletionException.class)
+        .hasCauseInstanceOf(RuntimeException.class)
+        .hasMessageContaining(
+            "/_template/zipkin_template failed: The request signature we calculated does not match the signature you provided.");
   }
 
-  @Test
-  public void signsRequestsForRegionAndEsService() {
+  @Test public void safeDriftedBody() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.FORBIDDEN,
+        MediaType.JSON_UTF_8, "{\"msg\":\"I'm a clone\"}"));
+
+    assertThatThrownBy(() -> client.get("/_template/zipkin_template").aggregate().join())
+        .isInstanceOf(CompletionException.class)
+        .hasCauseInstanceOf(RuntimeException.class)
+        .hasMessageContaining("/_template/zipkin_template failed: 403 Forbidden");
+  }
+
+  @Test public void safeMissingResponseBody() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.FORBIDDEN));
+
+    assertThatThrownBy(() -> client.get("/_template/zipkin_template").aggregate().join())
+        .isInstanceOf(CompletionException.class)
+        .hasCauseInstanceOf(RuntimeException.class)
+        .hasMessageContaining("/_template/zipkin_template failed: 403 Forbidden");
+  }
+
+  @Test public void signsRequestsForRegionAndEsService() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.OK));
 
     client.get("/_template/zipkin_template").aggregate().join();
@@ -122,8 +133,7 @@ public class AWSSignatureVersion4Test {
         .contains(region + "/es/aws4_request"); // for the region and service
   }
 
-  @Test
-  public void addsAwsDateHeader() {
+  @Test public void addsAwsDateHeader() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.OK));
 
     client.get("/_template/zipkin_template").aggregate().join();
@@ -131,15 +141,15 @@ public class AWSSignatureVersion4Test {
     assertThat(CAPTURED_REQUEST.get().headers().get("x-amz-date")).isNotNull();
   }
 
-  @Test
-  public void canonicalString_commasInPath() {
+  @Test public void canonicalString_commasInPath() {
     AggregatedHttpRequest request = AggregatedHttpRequest.of(
         RequestHeaders.builder(HttpMethod.POST,
             "/zipkin-2016-10-05,zipkin-2016-10-06/dependencylink/_search?allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true")
-            .set(HttpHeaderNames.HOST, "search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com")
+            .set(HttpHeaderNames.HOST,
+                "search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com")
             .set(AWSSignatureVersion4.X_AMZ_DATE, "20161004T132314Z")
             .contentType(MediaType.JSON_UTF_8)
-        .build(),
+            .build(),
         HttpData.ofUtf8("{\n" + "    \"query\" : {\n" + "      \"match_all\" : { }\n" + "    }")
     );
     ClientRequestContext ctx = ClientRequestContext.of(HttpRequest.of(request));
@@ -160,12 +170,12 @@ public class AWSSignatureVersion4Test {
   }
 
   /** Starting with Zipkin 1.31 colons are used to delimit index types in ES */
-  @Test
-  public void canonicalString_colonsInPath() throws InterruptedException, IOException {
+  @Test public void canonicalString_colonsInPath() {
     AggregatedHttpRequest request = AggregatedHttpRequest.of(
         RequestHeaders.builder(HttpMethod.GET,
             "/_cluster/health/zipkin:span-*")
-            .set(HttpHeaderNames.HOST, "search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com")
+            .set(HttpHeaderNames.HOST,
+                "search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com")
             .set(AWSSignatureVersion4.X_AMZ_DATE, "20170830T143137Z")
             .build()
     );

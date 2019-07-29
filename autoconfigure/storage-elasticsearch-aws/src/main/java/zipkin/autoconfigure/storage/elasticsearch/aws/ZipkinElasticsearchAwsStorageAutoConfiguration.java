@@ -17,19 +17,18 @@ import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSSessionCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.regions.DefaultAwsRegionProviderChain;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.client.Client;
 import com.linecorp.armeria.client.ClientOptionsBuilder;
 import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
-import java.util.Collections;
 import java.util.List;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.logging.Logger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
@@ -52,6 +51,7 @@ import static zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearch
 @EnableConfigurationProperties(ZipkinElasticsearchAwsStorageProperties.class)
 @Conditional(ZipkinElasticsearchAwsStorageAutoConfiguration.AwsMagic.class)
 class ZipkinElasticsearchAwsStorageAutoConfiguration {
+  static final ObjectMapper JSON = new ObjectMapper();
   static final Pattern AWS_URL =
       Pattern.compile("^https://[^.]+\\.([^.]+)\\.es\\.amazonaws\\.com", Pattern.CASE_INSENSITIVE);
   static final Logger log =
@@ -59,17 +59,9 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
 
   @Bean @Qualifier("zipkinElasticsearchHttp")
   Consumer<ClientOptionsBuilder> awsSignatureVersion4(String region,
-      @Autowired(required = false) HostsSupplier hostsSupplier,
-      @Value("${zipkin.storage.elasticsearch.hosts:}") String hosts,
       AWSCredentials.Provider credentials) {
-    if (hostsSupplier == null) {
-      if (emptyToNull(hosts) == null) {
-        throw new RuntimeException("zipkin.storage.elasticsearch.hosts is not set");
-      }
-      hostsSupplier = new StaticHostsSupplier(Collections.singletonList(hosts));
-    }
     Function<Client<HttpRequest, HttpResponse>, Client<HttpRequest, HttpResponse>>
-        decorator = AWSSignatureVersion4.newDecorator(region, hostsSupplier, credentials);
+        decorator = AWSSignatureVersion4.newDecorator(region, credentials);
     return client -> client.decorator(decorator);
   }
 
@@ -89,18 +81,19 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
       return aws.getRegion();
     } else if (domain != null) {
       return new DefaultAwsRegionProviderChain().getRegion();
-    } else {
+    } else if (hosts != null) {
       String awsRegion = regionFromAwsUrls(hosts);
       if (awsRegion == null) throw new IllegalArgumentException("Couldn't find region in " + hosts);
       return awsRegion;
     }
+    throw new AssertionError(AwsMagic.class.getName() + " should ensure this line isn't reached");
   }
 
   /** By default, get credentials from the {@link DefaultAWSCredentialsProviderChain} */
   @Bean @ConditionalOnMissingBean
   AWSCredentials.Provider credentials() {
     return new AWSCredentials.Provider() {
-      AWSCredentialsProvider delegate = new DefaultAWSCredentialsProviderChain();
+      final AWSCredentialsProvider delegate = new DefaultAWSCredentialsProviderChain();
 
       @Override public AWSCredentials get() {
         com.amazonaws.auth.AWSCredentials result = delegate.getCredentials();
