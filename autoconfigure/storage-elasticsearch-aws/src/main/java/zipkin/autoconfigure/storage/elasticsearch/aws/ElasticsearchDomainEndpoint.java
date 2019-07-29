@@ -79,7 +79,12 @@ final class ElasticsearchDomainEndpoint implements HostsSupplier {
               + body);
     }
 
-    if (!endpoint.startsWith("https://")) endpoint = "https://" + endpoint;
+    // While not strictly defined, in practice, AWS ES endpoints are host names, not urls. This is
+    // likely because they listen on both 80 and 443. Hence the below is overly defensive except.
+    // https://docs.aws.amazon.com/elasticsearch-service/latest/developerguide/es-configuration-api.html#es-configuration-api-datatypes-endpointsmap
+    if (!endpoint.startsWith("http://") && !endpoint.startsWith("https://")) {
+      endpoint = "https://" + endpoint;
+    }
 
     log.fine("using endpoint " + endpoint);
     return Collections.singletonList(endpoint);

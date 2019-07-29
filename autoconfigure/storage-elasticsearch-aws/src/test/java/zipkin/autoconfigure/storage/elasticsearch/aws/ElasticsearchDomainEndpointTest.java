@@ -71,6 +71,40 @@ public class ElasticsearchDomainEndpointTest {
             "https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
+  // Amazon ES endpoints don't actually return http or https prefix.
+  @Test public void fakeUrl() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        "{\n"
+            + "  \"DomainStatus\": {\n"
+            + "    \"Endpoint\": \"https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\",\n"
+            + "    \"Endpoints\": null\n"
+            + "  }\n"
+            + "}"));
+
+    assertThat(client.get())
+        .containsExactly(
+            "https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
+  }
+
+  // Amazon ES endpoints don't actually return http or https prefix.
+  @Test public void fakeUrl_http() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        "{\n"
+            + "  \"DomainStatus\": {\n"
+            + "    \"Endpoint\": \"http://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\",\n"
+            + "    \"Endpoints\": null\n"
+            + "  }\n"
+            + "}"));
+
+    assertThat(client.get())
+        .containsExactly(
+            "http://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
+  }
+
   @Test public void vpcUrl() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
