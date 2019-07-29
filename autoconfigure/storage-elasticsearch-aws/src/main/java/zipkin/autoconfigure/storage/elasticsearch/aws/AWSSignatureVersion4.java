@@ -89,7 +89,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
   }
 
   @Override public HttpResponse execute(ClientRequestContext ctx, HttpRequest req) {
-    // We aggregate the reqiest body with pooled objects because signing implies reading it before
+    // We aggregate the request body with pooled objects because signing implies reading it before
     // sending it to Elasticsearch.
     return HttpResponse.from(req.aggregateWithPooledObjects(ctx.eventLoop(), ctx.alloc())
         .thenCompose(aggReg -> {
@@ -108,7 +108,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
         .thenApply(aggResp -> {
           if (!aggResp.status().equals(HttpStatus.FORBIDDEN)) return HttpResponse.of(aggResp);
 
-          // We only set a body-related message when it Amazon's format
+          // We only set a body-related message when it is Amazon's format
           StringBuilder message = new StringBuilder().append(req.path()).append(" failed: ");
           String awsMessage = null;
           try (InputStream stream = aggResp.content().toInputStream()) {
