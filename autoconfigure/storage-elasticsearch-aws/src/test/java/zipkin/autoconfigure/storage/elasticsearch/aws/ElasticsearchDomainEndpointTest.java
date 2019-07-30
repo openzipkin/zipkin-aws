@@ -66,43 +66,9 @@ public class ElasticsearchDomainEndpointTest {
             + "  }\n"
             + "}"));
 
-    assertThat(client.get())
+    assertThat(client.get()).extracting("hostname")
         .containsExactly(
-            "https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
-  }
-
-  // Amazon ES endpoints don't actually return http or https prefix.
-  @Test public void fakeUrl() {
-    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
-        HttpStatus.OK,
-        MediaType.JSON_UTF_8,
-        "{\n"
-            + "  \"DomainStatus\": {\n"
-            + "    \"Endpoint\": \"https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\",\n"
-            + "    \"Endpoints\": null\n"
-            + "  }\n"
-            + "}"));
-
-    assertThat(client.get())
-        .containsExactly(
-            "https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
-  }
-
-  // Amazon ES endpoints don't actually return http or https prefix.
-  @Test public void fakeUrl_http() {
-    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
-        HttpStatus.OK,
-        MediaType.JSON_UTF_8,
-        "{\n"
-            + "  \"DomainStatus\": {\n"
-            + "    \"Endpoint\": \"http://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\",\n"
-            + "    \"Endpoints\": null\n"
-            + "  }\n"
-            + "}"));
-
-    assertThat(client.get())
-        .containsExactly(
-            "http://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
+            "search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
   @Test public void vpcUrl() {
@@ -118,9 +84,9 @@ public class ElasticsearchDomainEndpointTest {
             + "  }\n"
             + "}"));
 
-    assertThat(client.get())
+    assertThat(client.get()).extracting("hostname")
         .containsExactly(
-            "https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
+            "search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
   @Test public void vpcPreferred() {
@@ -136,8 +102,8 @@ public class ElasticsearchDomainEndpointTest {
             + "  }\n"
             + "}"));
 
-    assertThat(client.get())
-        .containsExactly("https://isvpc");
+    assertThat(client.get()).extracting("hostname")
+        .containsExactly("isvpc");
   }
 
   @Test public void vpcMissing() {
@@ -151,8 +117,8 @@ public class ElasticsearchDomainEndpointTest {
             + "  }\n"
             + "}"));
 
-    assertThat(client.get())
-        .containsExactly("https://isnotvpc");
+    assertThat(client.get()).extracting("hostname")
+        .containsExactly("isnotvpc");
   }
 
   /** Not quite sure why, but some have reported receiving no URLs at all */

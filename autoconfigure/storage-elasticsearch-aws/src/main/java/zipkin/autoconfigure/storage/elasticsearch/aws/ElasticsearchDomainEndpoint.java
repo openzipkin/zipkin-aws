@@ -15,23 +15,20 @@ package zipkin.autoconfigure.storage.elasticsearch.aws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.client.endpoint.EndpointGroup;
+import com.linecorp.armeria.client.endpoint.dns.DnsAddressEndpointGroup;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.HttpStatusClass;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
 import java.util.concurrent.CompletionException;
-import java.util.logging.Logger;
-import zipkin2.elasticsearch.ElasticsearchStorage.HostsSupplier;
+import java.util.function.Supplier;
 
 import static zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageAutoConfiguration.JSON;
 
-final class ElasticsearchDomainEndpoint implements HostsSupplier {
-  static final Logger log = Logger.getLogger(ElasticsearchDomainEndpoint.class.getName());
-
+final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
   final HttpClient client;
   final AggregatedHttpRequest describeElasticsearchDomain;
 
@@ -43,7 +40,7 @@ final class ElasticsearchDomainEndpoint implements HostsSupplier {
         AggregatedHttpRequest.of(HttpMethod.GET, "/2015-01-01/es/domain/" + domain);
   }
 
-  @Override public List<String> get() {
+  @Override public DnsAddressEndpointGroup get() {
     // The domain endpoint is read only once per startup. Hence, there is less impact to allocating
     // strings. We retain the string so that it can be logged if the AWS response is malformed.
     HttpStatus status;
@@ -79,14 +76,6 @@ final class ElasticsearchDomainEndpoint implements HostsSupplier {
               + body);
     }
 
-    // While not strictly defined, in practice, AWS ES endpoints are host names, not urls. This is
-    // likely because they listen on both 80 and 443. Hence the below is overly defensive except.
-    // https://docs.aws.amazon.com/elasticsearch-service/latest/developerguide/es-configuration-api.html#es-configuration-api-datatypes-endpointsmap
-    if (!endpoint.startsWith("http://") && !endpoint.startsWith("https://")) {
-      endpoint = "https://" + endpoint;
-    }
-
-    log.fine("using endpoint " + endpoint);
-    return Collections.singletonList(endpoint);
+    return DnsAddressEndpointGroup.of(endpoint);
   }
 }
