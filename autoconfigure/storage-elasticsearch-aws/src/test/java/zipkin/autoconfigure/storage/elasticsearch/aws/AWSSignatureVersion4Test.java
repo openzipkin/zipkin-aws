@@ -32,15 +32,16 @@ import com.linecorp.armeria.server.ServerBuilder;
 import com.linecorp.armeria.testing.junit4.server.ServerRule;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.Test;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static zipkin.autoconfigure.storage.elasticsearch.aws.AWSSignatureVersion4.writeCanonicalString;
 
 public class AWSSignatureVersion4Test {
 
@@ -155,9 +156,9 @@ public class AWSSignatureVersion4Test {
     ClientRequestContext ctx = ClientRequestContext.of(HttpRequest.of(request));
     ByteBuf result = Unpooled.buffer();
 
-    AWSSignatureVersion4.writeCanonicalString(ctx, request.headers(), request.content(), result);
+    writeCanonicalString(ctx, request.headers(), request.content(), result);
     // Ensure that the canonical string encodes commas with %2C
-    assertThat(result.toString(StandardCharsets.UTF_8))
+    assertThat(result.toString(UTF_8))
         .isEqualTo(
             "POST\n"
                 + "/zipkin-2016-10-05%2Czipkin-2016-10-06/dependencylink/_search\n"
@@ -182,18 +183,51 @@ public class AWSSignatureVersion4Test {
     ClientRequestContext ctx = ClientRequestContext.of(HttpRequest.of(request));
     ByteBuf result = Unpooled.buffer();
 
-    AWSSignatureVersion4.writeCanonicalString(ctx, request.headers(), request.content(), result);
+    writeCanonicalString(ctx, request.headers(), request.content(), result);
 
     // Ensure that the canonical string encodes commas with %2C
-    assertThat(result.toString(StandardCharsets.UTF_8))
-        .isEqualTo(
-            "GET\n"
-                + "/_cluster/health/zipkin%3Aspan-%2A\n"
-                + "\n"
-                + "host:search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com\n"
-                + "x-amz-date:20170830T143137Z\n"
-                + "\n"
-                + "host;x-amz-date\n"
-                + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    assertThat(result.toString(UTF_8)).isEqualTo(""
+        + "GET\n"
+        + "/_cluster/health/zipkin%3Aspan-%2A\n"
+        + "\n"
+        + "host:search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com\n"
+        + "x-amz-date:20170830T143137Z\n"
+        + "\n"
+        + "host;x-amz-date\n"
+        + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+  }
+
+  @Test public void canonicalString_getDomain() throws Exception {
+    String timestamp = "20190730T134617Z";
+    String yyyyMMdd = timestamp.substring(0, 8);
+    AggregatedHttpRequest request = AggregatedHttpRequest.of(
+        RequestHeaders.builder(HttpMethod.GET, "/2015-01-01/es/domain/zipkin")
+            .set(HttpHeaderNames.HOST, "es.ap-southeast-1.amazonaws.com")
+            .set(AWSSignatureVersion4.X_AMZ_DATE, timestamp)
+            .build()
+    );
+    ClientRequestContext ctx = ClientRequestContext.of(HttpRequest.of(request));
+    ByteBuf canonicalString = Unpooled.buffer();
+
+    writeCanonicalString(ctx, request.headers(), request.content(), canonicalString);
+    assertThat(canonicalString.toString(UTF_8)).isEqualTo(""
+        + "GET\n"
+        + "/2015-01-01/es/domain/zipkin\n"
+        + "\n"
+        + "host:es.ap-southeast-1.amazonaws.com\n"
+        + "x-amz-date:" + timestamp + "\n"
+        + "\n"
+        + "host;x-amz-date\n"
+        + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+
+    ByteBuf toSign = Unpooled.buffer();
+    AWSSignatureVersion4.writeToSign(timestamp,
+        AWSSignatureVersion4.credentialScope(yyyyMMdd, "ap-southeast-1"), canonicalString, toSign);
+
+    assertThat(toSign.toString(UTF_8)).isEqualTo(""
+        + "AWS4-HMAC-SHA256\n"
+        + "20190730T134617Z\n"
+        + "20190730/ap-southeast-1/es/aws4_request\n"
+        + "129dd8ded740553cd28544b4000982b8f88d7199b36a013fa89ee8e56c23f80e");
   }
 }

@@ -54,7 +54,7 @@
 
     <license-maven-plugin.version>3.0</license-maven-plugin.version>
 
-    <zipkin.version>armeria-client-unwind-SNAPSHOT</zipkin.version>
+    <zipkin.version>master-SNAPSHOT</zipkin.version>
     <zipkin-reporter.version>2.10.0</zipkin-reporter.version>
     <brave.version>5.6.8</brave.version>
 

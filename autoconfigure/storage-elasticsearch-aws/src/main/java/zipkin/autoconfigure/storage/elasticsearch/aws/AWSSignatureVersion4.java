@@ -218,12 +218,11 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
 
     String timestamp = iso8601.get().format(new Date());
     String yyyyMMdd = timestamp.substring(0, 8);
-
-    String credentialScope = format("%s/%s/%s/%s", yyyyMMdd, region, SERVICE, "aws4_request");
+    String credentialScope = credentialScope(yyyyMMdd, region);
 
     RequestHeadersBuilder builder = req.headers().toBuilder()
-        .set(X_AMZ_DATE, timestamp)
-        .set(HttpHeaderNames.HOST, ctx.endpoint().host());
+        .set(HttpHeaderNames.HOST, ctx.endpoint().host())
+        .set(X_AMZ_DATE, timestamp);
 
     if (credentials.sessionToken != null) {
       builder.set(X_AMZ_SECURITY_TOKEN, credentials.sessionToken);
@@ -258,6 +257,10 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
       canonicalString.release();
       toSign.release();
     }
+  }
+
+  static String credentialScope(String yyyyMMdd, String region) {
+    return format("%s/%s/%s/%s", yyyyMMdd, region, SERVICE, "aws4_request");
   }
 
   byte[] signatureKey(String secretKey, String yyyyMMdd) {
