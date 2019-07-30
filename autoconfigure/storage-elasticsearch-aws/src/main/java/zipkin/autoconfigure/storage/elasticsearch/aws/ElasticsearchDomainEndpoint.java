@@ -23,6 +23,7 @@ import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.HttpStatusClass;
+import io.netty.util.AttributeKey;
 import java.io.IOException;
 import java.util.concurrent.CompletionException;
 import java.util.function.Function;
@@ -31,6 +32,8 @@ import java.util.function.Supplier;
 import static zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageAutoConfiguration.JSON;
 
 final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
+  static final AttributeKey<String> NAME = AttributeKey.valueOf("name");
+
   final Function<Endpoint, HttpClient> clientFactory;
   final Endpoint endpoint;
   final AggregatedHttpRequest describeElasticsearchDomain;
@@ -44,6 +47,9 @@ final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
   }
 
   @Override public DnsAddressEndpointGroup get() {
+    // We want "string = http.client.get() labeling the request NAME as "es-get-domain"
+    // The below fails, doesn't label and and also complains about RequestContext.makeContextAware()
+
     // The domain endpoint is read only once per startup. Hence, there is less impact to allocating
     // strings. We retain the string so that it can be logged if the AWS response is malformed.
     HttpStatus status;
