@@ -20,15 +20,17 @@ import com.linecorp.armeria.client.endpoint.EndpointGroup;
 import com.linecorp.armeria.client.endpoint.dns.DnsAddressEndpointGroup;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
-import com.linecorp.armeria.common.HttpMethod;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.HttpStatusClass;
+import com.linecorp.armeria.common.util.SafeCloseable;
 import io.netty.util.AttributeKey;
 import java.io.IOException;
 import java.util.concurrent.CompletionException;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
+import static com.linecorp.armeria.client.Clients.withContextCustomizer;
+import static com.linecorp.armeria.common.HttpMethod.GET;
 import static zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageAutoConfiguration.JSON;
 
 final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
@@ -36,27 +38,26 @@ final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
 
   final Function<Endpoint, HttpClient> clientFactory;
   final Endpoint endpoint;
-  final AggregatedHttpRequest describeElasticsearchDomain;
+  final String domain;
 
   ElasticsearchDomainEndpoint(Function<Endpoint, HttpClient> clientFactory, Endpoint endpoint,
       String domain) {
     this.clientFactory = clientFactory;
     this.endpoint = endpoint;
-    this.describeElasticsearchDomain =
-        AggregatedHttpRequest.of(HttpMethod.GET, "/2015-01-01/es/domain/" + domain);
+    this.domain = domain;
   }
 
   @Override public DnsAddressEndpointGroup get() {
-    // We want "string = http.client.get() labeling the request NAME as "es-get-domain"
-    // The below fails, doesn't label and and also complains about RequestContext.makeContextAware()
+    // We want "string = GET /2015-01-01/es/domain/{domain}" labeled as "es-get-domain"
 
     // The domain endpoint is read only once per startup. Hence, there is less impact to allocating
     // strings. We retain the string so that it can be logged if the AWS response is malformed.
     HttpStatus status;
     String body;
-    try {
-      AggregatedHttpResponse res =
-          clientFactory.apply(endpoint).execute(describeElasticsearchDomain).aggregate().join();
+
+    AggregatedHttpRequest req = AggregatedHttpRequest.of(GET, "/2015-01-01/es/domain/" + domain);
+    try (SafeCloseable sc = withContextCustomizer(ctx -> ctx.attr(NAME).set("es-get-domain"))) {
+      AggregatedHttpResponse res = clientFactory.apply(endpoint).execute(req).aggregate().join();
       status = res.status();
       body = res.contentUtf8();
     } catch (RuntimeException | Error e) {
@@ -66,7 +67,7 @@ final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
     }
 
     if (!status.codeClass().equals(HttpStatusClass.SUCCESS)) {
-      String message = describeElasticsearchDomain.path() + " failed with status " + status;
+      String message = req.path() + " failed with status " + status;
       if (!body.isEmpty()) message += ": " + body;
       throw new RuntimeException(message);
     }
