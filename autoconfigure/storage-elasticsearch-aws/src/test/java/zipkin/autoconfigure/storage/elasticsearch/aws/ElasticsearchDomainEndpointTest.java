@@ -13,6 +13,7 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
+import com.linecorp.armeria.client.Endpoint;
 import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
@@ -28,6 +29,7 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import static com.linecorp.armeria.common.SessionProtocol.HTTP;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ElasticsearchDomainEndpointTest {
@@ -52,7 +54,8 @@ public class ElasticsearchDomainEndpointTest {
   ElasticsearchDomainEndpoint client;
 
   @Before public void setUp() {
-    client = new ElasticsearchDomainEndpoint(HttpClient.of(server.httpUri("/")), "zipkin53");
+    client = new ElasticsearchDomainEndpoint((endpoint) -> HttpClient.of(HTTP, endpoint),
+        Endpoint.of("localhost", server.httpPort()), "zipkin53");
   }
 
   @Test public void publicUrl() {

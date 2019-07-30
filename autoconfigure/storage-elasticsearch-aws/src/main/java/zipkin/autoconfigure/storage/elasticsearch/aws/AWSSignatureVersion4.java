@@ -91,38 +91,39 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
   @Override public HttpResponse execute(ClientRequestContext ctx, HttpRequest req) {
     // We aggregate the request body with pooled objects because signing implies reading it before
     // sending it to Elasticsearch.
-    return HttpResponse.from(req.aggregateWithPooledObjects(ctx.contextAwareEventLoop(), ctx.alloc())
-        .thenCompose(aggReg -> {
-          try {
-            AggregatedHttpRequest signed = sign(ctx, aggReg);
-            return delegate().execute(ctx, HttpRequest.of(signed))
-                // We aggregate the response with pooled objects because it could be large. This
-                // reduces heap usage when parsing json or when http body logging is enabled.
-                .aggregateWithPooledObjects(ctx.contextAwareEventLoop(), ctx.alloc());
-          } catch (Exception e) {
-            CompletableFuture<AggregatedHttpResponse> future = new CompletableFuture<>();
-            future.completeExceptionally(e);
-            return future;
-          }
-        })
-        .thenApply(aggResp -> {
-          if (!aggResp.status().equals(HttpStatus.FORBIDDEN)) return HttpResponse.of(aggResp);
+    return HttpResponse.from(
+        req.aggregateWithPooledObjects(ctx.contextAwareEventLoop(), ctx.alloc())
+            .thenCompose(aggReg -> {
+              try {
+                AggregatedHttpRequest signed = sign(ctx, aggReg);
+                return delegate().execute(ctx, HttpRequest.of(signed))
+                    // We aggregate the response with pooled objects because it could be large. This
+                    // reduces heap usage when parsing json or when http body logging is enabled.
+                    .aggregateWithPooledObjects(ctx.contextAwareEventLoop(), ctx.alloc());
+              } catch (Exception e) {
+                CompletableFuture<AggregatedHttpResponse> future = new CompletableFuture<>();
+                future.completeExceptionally(e);
+                return future;
+              }
+            })
+            .thenApply(aggResp -> {
+              if (!aggResp.status().equals(HttpStatus.FORBIDDEN)) return HttpResponse.of(aggResp);
 
-          // We only set a body-related message when it is Amazon's format
-          StringBuilder message = new StringBuilder().append(req.path()).append(" failed: ");
-          String awsMessage = null;
-          try (InputStream stream = aggResp.content().toInputStream()) {
-            awsMessage = JSON.readTree(stream).path("message").textValue();
-          } catch (IOException e) {
-            // Ignore JSON parse failure.
-          } finally {
-            // toInputStream creates an additional reference instead of itself releasing content()
-            ReferenceCountUtil.safeRelease(aggResp.content());
-          }
-          message.append(awsMessage != null ? awsMessage : aggResp.status());
+              // We only set a body-related message when it is Amazon's format
+              StringBuilder message = new StringBuilder().append(req.path()).append(" failed: ");
+              String awsMessage = null;
+              try (InputStream stream = aggResp.content().toInputStream()) {
+                awsMessage = JSON.readTree(stream).path("message").textValue();
+              } catch (IOException e) {
+                // Ignore JSON parse failure.
+              } finally {
+                // toInputStream creates an additional reference instead of itself releasing content()
+                ReferenceCountUtil.safeRelease(aggResp.content());
+              }
+              message.append(awsMessage != null ? awsMessage : aggResp.status());
 
-          throw new RuntimeException(message.toString());
-        }));
+              throw new RuntimeException(message.toString());
+            }));
   }
 
   static void writeCanonicalString(

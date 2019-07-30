@@ -15,12 +15,15 @@ package zipkin.autoconfigure.storage.elasticsearch.aws;
 
 import com.linecorp.armeria.client.Client;
 import com.linecorp.armeria.client.ClientOptionsBuilder;
+import com.linecorp.armeria.client.Endpoint;
+import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.client.endpoint.EndpointGroup;
 import com.linecorp.armeria.client.endpoint.StaticEndpointGroup;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.SessionProtocol;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import org.junit.After;
 import org.junit.Rule;
@@ -38,6 +41,7 @@ import org.springframework.context.annotation.AnnotationConfigApplicationContext
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import static com.linecorp.armeria.common.SessionProtocol.HTTP;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageAutoConfiguration.QUALIFIER;
@@ -146,6 +150,10 @@ public class ZipkinElasticsearchAwsStorageAutoConfigurationTest {
   }
 
   @Configuration static class DefaultHostsConfiguration {
+    @Bean Function<Endpoint, HttpClient> esHttpClientFactory() {
+      return (endpoint) -> HttpClient.of(HTTP, endpoint);
+    }
+
     @Bean @Qualifier(QUALIFIER) @ConditionalOnMissingBean SessionProtocol esSessionProtocol() {
       return SessionProtocol.HTTP;
     }

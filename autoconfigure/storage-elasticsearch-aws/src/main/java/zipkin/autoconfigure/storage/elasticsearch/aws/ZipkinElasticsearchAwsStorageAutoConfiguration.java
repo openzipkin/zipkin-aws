@@ -20,6 +20,7 @@ import com.amazonaws.regions.DefaultAwsRegionProviderChain;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.client.Client;
 import com.linecorp.armeria.client.ClientOptionsBuilder;
+import com.linecorp.armeria.client.Endpoint;
 import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.client.endpoint.EndpointGroup;
 import com.linecorp.armeria.common.HttpRequest;
@@ -64,10 +65,10 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
    * AWS api. Otherwise, we assume the URL specified in ES_HOSTS is correct.
    */
   @Bean @Qualifier(QUALIFIER) @Conditional(AwsDomainSetCondition.class)
-  Supplier<EndpointGroup> esInitialEndpoints(String region,
-      ZipkinElasticsearchAwsStorageProperties aws) {
-    return new ElasticsearchDomainEndpoint(
-        HttpClient.of("https://es." + region + ".amazonaws.com/"), aws.getDomain());
+  Supplier<EndpointGroup> esInitialEndpoints(Function<Endpoint, HttpClient> clientFactory,
+      String region, ZipkinElasticsearchAwsStorageProperties aws) {
+    return new ElasticsearchDomainEndpoint(clientFactory,
+        Endpoint.of("es." + region + ".amazonaws.com", 443), aws.getDomain());
   }
 
   // We always use https eventhough http is available also

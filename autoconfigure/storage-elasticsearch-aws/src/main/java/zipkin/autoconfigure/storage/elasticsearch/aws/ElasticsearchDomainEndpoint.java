@@ -14,6 +14,7 @@
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.linecorp.armeria.client.Endpoint;
 import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.client.endpoint.EndpointGroup;
 import com.linecorp.armeria.client.endpoint.dns.DnsAddressEndpointGroup;
@@ -24,18 +25,20 @@ import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.HttpStatusClass;
 import java.io.IOException;
 import java.util.concurrent.CompletionException;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageAutoConfiguration.JSON;
 
 final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
-  final HttpClient client;
+  final Function<Endpoint, HttpClient> clientFactory;
+  final Endpoint endpoint;
   final AggregatedHttpRequest describeElasticsearchDomain;
 
-  ElasticsearchDomainEndpoint(HttpClient client, String domain) {
-    if (client == null) throw new NullPointerException("client == null");
-    if (domain == null) throw new NullPointerException("domain == null");
-    this.client = client;
+  ElasticsearchDomainEndpoint(Function<Endpoint, HttpClient> clientFactory, Endpoint endpoint,
+      String domain) {
+    this.clientFactory = clientFactory;
+    this.endpoint = endpoint;
     this.describeElasticsearchDomain =
         AggregatedHttpRequest.of(HttpMethod.GET, "/2015-01-01/es/domain/" + domain);
   }
@@ -46,7 +49,8 @@ final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
     HttpStatus status;
     String body;
     try {
-      AggregatedHttpResponse res = client.execute(describeElasticsearchDomain).aggregate().join();
+      AggregatedHttpResponse res =
+          clientFactory.apply(endpoint).execute(describeElasticsearchDomain).aggregate().join();
       status = res.status();
       body = res.contentUtf8();
     } catch (RuntimeException | Error e) {
