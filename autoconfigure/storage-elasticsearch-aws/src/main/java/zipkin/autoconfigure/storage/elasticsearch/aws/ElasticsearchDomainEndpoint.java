@@ -18,6 +18,7 @@ import com.linecorp.armeria.client.Endpoint;
 import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.client.endpoint.EndpointGroup;
 import com.linecorp.armeria.client.endpoint.dns.DnsAddressEndpointGroup;
+import com.linecorp.armeria.client.endpoint.dns.DnsAddressEndpointGroupBuilder;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
@@ -26,6 +27,7 @@ import com.linecorp.armeria.common.util.SafeCloseable;
 import io.netty.util.AttributeKey;
 import java.io.IOException;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -87,6 +89,12 @@ final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
               + body);
     }
 
-    return DnsAddressEndpointGroup.of(endpoint);
+    DnsAddressEndpointGroup result = new DnsAddressEndpointGroupBuilder(endpoint).port(443).build();
+    try {
+      result.awaitInitialEndpoints(1, TimeUnit.SECONDS);
+    } catch (Exception e) {
+      // let it fail later
+    }
+    return result;
   }
 }
