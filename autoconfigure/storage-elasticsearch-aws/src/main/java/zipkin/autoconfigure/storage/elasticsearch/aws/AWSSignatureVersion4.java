@@ -44,6 +44,7 @@ import java.util.function.Function;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import static com.linecorp.armeria.common.HttpHeaderNames.HOST;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageAutoConfiguration.JSON;
@@ -54,9 +55,8 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   static final AsciiString X_AMZ_DATE = HttpHeaderNames.of("x-amz-date");
   static final AsciiString X_AMZ_SECURITY_TOKEN = HttpHeaderNames.of("x-amz-security-token");
-  static final AsciiString[] CANONICAL_HEADERS =
-      {HttpHeaderNames.HOST, X_AMZ_DATE, X_AMZ_SECURITY_TOKEN};
-  static final String HOST_DATE = HttpHeaderNames.HOST + ";" + X_AMZ_DATE;
+  static final AsciiString[] OTHER_CANONICAL_HEADERS = {X_AMZ_DATE, X_AMZ_SECURITY_TOKEN};
+  static final String HOST_DATE = HOST + ";" + X_AMZ_DATE;
   static final String HOST_DATE_TOKEN = HOST_DATE + ";" + X_AMZ_SECURITY_TOKEN;
   static final String SERVICE = "es";
   static final byte[] SERVICE_BYTES = {'e', 's'};
@@ -127,7 +127,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
   }
 
   static void writeCanonicalString(
-      ClientRequestContext ctx, RequestHeaders headers, HttpData content, ByteBuf result) {
+      ClientRequestContext ctx, RequestHeaders headers, HttpData payload, ByteBuf result) {
     // HTTPRequestMethod + '\n' +
     ByteBufUtil.writeUtf8(result, ctx.method().name());
     result.writeByte('\n');
@@ -147,17 +147,12 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
 
     // CanonicalHeaders + '\n' +
     ByteBuf signedHeaders = ctx.alloc().buffer();
+    writeCanonicalHeaderValue(HOST, ctx.endpoint().host(), signedHeaders, result);
     try {
-      for (AsciiString canonicalHeader : CANONICAL_HEADERS) {
+      for (AsciiString canonicalHeader : OTHER_CANONICAL_HEADERS) {
         String value = headers.get(canonicalHeader);
         if (value != null) {
-          ByteBufUtil.writeUtf8(result, canonicalHeader);
-          result.writeByte(':');
-          ByteBufUtil.writeUtf8(result, value);
-          result.writeByte('\n');
-
-          signedHeaders.writeByte(';');
-          ByteBufUtil.writeUtf8(signedHeaders, canonicalHeader);
+          writeCanonicalHeaderValue(canonicalHeader, value, signedHeaders, result);
         }
       }
       result.writeByte('\n'); // end headers
@@ -171,11 +166,22 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
     result.writeByte('\n');
 
     // HexEncode(Hash(Payload))
-    if (!content.isEmpty()) {
-      ByteBufUtil.writeUtf8(result, ByteBufUtil.hexDump(sha256(content)));
+    if (!payload.isEmpty()) {
+      ByteBufUtil.writeUtf8(result, ByteBufUtil.hexDump(sha256(payload)));
     } else {
       ByteBufUtil.writeUtf8(result, EMPTY_STRING_HASH);
     }
+  }
+
+  private static void writeCanonicalHeaderValue(AsciiString canonicalHeader, String value,
+      ByteBuf signedHeaders, ByteBuf result) {
+    ByteBufUtil.writeUtf8(result, canonicalHeader);
+    result.writeByte(':');
+    ByteBufUtil.writeUtf8(result, value);
+    result.writeByte('\n');
+
+    signedHeaders.writeByte(';');
+    ByteBufUtil.writeUtf8(signedHeaders, canonicalHeader);
   }
 
   static void writeToSign(
@@ -221,7 +227,6 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
     String credentialScope = credentialScope(yyyyMMdd, region);
 
     RequestHeadersBuilder builder = req.headers().toBuilder()
-        .set(HttpHeaderNames.HOST, ctx.endpoint().host())
         .set(X_AMZ_DATE, timestamp);
 
     if (credentials.sessionToken != null) {
@@ -239,15 +244,14 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
       byte[] signatureKey = signatureKey(credentials.secretKey, yyyyMMdd);
       String signature = ByteBufUtil.hexDump(hmacSha256(signatureKey, toSign.nioBuffer()));
 
-      String authorization =
-          "AWS4-HMAC-SHA256 Credential="
-              + credentials.accessKey
-              + '/'
-              + credentialScope
-              + ", SignedHeaders="
-              + signedHeaders
-              + ", Signature="
-              + signature;
+      String authorization = "AWS4-HMAC-SHA256 Credential="
+          + credentials.accessKey
+          + '/'
+          + credentialScope
+          + ", SignedHeaders="
+          + signedHeaders
+          + ", Signature="
+          + signature;
 
       return AggregatedHttpRequest.of(
           builder.add(HttpHeaderNames.AUTHORIZATION, authorization).build(),

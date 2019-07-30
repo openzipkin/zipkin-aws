@@ -14,6 +14,7 @@
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
 import com.linecorp.armeria.client.ClientRequestContext;
+import com.linecorp.armeria.client.ClientRequestContextBuilder;
 import com.linecorp.armeria.client.Endpoint;
 import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.client.HttpClientBuilder;
@@ -146,41 +147,43 @@ public class AWSSignatureVersion4Test {
     AggregatedHttpRequest request = AggregatedHttpRequest.of(
         RequestHeaders.builder(HttpMethod.POST,
             "/zipkin-2016-10-05,zipkin-2016-10-06/dependencylink/_search?allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true")
-            .set(HttpHeaderNames.HOST,
-                "search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com")
             .set(AWSSignatureVersion4.X_AMZ_DATE, "20161004T132314Z")
             .contentType(MediaType.JSON_UTF_8)
             .build(),
         HttpData.ofUtf8("{\n" + "    \"query\" : {\n" + "      \"match_all\" : { }\n" + "    }")
     );
-    ClientRequestContext ctx = ClientRequestContext.of(HttpRequest.of(request));
+    ClientRequestContext ctx = ClientRequestContextBuilder.of(HttpRequest.of(request))
+        .endpoint(Endpoint.of(
+            "search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com"))
+        .build();
+
     ByteBuf result = Unpooled.buffer();
 
     writeCanonicalString(ctx, request.headers(), request.content(), result);
     // Ensure that the canonical string encodes commas with %2C
-    assertThat(result.toString(UTF_8))
-        .isEqualTo(
-            "POST\n"
-                + "/zipkin-2016-10-05%2Czipkin-2016-10-06/dependencylink/_search\n"
-                + "allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true\n"
-                + "host:search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com\n"
-                + "x-amz-date:20161004T132314Z\n"
-                + "\n"
-                + "host;x-amz-date\n"
-                + "2fd35cb36e5de91bbae279313c371fb630a6b3aab1478df378c5e73e667a1747");
+    assertThat(result.toString(UTF_8)).isEqualTo(""
+        + "POST\n"
+        + "/zipkin-2016-10-05%2Czipkin-2016-10-06/dependencylink/_search\n"
+        + "allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true\n"
+        + "host:search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com\n"
+        + "x-amz-date:20161004T132314Z\n"
+        + "\n"
+        + "host;x-amz-date\n"
+        + "2fd35cb36e5de91bbae279313c371fb630a6b3aab1478df378c5e73e667a1747");
   }
 
   /** Starting with Zipkin 1.31 colons are used to delimit index types in ES */
   @Test public void canonicalString_colonsInPath() {
-    AggregatedHttpRequest request = AggregatedHttpRequest.of(
-        RequestHeaders.builder(HttpMethod.GET,
-            "/_cluster/health/zipkin:span-*")
-            .set(HttpHeaderNames.HOST,
-                "search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com")
-            .set(AWSSignatureVersion4.X_AMZ_DATE, "20170830T143137Z")
-            .build()
+    AggregatedHttpRequest request = AggregatedHttpRequest.of(RequestHeaders.builder(HttpMethod.GET,
+        "/_cluster/health/zipkin:span-*")
+        .set(AWSSignatureVersion4.X_AMZ_DATE, "20170830T143137Z")
+        .build()
     );
-    ClientRequestContext ctx = ClientRequestContext.of(HttpRequest.of(request));
+    ClientRequestContext ctx = ClientRequestContextBuilder.of(HttpRequest.of(request))
+        .endpoint(Endpoint.of(
+            "search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com"))
+        .build();
+
     ByteBuf result = Unpooled.buffer();
 
     writeCanonicalString(ctx, request.headers(), request.content(), result);
@@ -202,11 +205,13 @@ public class AWSSignatureVersion4Test {
     String yyyyMMdd = timestamp.substring(0, 8);
     AggregatedHttpRequest request = AggregatedHttpRequest.of(
         RequestHeaders.builder(HttpMethod.GET, "/2015-01-01/es/domain/zipkin")
-            .set(HttpHeaderNames.HOST, "es.ap-southeast-1.amazonaws.com")
             .set(AWSSignatureVersion4.X_AMZ_DATE, timestamp)
             .build()
     );
-    ClientRequestContext ctx = ClientRequestContext.of(HttpRequest.of(request));
+    ClientRequestContext ctx = ClientRequestContextBuilder.of(HttpRequest.of(request))
+        .endpoint(Endpoint.of("es.ap-southeast-1.amazonaws.com"))
+        .build();
+
     ByteBuf canonicalString = Unpooled.buffer();
 
     writeCanonicalString(ctx, request.headers(), request.content(), canonicalString);
