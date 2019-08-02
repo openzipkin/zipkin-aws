@@ -147,7 +147,8 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
 
     // CanonicalHeaders + '\n' +
     ByteBuf signedHeaders = ctx.alloc().buffer();
-    writeCanonicalHeaderValue(HOST, ctx.endpoint().host(), signedHeaders, result);
+
+    writeCanonicalHeaderValue(HOST, host(ctx), signedHeaders, result);
     try {
       for (AsciiString canonicalHeader : OTHER_CANONICAL_HEADERS) {
         String value = headers.get(canonicalHeader);
@@ -300,5 +301,32 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
     } catch (InvalidKeyException e) {
       throw new IllegalArgumentException(e);
     }
+  }
+
+  // Gets the host for use in signing. This requires a ceremony because Armeria doesn't reliably
+  // provide this information.
+  //
+  // - Depending on whether the request comes from a health check or normal, ctx.endpoint().host()
+  //   may be an IP address, while the actual host is in either HOST or AUTHORITY additional
+  //   headers.
+  //
+  // - The host extracted from additional headers usually has a port attached, even for well-defined
+  //   ones like HTTPS:443. Armeria strips this off in the end before sending the request it seems
+  //   so we need to make sure to strip it here too.
+  static String host(ClientRequestContext ctx) {
+    String host = ctx.additionalRequestHeaders().get(HOST);
+    if (host == null) {
+      host = ctx.additionalRequestHeaders().get(HttpHeaderNames.AUTHORITY);
+    }
+    if (host == null) {
+      host = ctx.endpoint().host();
+    }
+
+    int colonIndex = host.indexOf(':');
+    if (colonIndex >= 0) {
+      host = host.substring(0, colonIndex);
+    }
+
+    return host;
   }
 }
