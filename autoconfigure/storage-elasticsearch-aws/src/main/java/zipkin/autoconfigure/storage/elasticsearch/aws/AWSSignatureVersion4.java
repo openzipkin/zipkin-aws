@@ -312,7 +312,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
   //
   // - The host extracted from additional headers usually has a port attached, even for well-defined
   //   ones like HTTPS:443. Armeria strips this off in the end before sending the request it seems
-  //   so we need to make sure to strip it here too.
+  //   so we need to make sure to strip it here too since we always use port 443 for AWS ES.
   static String host(ClientRequestContext ctx) {
     String host = ctx.additionalRequestHeaders().get(HOST);
     if (host == null) {
