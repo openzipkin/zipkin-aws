@@ -38,6 +38,7 @@ import java.util.function.Function;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
+import static com.linecorp.armeria.common.HttpHeaderNames.AUTHORITY;
 import static com.linecorp.armeria.common.HttpHeaderNames.HOST;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
@@ -118,7 +119,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
     // CanonicalHeaders + '\n' +
     ByteBuf signedHeaders = ctx.alloc().buffer();
 
-    writeCanonicalHeaderValue(HOST, host(ctx), signedHeaders, result);
+    writeCanonicalHeaderValue(HOST, host(headers, ctx), signedHeaders, result);
     try {
       for (AsciiString canonicalHeader : OTHER_CANONICAL_HEADERS) {
         String value = headers.get(canonicalHeader);
@@ -283,15 +284,14 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
   // - The host extracted from additional headers usually has a port attached, even for well-defined
   //   ones like HTTPS:443. Armeria strips this off in the end before sending the request it seems
   //   so we need to make sure to strip it here too since we always use port 443 for AWS ES.
-  static String host(ClientRequestContext ctx) {
-    String host = ctx.additionalRequestHeaders().get(HOST);
+  static String host(RequestHeaders headers, ClientRequestContext ctx) {
+    String host = headers.get(AUTHORITY);
     if (host == null) {
       host = ctx.additionalRequestHeaders().get(HttpHeaderNames.AUTHORITY);
     }
     if (host == null) {
       host = ctx.endpoint().host();
     }
-
     int colonIndex = host.indexOf(':');
     if (colonIndex >= 0) {
       host = host.substring(0, colonIndex);
