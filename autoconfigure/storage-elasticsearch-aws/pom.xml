@@ -31,11 +31,11 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.github.openzipkin.zipkin</groupId>
-      <artifactId>zipkin-storage-elasticsearch</artifactId>
-      <version>${zipkin.version}</version>
+      <groupId>com.linecorp.armeria</groupId>
+      <artifactId>armeria</artifactId>
+      <version>${armeria.version}</version>
+      <scope>provided</scope>
     </dependency>
-
     <dependency>
       <artifactId>aws-java-sdk-core</artifactId>
       <groupId>com.amazonaws</groupId>

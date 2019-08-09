@@ -55,7 +55,12 @@ public class ElasticsearchDomainEndpointTest {
 
   @Before public void setUp() {
     client = new ElasticsearchDomainEndpoint((endpoint) -> HttpClient.of(HTTP, endpoint),
-        Endpoint.of("localhost", server.httpPort()), "zipkin53");
+        Endpoint.of("localhost", server.httpPort()), "ap-southeast-1", "zipkin53");
+  }
+
+
+  @Test public void niceToString() {
+    assertThat(client).hasToString("aws://ap-southeast-1/zipkin53");
   }
 
   @Test public void publicUrl() {

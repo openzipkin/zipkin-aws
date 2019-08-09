@@ -40,12 +40,13 @@ final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
 
   final Function<Endpoint, HttpClient> clientFactory;
   final Endpoint endpoint;
-  final String domain;
+  final String region, domain;
 
   ElasticsearchDomainEndpoint(Function<Endpoint, HttpClient> clientFactory, Endpoint endpoint,
-      String domain) {
+      String region, String domain) {
     this.clientFactory = clientFactory;
     this.endpoint = endpoint;
+    this.region = region;
     this.domain = domain;
   }
 
@@ -96,5 +97,9 @@ final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
       // let it fail later
     }
     return result;
+  }
+
+  @Override public String toString() {
+    return "aws://" + region + "/" + domain;
   }
 }
