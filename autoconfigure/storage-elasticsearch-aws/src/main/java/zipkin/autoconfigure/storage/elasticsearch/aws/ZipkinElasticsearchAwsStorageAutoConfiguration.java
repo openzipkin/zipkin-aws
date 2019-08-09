@@ -68,7 +68,7 @@ class ZipkinElasticsearchAwsStorageAutoConfiguration {
   Supplier<EndpointGroup> esInitialEndpoints(Function<Endpoint, HttpClient> clientFactory,
       String region, ZipkinElasticsearchAwsStorageProperties aws) {
     return new ElasticsearchDomainEndpoint(clientFactory,
-        Endpoint.of("es." + region + ".amazonaws.com", 443), aws.getDomain());
+        Endpoint.of("es." + region + ".amazonaws.com", 443), region, aws.getDomain());
   }
 
   // We always use https eventhough http is available also
