@@ -17,21 +17,16 @@ import com.linecorp.armeria.client.Client;
 import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.client.SimpleDecoratingClient;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
-import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
-import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.RequestHeaders;
 import com.linecorp.armeria.common.RequestHeadersBuilder;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufHolder;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.util.AsciiString;
-import io.netty.util.ReferenceCountUtil;
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -39,7 +34,6 @@ import java.security.NoSuchAlgorithmException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.TimeZone;
-import java.util.concurrent.CompletableFuture;
 import java.util.function.Function;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -47,7 +41,6 @@ import javax.crypto.spec.SecretKeySpec;
 import static com.linecorp.armeria.common.HttpHeaderNames.HOST;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageAutoConfiguration.JSON;
 
 // http://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
 final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, HttpResponse> {
@@ -93,38 +86,13 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
     // sending it to Elasticsearch.
     return HttpResponse.from(
         req.aggregateWithPooledObjects(ctx.contextAwareEventLoop(), ctx.alloc())
-            .thenCompose(aggReg -> {
+            .thenApply(aggReg -> {
               try {
                 AggregatedHttpRequest signed = sign(ctx, aggReg);
-                return delegate().execute(ctx, HttpRequest.of(signed))
-                    // We aggregate the response with pooled objects because it could be large. This
-                    // reduces heap usage when parsing json or when http body logging is enabled.
-                    .aggregateWithPooledObjects(ctx.contextAwareEventLoop(), ctx.alloc());
+                return delegate().execute(ctx, HttpRequest.of(signed));
               } catch (Exception e) {
-                CompletableFuture<AggregatedHttpResponse> future = new CompletableFuture<>();
-                future.completeExceptionally(e);
-                return future;
+                return HttpResponse.ofFailure(e);
               }
-            })
-            .thenApply(aggResp -> {
-              if (!aggResp.status().equals(HttpStatus.FORBIDDEN)) return HttpResponse.of(aggResp);
-
-              // We only set a body-related message when it is Amazon's format
-              StringBuilder message = new StringBuilder().append(req.path()).append(" failed: ");
-              if (!aggResp.content().isEmpty()) {
-                String awsMessage = null;
-                try (InputStream stream = aggResp.content().toInputStream()) {
-                  awsMessage = JSON.readTree(stream).path("message").textValue();
-                } catch (IOException e) {
-                  // Ignore JSON parse failure.
-                } finally {
-                  // toInputStream creates an additional reference instead of itself releasing content()
-                  ReferenceCountUtil.safeRelease(aggResp.content());
-                }
-                message.append(awsMessage != null ? awsMessage : aggResp.status());
-              }
-
-              throw new RuntimeException(message.toString());
             }));
   }
 

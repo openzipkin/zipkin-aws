@@ -90,40 +90,6 @@ public class AWSSignatureVersion4Test {
         .hasMessageContaining("Unable to load AWS credentials from any provider in the chain");
   }
 
-  @Test public void unwrapsJsonError() {
-    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
-        HttpStatus.FORBIDDEN,
-        MediaType.JSON_UTF_8,
-        "{\"message\":\"The request signature we calculated does not match the signature you "
-            + "provided.\"}"));
-
-    assertThatThrownBy(() -> client.get("/_template/zipkin_template").aggregate().join())
-        .isInstanceOf(CompletionException.class)
-        .hasCauseInstanceOf(RuntimeException.class)
-        .hasMessageContaining(
-            "/_template/zipkin_template failed: The request signature we calculated does not match the signature you provided.");
-  }
-
-  @Test public void safeDriftedBody() {
-    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
-        HttpStatus.FORBIDDEN,
-        MediaType.JSON_UTF_8, "{\"msg\":\"I'm a clone\"}"));
-
-    assertThatThrownBy(() -> client.get("/_template/zipkin_template").aggregate().join())
-        .isInstanceOf(CompletionException.class)
-        .hasCauseInstanceOf(RuntimeException.class)
-        .hasMessageContaining("/_template/zipkin_template failed: 403 Forbidden");
-  }
-
-  @Test public void safeMissingResponseBody() {
-    MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.FORBIDDEN));
-
-    assertThatThrownBy(() -> client.get("/_template/zipkin_template").aggregate().join())
-        .isInstanceOf(CompletionException.class)
-        .hasCauseInstanceOf(RuntimeException.class)
-        .hasMessageContaining("/_template/zipkin_template failed: 403 Forbidden");
-  }
-
   @Test public void signsRequestsForRegionAndEsService() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.OK));
 

@@ -77,7 +77,7 @@
           <excludes>
             <!-- zipkin-server depends on armeria and its grpc protocol-->
             <exclude>
-              <groupId>com.linecorp.armeria</groupId>
+              <groupId>com.github.trustin.armeria</groupId>
               <artifactId>armeria</artifactId>
             </exclude>
           </excludes>
