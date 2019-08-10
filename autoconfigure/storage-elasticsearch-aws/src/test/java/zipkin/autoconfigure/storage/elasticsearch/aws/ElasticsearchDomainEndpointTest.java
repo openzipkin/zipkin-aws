@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,100 +13,132 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
-import okhttp3.OkHttpClient;
-import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.MockWebServer;
+import com.linecorp.armeria.client.Endpoint;
+import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.common.AggregatedHttpRequest;
+import com.linecorp.armeria.common.AggregatedHttpResponse;
+import com.linecorp.armeria.common.HttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.MediaType;
+import com.linecorp.armeria.server.ServerBuilder;
+import com.linecorp.armeria.testing.junit4.server.ServerRule;
+import java.util.concurrent.atomic.AtomicReference;
+import org.junit.Before;
+import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
+import static com.linecorp.armeria.common.SessionProtocol.HTTP;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ElasticsearchDomainEndpointTest {
+
+  static final AtomicReference<AggregatedHttpRequest> CAPTURED_REQUEST =
+      new AtomicReference<>();
+  static final AtomicReference<AggregatedHttpResponse> MOCK_RESPONSE =
+      new AtomicReference<>();
+
+  @ClassRule public static ServerRule server = new ServerRule() {
+    @Override protected void configure(ServerBuilder sb) {
+      sb.serviceUnder("/", (ctx, req) -> HttpResponse.from(
+          req.aggregate().thenApply(agg -> {
+            CAPTURED_REQUEST.set(agg);
+            return HttpResponse.of(MOCK_RESPONSE.get());
+          })));
+    }
+  };
+
   @Rule public ExpectedException thrown = ExpectedException.none();
-  @Rule public MockWebServer es = new MockWebServer();
 
-  ElasticsearchDomainEndpoint client =
-      new ElasticsearchDomainEndpoint(new OkHttpClient(), es.url(""), "zipkin53");
+  ElasticsearchDomainEndpoint client;
 
-  @Test
-  public void publicUrl() throws Exception {
-    es.enqueue(
-        new MockResponse()
-            .setBody(
-                "{\n"
-                    + "  \"DomainStatus\": {\n"
-                    + "    \"Endpoint\": \"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\",\n"
-                    + "    \"Endpoints\": null\n"
-                    + "  }\n"
-                    + "}"));
+  @Before public void setUp() {
+    client = new ElasticsearchDomainEndpoint((endpoint) -> HttpClient.of(HTTP, endpoint),
+        Endpoint.of("localhost", server.httpPort()), "ap-southeast-1", "zipkin53");
+  }
 
-    assertThat(client.get())
+
+  @Test public void niceToString() {
+    assertThat(client).hasToString("aws://ap-southeast-1/zipkin53");
+  }
+
+  @Test public void publicUrl() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        "{\n"
+            + "  \"DomainStatus\": {\n"
+            + "    \"Endpoint\": \"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\",\n"
+            + "    \"Endpoints\": null\n"
+            + "  }\n"
+            + "}"));
+
+    assertThat(client.get()).extracting("hostname")
         .containsExactly(
-            "https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
+            "search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
-  @Test
-  public void vpcUrl() throws Exception {
-    es.enqueue(
-        new MockResponse()
-            .setBody(
-                "{\n"
-                    + "  \"DomainStatus\": {\n"
-                    + "    \"Endpoint\": null,\n"
-                    + "    \"Endpoints\": {\n"
-                    + "      \"vpc\":\"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\"\n"
-                    + "    }\n"
-                    + "  }\n"
-                    + "}"));
+  @Test public void vpcUrl() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        "{\n"
+            + "  \"DomainStatus\": {\n"
+            + "    \"Endpoint\": null,\n"
+            + "    \"Endpoints\": {\n"
+            + "      \"vpc\":\"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\"\n"
+            + "    }\n"
+            + "  }\n"
+            + "}"));
 
-    assertThat(client.get())
+    assertThat(client.get()).extracting("hostname")
         .containsExactly(
-            "https://search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
+            "search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
-  @Test
-  public void vpcPreferred() {
-    es.enqueue(
-        new MockResponse()
-            .setBody(
-                "{\n"
-                    + "  \"DomainStatus\": {\n"
-                    + "    \"Endpoint\": \"isnotvpc\",\n"
-                    + "    \"Endpoints\": {\n"
-                    + "      \"vpc\":\"isvpc\"\n"
-                    + "    }\n"
-                    + "  }\n"
-                    + "}"));
+  @Test public void vpcPreferred() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        "{\n"
+            + "  \"DomainStatus\": {\n"
+            + "    \"Endpoint\": \"isnotvpc\",\n"
+            + "    \"Endpoints\": {\n"
+            + "      \"vpc\":\"isvpc\"\n"
+            + "    }\n"
+            + "  }\n"
+            + "}"));
 
-    assertThat(client.get())
-        .containsExactly("https://isvpc");
+    assertThat(client.get()).extracting("hostname")
+        .containsExactly("isvpc");
   }
 
-  @Test
-  public void vpcMissing() {
-    es.enqueue(
-        new MockResponse()
-            .setBody(
-                "{\n"
-                    + "  \"DomainStatus\": {\n"
-                    + "    \"Endpoint\": \"isnotvpc\",\n"
-                    + "    \"Endpoints\": {}\n"
-                    + "  }\n"
-                    + "}"));
+  @Test public void vpcMissing() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        "{\n"
+            + "  \"DomainStatus\": {\n"
+            + "    \"Endpoint\": \"isnotvpc\",\n"
+            + "    \"Endpoints\": {}\n"
+            + "  }\n"
+            + "}"));
 
-    assertThat(client.get())
-        .containsExactly("https://isnotvpc");
+    assertThat(client.get()).extracting("hostname")
+        .containsExactly("isnotvpc");
   }
 
   /** Not quite sure why, but some have reported receiving no URLs at all */
-  @Test
-  public void noUrl() throws Exception {
+  @Test public void noUrl() {
     // simplified.. URL is usually the only thing actually missing
     String body = "{\"DomainStatus\": {}}";
-    es.enqueue(new MockResponse().setBody(body));
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(
+        HttpStatus.OK,
+        MediaType.JSON_UTF_8,
+        body));
 
-    thrown.expect(IllegalStateException.class);
+    thrown.expect(RuntimeException.class);
     thrown.expectMessage(
         "Neither DomainStatus.Endpoints.vpc nor DomainStatus.Endpoint were present in response: "
             + body);
@@ -115,11 +147,10 @@ public class ElasticsearchDomainEndpointTest {
   }
 
   /** Not quite sure why, but some have reported receiving no URLs at all */
-  @Test
-  public void unauthorizedNoMessage() throws Exception {
-    es.enqueue(new MockResponse().setResponseCode(403));
+  @Test public void unauthorizedNoMessage() {
+    MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.FORBIDDEN));
 
-    thrown.expect(IllegalStateException.class);
+    thrown.expect(RuntimeException.class);
     thrown.expectMessage("/2015-01-01/es/domain/zipkin53 failed with status 403");
 
     client.get();

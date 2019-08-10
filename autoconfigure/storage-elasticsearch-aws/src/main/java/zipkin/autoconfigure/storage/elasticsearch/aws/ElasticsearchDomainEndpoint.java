@@ -13,73 +13,93 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
-import com.squareup.moshi.JsonReader;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.linecorp.armeria.client.Endpoint;
+import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.client.endpoint.EndpointGroup;
+import com.linecorp.armeria.client.endpoint.dns.DnsAddressEndpointGroup;
+import com.linecorp.armeria.client.endpoint.dns.DnsAddressEndpointGroupBuilder;
+import com.linecorp.armeria.common.AggregatedHttpRequest;
+import com.linecorp.armeria.common.AggregatedHttpResponse;
+import com.linecorp.armeria.common.HttpStatus;
+import com.linecorp.armeria.common.HttpStatusClass;
+import com.linecorp.armeria.common.util.SafeCloseable;
+import io.netty.util.AttributeKey;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.List;
-import java.util.logging.Logger;
-import okhttp3.HttpUrl;
-import okhttp3.OkHttpClient;
-import okhttp3.Request;
-import okhttp3.Response;
-import okio.Buffer;
-import zipkin2.elasticsearch.ElasticsearchStorage;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+import java.util.function.Supplier;
 
-import static zipkin2.elasticsearch.internal.JsonReaders.enterPath;
+import static com.linecorp.armeria.client.Clients.withContextCustomizer;
+import static com.linecorp.armeria.common.HttpMethod.GET;
+import static zipkin.autoconfigure.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageAutoConfiguration.JSON;
 
-final class ElasticsearchDomainEndpoint implements ElasticsearchStorage.HostsSupplier {
-  static final Logger log = Logger.getLogger(ElasticsearchDomainEndpoint.class.getName());
+final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
+  static final AttributeKey<String> NAME = AttributeKey.valueOf("name");
 
-  final OkHttpClient client;
-  final Request describeElasticsearchDomain;
+  final Function<Endpoint, HttpClient> clientFactory;
+  final Endpoint endpoint;
+  final String region, domain;
 
-  ElasticsearchDomainEndpoint(OkHttpClient client, HttpUrl baseUrl, String domain) {
-    if (client == null) throw new NullPointerException("client == null");
-    if (baseUrl == null) throw new NullPointerException("baseUrl == null");
-    if (domain == null) throw new NullPointerException("domain == null");
-    this.client = client;
-    this.describeElasticsearchDomain =
-        new Request.Builder()
-            .url(baseUrl.newBuilder("2015-01-01/es/domain").addPathSegment(domain).build())
-            .tag("get-es-domain")
-            .build();
+  ElasticsearchDomainEndpoint(Function<Endpoint, HttpClient> clientFactory, Endpoint endpoint,
+      String region, String domain) {
+    this.clientFactory = clientFactory;
+    this.endpoint = endpoint;
+    this.region = region;
+    this.domain = domain;
   }
 
-  @Override
-  public List<String> get() {
-    try (Response response = client.newCall(describeElasticsearchDomain).execute()) {
-      String body = response.body().string();
-      if (!response.isSuccessful()) {
-        String message =
-            describeElasticsearchDomain.url().encodedPath()
-                + " failed with status "
-                + response.code();
-        if (!body.isEmpty()) message += ": " + body;
-        throw new IllegalStateException(message);
-      }
-      JsonReader endpointReader = JsonReader.of(new Buffer().writeUtf8(body));
-      endpointReader = enterPath(endpointReader, "DomainStatus", "Endpoints");
-      if (endpointReader != null) endpointReader = enterPath(endpointReader, "vpc");
+  @Override public DnsAddressEndpointGroup get() {
+    // We want "string = GET /2015-01-01/es/domain/{domain}" labeled as "es-get-domain"
 
-      if (endpointReader == null) {
-        endpointReader =
-            enterPath(JsonReader.of(new Buffer().writeUtf8(body)), "DomainStatus", "Endpoint");
-      }
+    // The domain endpoint is read only once per startup. Hence, there is less impact to allocating
+    // strings. We retain the string so that it can be logged if the AWS response is malformed.
+    HttpStatus status;
+    String body;
 
-      if (endpointReader == null) {
-        throw new IllegalStateException(
-            "Neither DomainStatus.Endpoints.vpc nor DomainStatus.Endpoint were present in response: "
-                + body);
-      }
-
-      String endpoint = endpointReader.nextString();
-      if (!endpoint.startsWith("https://")) {
-        endpoint = "https://" + endpoint;
-      }
-      log.fine("using endpoint " + endpoint);
-      return Collections.singletonList(endpoint);
-    } catch (IOException e) {
-      throw new IllegalStateException("couldn't lookup domain endpoint", e);
+    AggregatedHttpRequest req = AggregatedHttpRequest.of(GET, "/2015-01-01/es/domain/" + domain);
+    try (SafeCloseable sc = withContextCustomizer(ctx -> ctx.attr(NAME).set("es-get-domain"))) {
+      AggregatedHttpResponse res = clientFactory.apply(endpoint).execute(req).aggregate().join();
+      status = res.status();
+      body = res.contentUtf8();
+    } catch (RuntimeException | Error e) {
+      throw new RuntimeException("couldn't lookup AWS ES domain endpoint",
+          e instanceof CompletionException ? e.getCause() : e
+      );
     }
+
+    if (!status.codeClass().equals(HttpStatusClass.SUCCESS)) {
+      String message = req.path() + " failed with status " + status;
+      if (!body.isEmpty()) message += ": " + body;
+      throw new RuntimeException(message);
+    }
+
+    String endpoint;
+    try {
+      JsonNode root = JSON.readTree(body);
+      endpoint = root.at("/DomainStatus/Endpoints/vpc").textValue();
+      if (endpoint == null) endpoint = root.at("/DomainStatus/Endpoint").textValue();
+    } catch (IOException e) {
+      throw new AssertionError("Unexpected to have IOException reading a string", e);
+    }
+
+    if (endpoint == null) {
+      throw new RuntimeException(
+          "Neither DomainStatus.Endpoints.vpc nor DomainStatus.Endpoint were present in response: "
+              + body);
+    }
+
+    DnsAddressEndpointGroup result = new DnsAddressEndpointGroupBuilder(endpoint).port(443).build();
+    try {
+      result.awaitInitialEndpoints(1, TimeUnit.SECONDS);
+    } catch (Exception e) {
+      // let it fail later
+    }
+    return result;
+  }
+
+  @Override public String toString() {
+    return "aws://" + region + "/" + domain;
   }
 }

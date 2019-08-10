@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -34,7 +34,7 @@ class ZipkinElasticsearchAwsStorageProperties implements Serializable { // for S
   }
 
   public void setDomain(String domain) {
-    this.domain = "".equals(domain) ? null : domain;
+    this.domain = emptyToNull(domain);
   }
 
   public String getRegion() {
@@ -42,6 +42,10 @@ class ZipkinElasticsearchAwsStorageProperties implements Serializable { // for S
   }
 
   public void setRegion(String region) {
-    this.region = "".equals(region) ? null : region;
+    this.region = emptyToNull(region);
+  }
+
+  static String emptyToNull(String s) {
+    return "".equals(s) ? null : s;
   }
 }

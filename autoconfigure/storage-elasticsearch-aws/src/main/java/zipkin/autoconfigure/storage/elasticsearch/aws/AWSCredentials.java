@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,8 +13,6 @@
  */
 package zipkin.autoconfigure.storage.elasticsearch.aws;
 
-import zipkin2.internal.Nullable;
-
 final class AWSCredentials {
   interface Provider {
     AWSCredentials get();
@@ -22,9 +20,9 @@ final class AWSCredentials {
 
   final String accessKey;
   final String secretKey;
-  @Nullable final String sessionToken;
+  final String sessionToken; // Nullable
 
-  AWSCredentials(String accessKey, String secretKey, @Nullable String sessionToken) {
+  AWSCredentials(String accessKey, String secretKey, String sessionToken) {
     if (accessKey == null) throw new NullPointerException("accessKey == null");
     if (secretKey == null) throw new NullPointerException("secretKey == null");
     this.accessKey = accessKey;
