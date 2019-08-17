@@ -64,9 +64,10 @@ final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
       status = res.status();
       body = res.contentUtf8();
     } catch (RuntimeException | Error e) {
-      throw new RuntimeException("couldn't lookup AWS ES domain endpoint",
-          e instanceof CompletionException ? e.getCause() : e
-      );
+      String message = "couldn't lookup AWS ES domain endpoint";
+      Throwable cause = e instanceof CompletionException ? e.getCause() : e;
+      if (cause.getMessage() != null) message = message + ": " + cause.getMessage();
+      throw new RuntimeException(message, cause);
     }
 
     if (!status.codeClass().equals(HttpStatusClass.SUCCESS)) {
