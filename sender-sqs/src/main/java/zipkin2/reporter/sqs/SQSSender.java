@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -21,10 +21,6 @@ import com.amazonaws.services.sqs.AmazonSQSAsyncClientBuilder;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageResult;
 import com.amazonaws.util.Base64;
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.util.List;
-import java.util.concurrent.Future;
 import zipkin2.Call;
 import zipkin2.Callback;
 import zipkin2.CheckResult;
@@ -33,6 +29,11 @@ import zipkin2.internal.Nullable;
 import zipkin2.reporter.AsyncReporter;
 import zipkin2.reporter.BytesMessageEncoder;
 import zipkin2.reporter.Sender;
+
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.List;
+import java.util.concurrent.Future;
 
 /**
  * Zipkin Sender implementation that sends spans to an SQS queue.
@@ -194,7 +195,7 @@ public final class SQSSender extends Sender {
   }
 
   @Override public final String toString() {
-    return "KinesisSender{queueUrl=" + queueUrl + "}";
+    return "SQSSender{queueUrl=" + queueUrl + "}";
   }
 
   static boolean isAscii(byte[] encodedSpans) {
