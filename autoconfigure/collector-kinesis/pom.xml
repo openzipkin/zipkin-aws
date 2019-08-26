@@ -31,11 +31,9 @@
 
   <dependencyManagement>
     <dependencies>
-      <!-- makes sure the cbor version aligns with spring-boot's -->
       <dependency>
         <groupId>com.fasterxml.jackson.dataformat</groupId>
         <artifactId>jackson-dataformat-cbor</artifactId>
-        <version>${jackson.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>
