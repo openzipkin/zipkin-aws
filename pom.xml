@@ -357,6 +357,7 @@
           </mapping>
           <excludes>
             <exclude>.travis.yml</exclude>
+            <exclude>.dockerignore</exclude>
             <exclude>.gitignore</exclude>
             <exclude>.mvn/**</exclude>
             <exclude>mvnw*</exclude>
