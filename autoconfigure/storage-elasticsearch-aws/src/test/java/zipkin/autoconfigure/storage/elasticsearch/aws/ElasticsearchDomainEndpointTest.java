@@ -75,7 +75,7 @@ public class ElasticsearchDomainEndpointTest {
             + "}"));
 
     assertThat(client.get()).extracting("hostname")
-        .containsExactly(
+        .isEqualTo(
             "search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
@@ -93,7 +93,7 @@ public class ElasticsearchDomainEndpointTest {
             + "}"));
 
     assertThat(client.get()).extracting("hostname")
-        .containsExactly(
+        .isEqualTo(
             "search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
@@ -111,7 +111,7 @@ public class ElasticsearchDomainEndpointTest {
             + "}"));
 
     assertThat(client.get()).extracting("hostname")
-        .containsExactly("isvpc");
+        .isEqualTo("isvpc");
   }
 
   @Test public void vpcMissing() {
@@ -126,7 +126,7 @@ public class ElasticsearchDomainEndpointTest {
             + "}"));
 
     assertThat(client.get()).extracting("hostname")
-        .containsExactly("isnotvpc");
+        .isEqualTo("isnotvpc");
   }
 
   /** Not quite sure why, but some have reported receiving no URLs at all */
