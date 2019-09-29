@@ -60,7 +60,7 @@
     <dependency>
       <groupId>software.amazon.awssdk</groupId>
       <artifactId>url-connection-client</artifactId>
-      <version>${aws-java-sdk2.version}</version>
+      <version>${sdk-core.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
