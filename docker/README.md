@@ -4,7 +4,7 @@ To build a zipkin-aws Docker image, in the top level of the repository, run some
 like
 
 ```bash
-$ docker build -t openzipkin/zipkin-aws:test
+$ docker build -t openzipkin/zipkin-aws:test -f docker/Dockerfile .
 ```
 
 ### Dockerfile migration
