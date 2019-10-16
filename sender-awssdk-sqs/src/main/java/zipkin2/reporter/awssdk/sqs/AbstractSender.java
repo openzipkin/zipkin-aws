@@ -13,15 +13,14 @@
  */
 package zipkin2.reporter.awssdk.sqs;
 
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+import java.util.List;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import zipkin2.Call;
 import zipkin2.codec.Encoding;
 import zipkin2.reporter.BytesMessageEncoder;
 import zipkin2.reporter.Sender;
-
-import java.nio.charset.StandardCharsets;
-import java.util.Base64;
-import java.util.List;
 
 abstract class AbstractSender extends Sender {
 

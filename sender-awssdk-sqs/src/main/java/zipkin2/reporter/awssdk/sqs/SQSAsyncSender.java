@@ -13,15 +13,14 @@
  */
 package zipkin2.reporter.awssdk.sqs;
 
+import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
 import zipkin2.Call;
 import zipkin2.Callback;
 import zipkin2.codec.Encoding;
-
-import java.io.IOException;
-import java.util.concurrent.CompletableFuture;
 
 public final class SQSAsyncSender extends AbstractSender {
 

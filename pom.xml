@@ -27,7 +27,7 @@
     <module>sender-awssdk-sqs</module>
     <module>collector-sqs</module>
     <module>aws-junit</module>
-    <module>autoconfigure</module>
+    <module>module</module>
     <module>collector-kinesis</module>
     <module>sender-kinesis</module>
     <module>storage-xray-udp</module>
@@ -48,19 +48,21 @@
 
     <license-maven-plugin.version>3.0</license-maven-plugin.version>
 
-    <!-- matching armeria/grpc/zipkin -->
-    <spring-boot.version>2.1.8.RELEASE</spring-boot.version>
+    <!-- matching armeria/zipkin -->
+    <spring-boot.version>2.1.9.RELEASE</spring-boot.version>
     <jackson.version>2.9.9.20190807</jackson.version>
-    <armeria.version>0.92.0</armeria.version>
-    <zipkin.version>2.17.0</zipkin.version>
+    <!-- This allows you to test feature branches with jitpack -->
+    <armeria.groupId>com.linecorp.armeria</armeria.groupId>
+    <armeria.version>0.94.0</armeria.version>
+    <zipkin.version>2.18.0</zipkin.version>
     <zipkin-reporter.version>2.10.2</zipkin-reporter.version>
-    <brave.version>5.7.0</brave.version>
+    <brave.version>5.8.0</brave.version>
 
     <slf4j.version>1.7.26</slf4j.version>
     <log4j.version>2.12.1</log4j.version>
 
-    <aws-java-sdk.version>1.11.641</aws-java-sdk.version>
-    <sdk-core.version>2.9.9</sdk-core.version>
+    <aws-java-sdk.version>1.11.653</aws-java-sdk.version>
+    <sdk-core.version>2.9.21</sdk-core.version>
 
     <mockito.version>2.28.2</mockito.version>
 
@@ -169,7 +171,7 @@
       <dependency>
         <groupId>com.squareup.okhttp3</groupId>
         <artifactId>mockwebserver</artifactId>
-        <version>3.14.2</version>
+        <version>4.2.2</version>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>
@@ -258,6 +260,11 @@
             </dependency>
           </dependencies>
         </plugin>
+        <plugin>
+          <groupId>org.codehaus.mojo</groupId>
+          <artifactId>animal-sniffer-maven-plugin</artifactId>
+          <version>1.18</version>
+        </plugin>
       </plugins>
     </pluginManagement>
 
@@ -315,7 +322,6 @@
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>animal-sniffer-maven-plugin</artifactId>
-        <version>1.18</version>
         <configuration>
           <signature>
             <groupId>org.codehaus.mojo.signature</groupId>

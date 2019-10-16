@@ -13,13 +13,12 @@
  */
 package zipkin2.reporter.awssdk.sqs;
 
+import java.io.IOException;
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
 import zipkin2.Call;
 import zipkin2.Callback;
 import zipkin2.codec.Encoding;
-
-import java.io.IOException;
 
 public final class SQSSender extends AbstractSender {
 
