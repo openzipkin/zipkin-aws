@@ -16,19 +16,30 @@ FROM openzipkin/zipkin-builder
 
 WORKDIR /code
 COPY . /code
-RUN mvn -B --no-transfer-progress package -DskipTests=true -pl autoconfigure/collector-sqs,autoconfigure/collector-kinesis,autoconfigure/storage-elasticsearch-aws,autoconfigure/storage-xray -am
+RUN mvn -B --no-transfer-progress package -DskipTests=true -pl module/collector-sqs,module/collector-kinesis,module/storage-elasticsearch-aws,module/storage-xray -am
 
-RUN \
-  cd /code && mkdir -p /zipkin-aws/sqs && cp autoconfigure/collector-sqs/target/zipkin-autoconfigure-collector-sqs-*-module.jar /zipkin-aws/sqs && cd /zipkin-aws/sqs && jar xf *.jar && rm *.jar && \
-  cd /code && mkdir -p /zipkin-aws/kinesis && cp autoconfigure/collector-kinesis/target/zipkin-autoconfigure-collector-kinesis-*-module.jar /zipkin-aws/kinesis && cd /zipkin-aws/kinesis && jar xf *.jar && rm *.jar && \
-  cd /code && mkdir -p /zipkin-aws/elasticsearch-aws && cp autoconfigure/storage-elasticsearch-aws/target/zipkin-autoconfigure-storage-elasticsearch-aws-*-module.jar /zipkin-aws/elasticsearch-aws && cd /zipkin-aws/elasticsearch-aws && jar xf *.jar && rm *.jar && \
-  cd /code && mkdir -p /zipkin-aws/xray && cp autoconfigure/storage-xray/target/zipkin-autoconfigure-storage-xray-*-module.jar /zipkin-aws/xray && cd /zipkin-aws/xray && jar xf *.jar && rm *.jar
+WORKDIR /zipkin-aws
+
+RUN cp /code/module/collector-sqs/target/zipkin-module-collector-sqs-*-module.jar sqs.jar && \
+  (mkdir sqs && cd sqs && jar -xf ../sqs.jar) && \
+  rm sqs.jar
+
+RUN cp /code/module/collector-kinesis/target/zipkin-module-collector-kinesis-*-module.jar kinesis.jar && \
+  (mkdir kinesis && cd kinesis && jar -xf ../kinesis.jar) && \
+  rm kinesis.jar
+
+RUN cp /code/module/storage-elasticsearch-aws/target/zipkin-module-storage-elasticsearch-aws-*-module.jar elasticsearch-aws.jar && \
+  (mkdir elasticsearch-aws && cd elasticsearch-aws && jar -xf ../elasticsearch-aws.jar) && \
+  rm elasticsearch-aws.jar
+
+RUN cp /code/module/storage-xray/target/zipkin-module-storage-xray-*-module.jar xray.jar && \
+  echo > .xray_profile && \
+  (mkdir xray && cd xray && jar -xf ../xray.jar) && \
+  rm xray.jar
 
 FROM openzipkin/zipkin:master
 MAINTAINER Zipkin "https://zipkin.io/"
 
-COPY --from=0 /zipkin-aws/ /zipkin/lib/
+COPY --from=0 /zipkin-aws/ /zipkin/
 
-RUN echo > .xray_profile
-
-ENV MODULE_OPTS="-Dloader.path=lib/sqs,lib/kinesis,lib/elasticsearch-aws,lib/xray -Dspring.profiles.active=sqs,kinesis,elasticsearch-aws,xray"
+ENV MODULE_OPTS="-Dloader.path=sqs,kinesis,elasticsearch-aws,xray -Dspring.profiles.active=sqs,kinesis,elasticsearch-aws,xray"

@@ -18,7 +18,7 @@ that can be used with any tracing backend that accepts a [Zipkin Reporter](https
 While the SQSCollector can be used directly through the provided builder interface,
 most users will likely find more value in the Spring Boot autoconfiguraton module. 
 Additional information for using the module can be found 
-[here](https://github.com/openzipkin/zipkin-aws/tree/master/autoconfigure/collector-sqs).
+[here](https://github.com/openzipkin/zipkin-aws/tree/master/module/collector-sqs).
 
 ## Message encoding
 The message body is a list of spans. Supported encodings are the same as

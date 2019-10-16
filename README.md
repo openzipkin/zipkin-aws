@@ -64,11 +64,11 @@ curl -sSL https://zipkin.io/quickstart.sh | bash -s
 ```
 
 ### Step 2: Download the latest sqs-module jar
-Download the [latest released SQS module](https://search.maven.org/remote_content?g=io.zipkin.aws&a=zipkin-autoconfigure-collector-sqs&v=LATEST&c=module) as sqs.jar:
+Download the [latest released SQS module](https://search.maven.org/remote_content?g=io.zipkin.aws&a=zipkin-module-collector-sqs&v=LATEST&c=module) as sqs.jar:
 
 ```
 cd /tmp
-curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-autoconfigure-collector-sqs:LATEST:module sqs.jar
+curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-module-collector-sqs:LATEST:module sqs.jar
 ```
 
 ### Step 3: Run the server with the "sqs" profile active

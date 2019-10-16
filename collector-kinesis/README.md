@@ -20,7 +20,7 @@ directly to a Kinesis stream from each service.
 While the KinesisCollector can be used directly through the provided builder interface,
 most users will likely find more value in the Spring Boot autoconfiguraton module. 
 Additional information for using the module can be found 
-[here](https://github.com/openzipkin/zipkin-aws/tree/master/autoconfigure/collector-kinesis).
+[here](https://github.com/openzipkin/zipkin-aws/tree/master/module/collector-kinesis).
 
 ## Permissions
 

@@ -21,6 +21,10 @@ import com.amazonaws.services.sqs.AmazonSQSAsyncClientBuilder;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import com.amazonaws.services.sqs.model.SendMessageResult;
 import com.amazonaws.util.Base64;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.util.List;
+import java.util.concurrent.Future;
 import zipkin2.Call;
 import zipkin2.Callback;
 import zipkin2.CheckResult;
@@ -29,11 +33,6 @@ import zipkin2.internal.Nullable;
 import zipkin2.reporter.AsyncReporter;
 import zipkin2.reporter.BytesMessageEncoder;
 import zipkin2.reporter.Sender;
-
-import java.io.IOException;
-import java.nio.charset.Charset;
-import java.util.List;
-import java.util.concurrent.Future;
 
 /**
  * Zipkin Sender implementation that sends spans to an SQS queue.
