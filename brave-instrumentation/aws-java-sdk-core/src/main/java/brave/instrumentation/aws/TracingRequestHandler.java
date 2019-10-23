@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -99,34 +99,43 @@ final class TracingRequestHandler extends RequestHandler2 {
     } else {
       applicationSpan = context.getRequest().getHandlerContext(APPLICATION_SPAN);
     }
-    String operation = getAwsOperationFromRequest(context.getRequest());
-    applicationSpan.name("aws-sdk")
-        .tag("aws.service_name", context.getRequest().getServiceName())
-        .tag("aws.operation", operation);
-    Span clientSpan = nextClientSpan(context.getRequest(), applicationSpan, operation);
-    context.getRequest().addHandlerContext(CLIENT_SPAN, clientSpan);
+
+    if (applicationSpan != null) {
+      String operation = getAwsOperationFromRequest(context.getRequest());
+      applicationSpan.name("aws-sdk")
+          .tag("aws.service_name", context.getRequest().getServiceName())
+          .tag("aws.operation", operation);
+      Span clientSpan = nextClientSpan(context.getRequest(), applicationSpan, operation);
+      context.getRequest().addHandlerContext(CLIENT_SPAN, clientSpan);
+    }
   }
 
   @Override public final void afterAttempt(HandlerAfterAttemptContext context) {
     Span clientSpan = context.getRequest().getHandlerContext(CLIENT_SPAN);
-    if (context.getException() != null
-        && context.getException() instanceof AmazonServiceException) {
-      tagSpanWithRequestId(clientSpan, (AmazonServiceException) context.getException());
-    } else {
-      tagSpanWithRequestId(clientSpan, context.getResponse());
+    if (clientSpan != null) {
+      if (context.getException() != null
+          && context.getException() instanceof AmazonServiceException) {
+        tagSpanWithRequestId(clientSpan, (AmazonServiceException) context.getException());
+      } else {
+        tagSpanWithRequestId(clientSpan, context.getResponse());
+      }
+      handler.handleReceive(context.getResponse(), context.getException(), clientSpan);
     }
-    handler.handleReceive(context.getResponse(), context.getException(), clientSpan);
   }
 
   @Override public final void afterResponse(Request<?> request, Response<?> response) {
     Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
-    applicationSpan.finish();
+    if (applicationSpan != null) {
+      applicationSpan.finish();
+    }
   }
 
   @Override public final void afterError(Request<?> request, Response<?> response, Exception e) {
     Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
-    applicationSpan.error(e);
-    applicationSpan.finish();
+    if (applicationSpan != null) {
+      applicationSpan.error(e);
+      applicationSpan.finish();
+    }
   }
 
   private Span nextClientSpan(Request<?> request, Span applicationSpan, String operation) {
