@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2019 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -87,7 +87,8 @@ final class TracingRequestHandler extends RequestHandler2 {
   }
 
   @Override public void beforeAttempt(HandlerBeforeAttemptContext context) {
-    TraceContext deferredRootContext = context.getRequest().getHandlerContext(DEFERRED_ROOT_CONTEXT);
+    TraceContext deferredRootContext =
+        context.getRequest().getHandlerContext(DEFERRED_ROOT_CONTEXT);
     Span applicationSpan;
     if (deferredRootContext != null) {
       Boolean sampled = httpTracing.clientSampler().trySample(ADAPTER, context.getRequest());
@@ -99,6 +100,10 @@ final class TracingRequestHandler extends RequestHandler2 {
     } else {
       applicationSpan = context.getRequest().getHandlerContext(APPLICATION_SPAN);
     }
+
+    if (applicationSpan == null) {
+      return;
+    }
     String operation = getAwsOperationFromRequest(context.getRequest());
     applicationSpan.name("aws-sdk")
         .tag("aws.service_name", context.getRequest().getServiceName())
@@ -109,6 +114,9 @@ final class TracingRequestHandler extends RequestHandler2 {
 
   @Override public final void afterAttempt(HandlerAfterAttemptContext context) {
     Span clientSpan = context.getRequest().getHandlerContext(CLIENT_SPAN);
+    if (clientSpan == null) {
+      return;
+    }
     if (context.getException() != null
         && context.getException() instanceof AmazonServiceException) {
       tagSpanWithRequestId(clientSpan, (AmazonServiceException) context.getException());
@@ -120,13 +128,17 @@ final class TracingRequestHandler extends RequestHandler2 {
 
   @Override public final void afterResponse(Request<?> request, Response<?> response) {
     Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
-    applicationSpan.finish();
+    if (applicationSpan != null) {
+      applicationSpan.finish();
+    }
   }
 
   @Override public final void afterError(Request<?> request, Response<?> response, Exception e) {
     Span applicationSpan = request.getHandlerContext(APPLICATION_SPAN);
-    applicationSpan.error(e);
-    applicationSpan.finish();
+    if (applicationSpan != null) {
+      applicationSpan.error(e);
+      applicationSpan.finish();
+    }
   }
 
   private Span nextClientSpan(Request<?> request, Span applicationSpan, String operation) {
