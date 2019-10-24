@@ -87,7 +87,8 @@ final class TracingRequestHandler extends RequestHandler2 {
   }
 
   @Override public void beforeAttempt(HandlerBeforeAttemptContext context) {
-    TraceContext deferredRootContext = context.getRequest().getHandlerContext(DEFERRED_ROOT_CONTEXT);
+    TraceContext deferredRootContext =
+        context.getRequest().getHandlerContext(DEFERRED_ROOT_CONTEXT);
     Span applicationSpan;
     if (deferredRootContext != null) {
       Boolean sampled = httpTracing.clientSampler().trySample(ADAPTER, context.getRequest());
@@ -100,27 +101,29 @@ final class TracingRequestHandler extends RequestHandler2 {
       applicationSpan = context.getRequest().getHandlerContext(APPLICATION_SPAN);
     }
 
-    if (applicationSpan != null) {
-      String operation = getAwsOperationFromRequest(context.getRequest());
-      applicationSpan.name("aws-sdk")
-          .tag("aws.service_name", context.getRequest().getServiceName())
-          .tag("aws.operation", operation);
-      Span clientSpan = nextClientSpan(context.getRequest(), applicationSpan, operation);
-      context.getRequest().addHandlerContext(CLIENT_SPAN, clientSpan);
+    if (applicationSpan == null) {
+      return;
     }
+    String operation = getAwsOperationFromRequest(context.getRequest());
+    applicationSpan.name("aws-sdk")
+        .tag("aws.service_name", context.getRequest().getServiceName())
+        .tag("aws.operation", operation);
+    Span clientSpan = nextClientSpan(context.getRequest(), applicationSpan, operation);
+    context.getRequest().addHandlerContext(CLIENT_SPAN, clientSpan);
   }
 
   @Override public final void afterAttempt(HandlerAfterAttemptContext context) {
     Span clientSpan = context.getRequest().getHandlerContext(CLIENT_SPAN);
-    if (clientSpan != null) {
-      if (context.getException() != null
-          && context.getException() instanceof AmazonServiceException) {
-        tagSpanWithRequestId(clientSpan, (AmazonServiceException) context.getException());
-      } else {
-        tagSpanWithRequestId(clientSpan, context.getResponse());
-      }
-      handler.handleReceive(context.getResponse(), context.getException(), clientSpan);
+    if (clientSpan == null) {
+      return;
     }
+    if (context.getException() != null
+        && context.getException() instanceof AmazonServiceException) {
+      tagSpanWithRequestId(clientSpan, (AmazonServiceException) context.getException());
+    } else {
+      tagSpanWithRequestId(clientSpan, context.getResponse());
+    }
+    handler.handleReceive(context.getResponse(), context.getException(), clientSpan);
   }
 
   @Override public final void afterResponse(Request<?> request, Response<?> response) {

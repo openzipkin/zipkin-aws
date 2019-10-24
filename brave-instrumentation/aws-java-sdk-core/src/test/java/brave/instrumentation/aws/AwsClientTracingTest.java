@@ -34,6 +34,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -49,14 +50,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class AwsClientTracingTest {
 
   @Rule
-  public MockDynamoDBServer dynamoDBServer = new MockDynamoDBServer();
-
-  @Rule
-  public MockS3Server s3Server = new MockS3Server();
-
+  public MockWebServer mockServer = new MockWebServer();
   @Rule
   public EnvironmentVariables environmentVariables = new EnvironmentVariables();
-
   private BlockingQueue<Span> spans = new LinkedBlockingQueue<>();
   // See brave.http.ITHttp for rationale on polling after tests complete
   @Rule public TestRule assertSpansEmpty = new TestWatcher() {
@@ -76,13 +72,14 @@ public class AwsClientTracingTest {
 
   @Before
   public void setup() {
+    String endpoint = "http://localhost:" + mockServer.getPort();
     Tracing tracing = tracingBuilder().build();
     HttpTracing httpTracing = HttpTracing.create(tracing);
     AmazonDynamoDBClientBuilder clientBuilder = AmazonDynamoDBClientBuilder.standard()
         .withCredentials(
             new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
         .withEndpointConfiguration(
-            new AwsClientBuilder.EndpointConfiguration(dynamoDBServer.url(), "us-east-1"));
+            new AwsClientBuilder.EndpointConfiguration(endpoint, "us-east-1"));
 
     dbClient = AwsClientTracing.create(httpTracing).build(clientBuilder);
 
@@ -90,7 +87,7 @@ public class AwsClientTracingTest {
         .withCredentials(
             new AWSStaticCredentialsProvider(new BasicAWSCredentials("access", "secret")))
         .withEndpointConfiguration(
-            new AwsClientBuilder.EndpointConfiguration(s3Server.url(), "us-east-1"))
+            new AwsClientBuilder.EndpointConfiguration(endpoint, "us-east-1"))
         .enableForceGlobalBucketAccess());
   }
 
@@ -101,7 +98,7 @@ public class AwsClientTracingTest {
 
   @Test
   public void testSpanCreatedAndTagsApplied() throws InterruptedException {
-    dynamoDBServer.enqueue(createDeleteItemResponse());
+    mockServer.enqueue(createDeleteItemResponse());
 
     dbClient.deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
 
@@ -127,11 +124,11 @@ public class AwsClientTracingTest {
   @Test
   public void testInternalAwsRequestsDoNotThrowNPE() throws InterruptedException {
     // Responds to the internal HEAD request
-    s3Server.enqueue(new MockResponse()
+    mockServer.enqueue(new MockResponse()
         .setResponseCode(400)
         .addHeader("x-amz-request-id", "abcd"));
 
-    s3Server.enqueue(getExistsResponse());
+    mockServer.enqueue(getExistsResponse());
 
     s3Client.doesBucketExistV2("Test-Bucket");
 
@@ -182,5 +179,4 @@ public class AwsClientTracingTest {
         .setResponseCode(200)
         .addHeader("x-amz-request-id", "abcd");
   }
-
 }
