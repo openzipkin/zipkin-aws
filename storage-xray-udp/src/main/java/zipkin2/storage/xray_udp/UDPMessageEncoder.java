@@ -24,6 +24,9 @@ import zipkin2.Span;
 
 import static java.lang.Integer.parseInt;
 
+/**
+ * Encodes a Zipkin span into the JSON format expected by AWS' X-Ray daemon.
+ */
 final class UDPMessageEncoder {
   static final Logger logger = Logger.getLogger(UDPMessageEncoder.class.getName());
 

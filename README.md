@@ -3,25 +3,41 @@
 [![Maven Central](https://img.shields.io/maven-central/v/io.zipkin.aws.svg)](https://search.maven.org/search?q=g:io.zipkin.aws)
 
 # zipkin-aws
-Shared libraries that provide Zipkin integration with AWS Kinesis and SQS. Requires JRE 6 or later.
+Shared libraries that provide Zipkin integration with AWS Kinesis, SQS, 
+and X-Ray. Requires JRE 6 or later.
 
 # Usage
-These components provide Zipkin Senders and Collectors which build off interfaces provided by
-the [zipkin-reporters-java](https://github.com/openzipkin/zipkin-reporter-java) and
-[zipkin](https://github.com/openzipkin/zipkin) projects.
+These components provide Zipkin 
+[Reporters](https://github.com/openzipkin/zipkin-reporter-java/blob/master/core/src/main/java/zipkin2/reporter/Reporter.java) and 
+[Senders](https://github.com/openzipkin/zipkin-reporter-java/blob/master/core/src/main/java/zipkin2/reporter/Sender.java),
+which build off interfaces provided by the [zipkin-reporters-java](https://github.com/openzipkin/zipkin-reporter-java), and
+and [Collectors](https://github.com/openzipkin/zipkin/blob/master/zipkin-collector/core/src/main/java/zipkin2/collector/Collector.java),
+which are used in a [Zipkin](https://github.com/openzipkin/zipkin) server.
 
-## Senders
+## Reporters and Senders
 The component in a traced application that sends timing data (spans)
-out of process is called a Sender. Senders are called on interval by an
+out of process is called a Reporter.
+It is responsible for handling the queueing and encoding of 
+outbound spans.
+
+Reporters that are sending Zipkin data to Zipkin typically make use of a 
+Sender, which implements the wire protocol to a particular technology
+used to send the encoded spans.
+Typically Senders are called on interval by an
 [async reporter](https://github.com/openzipkin/zipkin-reporter-java#asyncreporter).
 
-NOTE: Applications can be written in any language, while we currently
-only have senders in Java, senders in other languages are welcome.
+NOTE: Applications can be written in any language. While we currently
+only have Reporters and Senders in Java, senders in other languages 
+are welcome.
+
+Reporter | Description
+--- | ---
+[X-Ray UDP](./reporter-xray-udp) | Reports spans to [X-Ray](https://aws.amazon.com/xray/), AWS's alternative to Zipkin.
 
 Sender | Description
 --- | ---
-[SQS](./collector-sqs) | An alternative to Kafka.
-[Kinesis](./collector-kinesis) | An alternative similar to Kafka.
+[SQS](./collector-sqs) | Sends tracing data to Zipkin using [SQS](https://aws.amazon.com/sqs/), a message queue service.
+[Kinesis](./collector-kinesis) | Sends tracing data to Zipkin using [Kinesis](https://aws.amazon.com/kinesis/), an alternative similar to Kafka.
 
 ## Collectors
 The component in a zipkin server that receives trace data is called a
