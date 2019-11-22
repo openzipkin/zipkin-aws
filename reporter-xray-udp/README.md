@@ -35,8 +35,8 @@ Tracing bean as such:
         return Tracing.newBuilder()
             .localServiceName(serviceName)
             .spanReporter(XRayUDPReporter.create())
-            .sampler(Sampler.ALWAYS_SAMPLE) # Configure as desired
-            .traceId128Bit(true) # X-Ray requires 128-bit trace IDs
+            .traceId128Bit(true) // X-Ray requires 128-bit trace IDs
+            .sampler(Sampler.ALWAYS_SAMPLE) // Configure as desired
             .build()
     }
 ```
