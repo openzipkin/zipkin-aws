@@ -8,8 +8,10 @@ using UDP.
 
 Note that, unlike `AsyncReporter`, this reporter attempts to encode and send
 the span immediately on the calling thread.
-As UDP is used, there is no latency in waiting for the daemon to accept and 
-respond to the data.
+As UDP is used, there is no time spent waiting for a response. 
+However, this is still a blocking I/O operation, so extra concurrency 
+considerations may be required if using this reporter in an asynchronous 
+framework that expects I/O operations not to block.
  
 ## Configuration
 
