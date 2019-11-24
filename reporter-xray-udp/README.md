@@ -6,6 +6,16 @@ proprietary format and sends them to the
 [X-Ray daemon](https://docs.aws.amazon.com/xray/latest/devguide/xray-daemon.html) 
 using UDP.
 
+## Architecture
+
+No Zipkin server is required to use this component with X-Ray.
+The purpose of the library is to allow applications that trace using 
+[Brave's Tracer API](https://github.com/openzipkin/brave/blob/f17ef79fe58306f30148fb58cd31ef535e26de46/brave/src/main/java/brave/Tracer.java)
+and [B3 propagation](https://github.com/openzipkin/b3-propagation)
+to forward recorded telemetry to X-Ray from the traced applications.
+
+## Concurrency
+
 Note that, unlike `AsyncReporter`, this reporter attempts to encode and send
 the span immediately on the calling thread.
 As UDP is used, there is no time spent waiting for a response. 
