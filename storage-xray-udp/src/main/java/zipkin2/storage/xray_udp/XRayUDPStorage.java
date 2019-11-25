@@ -30,6 +30,9 @@ import zipkin2.storage.SpanConsumer;
 import zipkin2.storage.SpanStore;
 import zipkin2.storage.StorageComponent;
 
+/**
+ * A Storage implementation which sends Zipkin traces to AWS X-Ray's daemon via UDP.
+ */
 public final class XRayUDPStorage extends StorageComponent implements SpanStore, SpanConsumer {
 
   static final int PACKET_LENGTH = 256 * 1024;

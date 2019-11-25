@@ -23,6 +23,13 @@ import zipkin2.Span;
 import zipkin2.reporter.Reporter;
 import zipkin2.storage.xray_udp.XRayUDPStorage;
 
+/**
+ * Reports Zipkin spans to AWS X-Ray via the X-Ray daemon, contacted using UDP.
+ *
+ * Note that, unlike AsyncReporter, this reporter attempts to encode and send
+ * the span immediately on the calling thread. As UDP is used, there is no
+ * latency in waiting for the daemon to accept and respond to the data.
+ */
 public class XRayUDPReporter implements Reporter<Span>, Closeable {
   static final Logger logger = Logger.getLogger(XRayUDPReporter.class.getName());
 
