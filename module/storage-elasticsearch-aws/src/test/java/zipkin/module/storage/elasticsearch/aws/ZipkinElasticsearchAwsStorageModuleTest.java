@@ -13,15 +13,12 @@
  */
 package zipkin.module.storage.elasticsearch.aws;
 
-import com.linecorp.armeria.client.Client;
+import com.linecorp.armeria.client.ClientOption;
 import com.linecorp.armeria.client.ClientOptions;
 import com.linecorp.armeria.client.ClientOptionsBuilder;
 import com.linecorp.armeria.client.Endpoint;
-import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.client.WebClient;
 import com.linecorp.armeria.client.endpoint.EndpointGroup;
-import com.linecorp.armeria.common.HttpRequest;
-import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.SessionProtocol;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -29,7 +26,6 @@ import java.util.function.Supplier;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.Mock;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
@@ -50,8 +46,6 @@ import static zipkin.module.storage.elasticsearch.aws.ZipkinElasticsearchAwsStor
 public class ZipkinElasticsearchAwsStorageModuleTest {
 
   @Rule public MockitoRule mocks = MockitoJUnit.rule();
-
-  @Mock HttpClient mockHttpClient;
 
   AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 
@@ -108,12 +102,13 @@ public class ZipkinElasticsearchAwsStorageModuleTest {
         (Consumer<ClientOptionsBuilder>) context.getBean("awsSignatureVersion4", Consumer.class);
 
     ClientOptionsBuilder clientBuilder = ClientOptions.builder();
-
-    // TODO(anuraaga): Can be simpler after https://github.com/line/armeria/issues/1883
     customizer.accept(clientBuilder);
-    Client<HttpRequest, HttpResponse> decorated = clientBuilder.build().decoration()
-        .decorate(mockHttpClient);
-    assertThat(decorated).isInstanceOf(AWSSignatureVersion4.class);
+
+    WebClient client = WebClient.builder("http://127.0.0.1:1234")
+        .option(ClientOption.DECORATION, clientBuilder.build().decoration())
+        .build();
+
+    assertThat(client.as(AWSSignatureVersion4.class)).isPresent();
   }
 
   static class TestGraph { // easier than generics with getBean
