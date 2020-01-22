@@ -13,7 +13,6 @@
  */
 package zipkin.module.storage.elasticsearch.aws;
 
-import com.linecorp.armeria.client.ClientOption;
 import com.linecorp.armeria.client.ClientOptions;
 import com.linecorp.armeria.client.ClientOptionsBuilder;
 import com.linecorp.armeria.client.Endpoint;
@@ -99,7 +98,7 @@ public class ZipkinElasticsearchAwsStorageModuleTest {
     customizer.accept(clientBuilder);
 
     WebClient client = WebClient.builder("http://127.0.0.1:1234")
-        .option(ClientOption.DECORATION, clientBuilder.build().decoration())
+        .options(clientBuilder.build())
         .build();
 
     assertThat(client.as(AWSSignatureVersion4.class)).isPresent();
