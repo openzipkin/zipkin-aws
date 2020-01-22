@@ -24,10 +24,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.junit.After;
-import org.junit.Rule;
 import org.junit.Test;
-import org.mockito.junit.MockitoJUnit;
-import org.mockito.junit.MockitoRule;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -44,9 +41,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static zipkin.module.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageModule.QUALIFIER;
 
 public class ZipkinElasticsearchAwsStorageModuleTest {
-
-  @Rule public MockitoRule mocks = MockitoJUnit.rule();
-
   AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 
   @After public void close() {
