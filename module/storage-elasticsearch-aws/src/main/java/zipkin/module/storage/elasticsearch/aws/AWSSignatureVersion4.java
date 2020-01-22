@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,9 +13,9 @@
  */
 package zipkin.module.storage.elasticsearch.aws;
 
-import com.linecorp.armeria.client.Client;
 import com.linecorp.armeria.client.ClientRequestContext;
-import com.linecorp.armeria.client.SimpleDecoratingClient;
+import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.client.SimpleDecoratingHttpClient;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpHeaderNames;
@@ -44,7 +44,7 @@ import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 // http://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
-final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, HttpResponse> {
+final class AWSSignatureVersion4 extends SimpleDecoratingHttpClient {
   static final String EMPTY_STRING_HASH =
       "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
   static final AsciiString X_AMZ_DATE = HttpHeaderNames.of("x-amz-date");
@@ -56,8 +56,8 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
   static final byte[] SERVICE_BYTES = {'e', 's'};
   static final byte[] AWS4_REQUEST = "aws4_request".getBytes(UTF_8);
 
-  static Function<Client<HttpRequest, HttpResponse>, Client<HttpRequest, HttpResponse>>
-  newDecorator(String region, AWSCredentials.Provider credentials) {
+  static Function<HttpClient, HttpClient> newDecorator(String region,
+      AWSCredentials.Provider credentials) {
     return client -> new AWSSignatureVersion4(client, region, credentials);
   }
 
@@ -72,8 +72,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
   final byte[] regionBytes;
   final AWSCredentials.Provider credentials;
 
-  AWSSignatureVersion4(Client<HttpRequest, HttpResponse> delegate, String region,
-      AWSCredentials.Provider credentials) {
+  AWSSignatureVersion4(HttpClient delegate, String region, AWSCredentials.Provider credentials) {
     super(delegate);
     if (region == null) throw new NullPointerException("region == null");
     if (credentials == null) throw new NullPointerException("credentials == null");
@@ -90,7 +89,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingClient<HttpRequest, Htt
             .thenApply(aggReg -> {
               try {
                 AggregatedHttpRequest signed = sign(ctx, aggReg);
-                return delegate().execute(ctx, HttpRequest.of(signed));
+                return delegate().execute(ctx, signed.toHttpRequest());
               } catch (Exception e) {
                 return HttpResponse.ofFailure(e);
               }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -17,9 +17,14 @@ import brave.http.HttpTracing;
 import brave.propagation.CurrentTraceContext;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.ClientConfigurationFactory;
+import com.amazonaws.Request;
+import com.amazonaws.Response;
 import com.amazonaws.client.builder.AwsAsyncClientBuilder;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.client.builder.ExecutorFactory;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -96,6 +101,67 @@ public final class AwsClientTracing {
 
     @Override public ExecutorService newExecutor() {
       return currentTraceContext.executorService(delegate.newExecutor());
+    }
+  }
+
+  static final class HttpClientRequest extends brave.http.HttpClientRequest {
+    final Request<?> delegate;
+
+    HttpClientRequest(Request<?> delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override public Object unwrap() {
+      return delegate;
+    }
+
+    @Override public String method() {
+      return delegate.getHttpMethod().name();
+    }
+
+    @Override public String path() {
+      return delegate.getResourcePath();
+    }
+
+    @Override public String url() {
+      StringBuilder url = new StringBuilder(delegate.getEndpoint().toString());
+      if (delegate.getResourcePath() != null) url.append(delegate.getResourcePath());
+      if (delegate.getParameters().isEmpty()) return url.toString();
+      url.append('?');
+      Iterator<Map.Entry<String, List<String>>> entries =
+          delegate.getParameters().entrySet().iterator();
+      while (entries.hasNext()) {
+        Map.Entry<String, List<String>> entry = entries.next();
+        url.append(entry.getKey());
+        if (entry.getKey().isEmpty()) continue;
+        url.append('=').append(entry.getValue().get(0)); // skip the others.
+        if (entries.hasNext()) url.append('&');
+      }
+      return url.toString();
+    }
+
+    @Override public String header(String name) {
+      return delegate.getHeaders().get(name);
+    }
+
+    @Override public void header(String name, String value) {
+      delegate.addHeader(name, value);
+    }
+  }
+
+  static final class HttpClientResponse extends brave.http.HttpClientResponse {
+    final Response<?> delegate;
+
+    HttpClientResponse(Response<?> delegate) {
+      this.delegate = delegate;
+    }
+
+    @Override public Object unwrap() {
+      return delegate;
+    }
+
+    @Override public int statusCode() {
+      return delegate.getHttpResponse().getStatusCode();
     }
   }
 }

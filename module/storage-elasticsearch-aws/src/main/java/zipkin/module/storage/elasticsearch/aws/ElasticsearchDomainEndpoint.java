@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -15,10 +15,9 @@ package zipkin.module.storage.elasticsearch.aws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.linecorp.armeria.client.Endpoint;
-import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.client.WebClient;
 import com.linecorp.armeria.client.endpoint.EndpointGroup;
 import com.linecorp.armeria.client.endpoint.dns.DnsAddressEndpointGroup;
-import com.linecorp.armeria.client.endpoint.dns.DnsAddressEndpointGroupBuilder;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
@@ -38,11 +37,11 @@ import static zipkin.module.storage.elasticsearch.aws.ZipkinElasticsearchAwsStor
 final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
   static final AttributeKey<String> NAME = AttributeKey.valueOf("name");
 
-  final Function<Endpoint, HttpClient> clientFactory;
+  final Function<Endpoint, WebClient> clientFactory;
   final Endpoint endpoint;
   final String region, domain;
 
-  ElasticsearchDomainEndpoint(Function<Endpoint, HttpClient> clientFactory, Endpoint endpoint,
+  ElasticsearchDomainEndpoint(Function<Endpoint, WebClient> clientFactory, Endpoint endpoint,
       String region, String domain) {
     this.clientFactory = clientFactory;
     this.endpoint = endpoint;
@@ -91,7 +90,7 @@ final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
               + body);
     }
 
-    DnsAddressEndpointGroup result = new DnsAddressEndpointGroupBuilder(endpoint).port(443).build();
+    DnsAddressEndpointGroup result = DnsAddressEndpointGroup.builder(endpoint).port(443).build();
     try {
       result.awaitInitialEndpoints(1, TimeUnit.SECONDS);
     } catch (Exception e) {

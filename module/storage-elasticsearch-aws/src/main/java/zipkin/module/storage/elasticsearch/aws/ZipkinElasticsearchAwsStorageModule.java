@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -18,13 +18,11 @@ import com.amazonaws.auth.AWSSessionCredentials;
 import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.regions.DefaultAwsRegionProviderChain;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.linecorp.armeria.client.Client;
 import com.linecorp.armeria.client.ClientOptionsBuilder;
 import com.linecorp.armeria.client.Endpoint;
 import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.client.WebClient;
 import com.linecorp.armeria.client.endpoint.EndpointGroup;
-import com.linecorp.armeria.common.HttpRequest;
-import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.SessionProtocol;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -65,7 +63,7 @@ class ZipkinElasticsearchAwsStorageModule {
    * AWS api. Otherwise, we assume the URL specified in ES_HOSTS is correct.
    */
   @Bean @Qualifier(QUALIFIER) @Conditional(AwsDomainSetCondition.class)
-  Supplier<EndpointGroup> esInitialEndpoints(Function<Endpoint, HttpClient> clientFactory,
+  Supplier<EndpointGroup> esInitialEndpoints(Function<Endpoint, WebClient> clientFactory,
       String region, ZipkinElasticsearchAwsStorageProperties aws) {
     return new ElasticsearchDomainEndpoint(clientFactory,
         Endpoint.of("es." + region + ".amazonaws.com", 443), region, aws.getDomain());
@@ -80,8 +78,8 @@ class ZipkinElasticsearchAwsStorageModule {
   @Bean @Qualifier(QUALIFIER)
   Consumer<ClientOptionsBuilder> awsSignatureVersion4(String region,
       AWSCredentials.Provider credentials) {
-    Function<Client<HttpRequest, HttpResponse>, Client<HttpRequest, HttpResponse>>
-        decorator = AWSSignatureVersion4.newDecorator(region, credentials);
+    Function<HttpClient, HttpClient> decorator =
+        AWSSignatureVersion4.newDecorator(region, credentials);
     return client -> client.decorator(decorator);
   }
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -15,10 +15,10 @@ package brave.instrumentation.aws;
 
 import brave.Span;
 import brave.Tracer;
-import brave.http.HttpClientAdapter;
 import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
-import brave.propagation.Propagation;
+import brave.instrumentation.aws.AwsClientTracing.HttpClientRequest;
+import brave.instrumentation.aws.AwsClientTracing.HttpClientResponse;
 import brave.propagation.TraceContext;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.AmazonWebServiceRequest;
@@ -43,8 +43,8 @@ import com.amazonaws.handlers.RequestHandler2;
  *
  * The inner span, "Client Span", is created for each outgoing HTTP request. This span will be of
  * type CLIENT. The remoteService will be the name of the AWS service, and the span name will be the
- * name of the operation being done. If the request results in an error then the span will be
- * tagged with the error. The AWS request ID is added when available.
+ * name of the operation being done. If the request results in an error then the span will be tagged
+ * with the error. The AWS request ID is added when available.
  */
 final class TracingRequestHandler extends RequestHandler2 {
   static final HandlerContextKey<Span> APPLICATION_SPAN =
@@ -54,25 +54,14 @@ final class TracingRequestHandler extends RequestHandler2 {
   static final HandlerContextKey<Span> CLIENT_SPAN =
       new HandlerContextKey<>(Span.class.getCanonicalName());
 
-  static final HttpClientAdapter<Request<?>, Response<?>> ADAPTER = new HttpAdapter();
-
-  static final Propagation.Setter<Request<?>, String> SETTER =
-      new Propagation.Setter<Request<?>, String>() {
-        @Override public void put(Request<?> carrier, String key, String value) {
-          carrier.addHeader(key, value);
-        }
-      };
-
   final HttpTracing httpTracing;
   final Tracer tracer;
-  final HttpClientHandler<Request<?>, Response<?>> handler;
-  final TraceContext.Injector<Request<?>> injector;
+  final HttpClientHandler<brave.http.HttpClientRequest, brave.http.HttpClientResponse> handler;
 
   TracingRequestHandler(HttpTracing httpTracing) {
     this.httpTracing = httpTracing;
     this.tracer = httpTracing.tracing().tracer();
-    this.injector = httpTracing.tracing().propagation().injector(SETTER);
-    this.handler = HttpClientHandler.create(httpTracing, ADAPTER);
+    this.handler = HttpClientHandler.create(httpTracing);
   }
 
   @Override public AmazonWebServiceRequest beforeExecution(AmazonWebServiceRequest request) {
@@ -90,8 +79,9 @@ final class TracingRequestHandler extends RequestHandler2 {
     TraceContext deferredRootContext =
         context.getRequest().getHandlerContext(DEFERRED_ROOT_CONTEXT);
     Span applicationSpan;
+    HttpClientRequest request = new HttpClientRequest(context.getRequest());
     if (deferredRootContext != null) {
-      Boolean sampled = httpTracing.clientSampler().trySample(ADAPTER, context.getRequest());
+      Boolean sampled = httpTracing.clientRequestSampler().trySample(request);
       if (sampled == null) {
         sampled = httpTracing.tracing().sampler().isSampled(deferredRootContext.traceId());
       }
@@ -104,12 +94,17 @@ final class TracingRequestHandler extends RequestHandler2 {
     if (applicationSpan == null) {
       return;
     }
+
     String operation = getAwsOperationFromRequest(context.getRequest());
     applicationSpan.name("aws-sdk")
         .tag("aws.service_name", context.getRequest().getServiceName())
         .tag("aws.operation", operation);
-    Span clientSpan = nextClientSpan(context.getRequest(), applicationSpan, operation);
-    context.getRequest().addHandlerContext(CLIENT_SPAN, clientSpan);
+
+    Span span = tracer.newChild(applicationSpan.context());
+    handler.handleSend(request, span);
+    span.name(operation).remoteServiceName(context.getRequest().getServiceName());
+
+    context.getRequest().addHandlerContext(CLIENT_SPAN, span);
   }
 
   @Override public final void afterAttempt(HandlerAfterAttemptContext context) {
@@ -123,7 +118,9 @@ final class TracingRequestHandler extends RequestHandler2 {
     } else {
       tagSpanWithRequestId(clientSpan, context.getResponse());
     }
-    handler.handleReceive(context.getResponse(), context.getException(), clientSpan);
+    HttpClientResponse response =
+        context.getResponse() != null ? new HttpClientResponse(context.getResponse()) : null;
+    handler.handleReceive(response, context.getException(), clientSpan);
   }
 
   @Override public final void afterResponse(Request<?> request, Response<?> response) {
@@ -139,13 +136,6 @@ final class TracingRequestHandler extends RequestHandler2 {
       applicationSpan.error(e);
       applicationSpan.finish();
     }
-  }
-
-  private Span nextClientSpan(Request<?> request, Span applicationSpan, String operation) {
-    Span span = tracer.newChild(applicationSpan.context());
-    handler.handleSend(injector, request, span);
-    return span.name(operation)
-        .remoteServiceName(request.getServiceName());
   }
 
   private String getAwsOperationFromRequest(Request<?> request) {

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -15,10 +15,10 @@ package brave.instrumentation.awsv2;
 
 import brave.Span;
 import brave.Tracer;
-import brave.http.HttpClientAdapter;
 import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
-import brave.propagation.Propagation;
+import brave.instrumentation.awsv2.AwsSdkTracing.HttpClientRequest;
+import brave.instrumentation.awsv2.AwsSdkTracing.HttpClientResponse;
 import brave.propagation.TraceContext;
 import software.amazon.awssdk.core.SdkRequest;
 import software.amazon.awssdk.core.interceptor.Context;
@@ -27,7 +27,6 @@ import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
 import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
 import software.amazon.awssdk.core.interceptor.SdkExecutionAttribute;
 import software.amazon.awssdk.http.SdkHttpRequest;
-import software.amazon.awssdk.http.SdkHttpResponse;
 
 /**
  * Traces AWS Java SDK V2 calls. Adds on the standard zipkin/brave http tags, as well as tags that
@@ -52,21 +51,14 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
   static final ExecutionAttribute<Span> CLIENT_SPAN =
       new ExecutionAttribute<>(Span.class.getCanonicalName());
 
-  static final HttpClientAdapter<SdkHttpRequest.Builder, SdkHttpResponse> ADAPTER =
-      new HttpAdapter();
-  static final Propagation.Setter<SdkHttpRequest.Builder, String> SETTER =
-      SdkHttpRequest.Builder::appendHeader;
-
   final Tracer tracer;
   final HttpTracing httpTracing;
-  final HttpClientHandler<SdkHttpRequest.Builder, SdkHttpResponse> handler;
-  final TraceContext.Injector<SdkHttpRequest.Builder> injector;
+  final HttpClientHandler<brave.http.HttpClientRequest, brave.http.HttpClientResponse> handler;
 
   TracingExecutionInterceptor(HttpTracing httpTracing) {
     this.httpTracing = httpTracing;
     this.tracer = httpTracing.tracing().tracer();
-    this.injector = httpTracing.tracing().propagation().injector(SETTER);
-    this.handler = HttpClientHandler.create(httpTracing, ADAPTER);
+    this.handler = HttpClientHandler.create(httpTracing);
   }
 
   /**
@@ -95,11 +87,9 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
   ) {
     TraceContext maybeDeferredRootSpan = executionAttributes.getAttribute(DEFERRED_ROOT_CONTEXT);
     Span applicationSpan;
+    HttpClientRequest request = new HttpClientRequest(context.httpRequest());
     if (maybeDeferredRootSpan != null) {
-      Boolean sampled = httpTracing.clientSampler().trySample(
-          ADAPTER,
-          context.httpRequest().toBuilder()
-      );
+      Boolean sampled = httpTracing.clientRequestSampler().trySample(request);
       if (sampled == null) {
         sampled = httpTracing.tracing().sampler().isSampled(maybeDeferredRootSpan.traceId());
       }
@@ -115,10 +105,12 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
         .tag("aws.service_name", serviceName)
         .tag("aws.operation", operation);
 
-    return context.httpRequest().copy(builder -> {
-      Span clientSpan = nextClientSpan(applicationSpan, serviceName, operation, builder);
-      executionAttributes.putAttribute(CLIENT_SPAN, clientSpan);
-    });
+    Span span = tracer.newChild(applicationSpan.context());
+    handler.handleSend(request, span);
+    span.name(operation).remoteServiceName(serviceName);
+    executionAttributes.putAttribute(CLIENT_SPAN, span);
+
+    return request.build();
   }
 
   /**
@@ -134,7 +126,7 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       clientSpan.tag("error", context.httpResponse().statusText()
           .orElse("Unknown AWS service error"));
     }
-    handler.handleReceive(context.httpResponse(), null, clientSpan);
+    handler.handleReceive(new HttpClientResponse(context.httpResponse()), null, clientSpan);
     executionAttributes.putAttribute(CLIENT_SPAN, null);
   }
 
@@ -164,17 +156,6 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
     Span applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
     applicationSpan.error(context.exception());
     applicationSpan.finish();
-  }
-
-  private Span nextClientSpan(
-      Span applicationSpan,
-      String serviceName,
-      String operation,
-      SdkHttpRequest.Builder sdkHttpRequestBuilder
-  ) {
-    Span span = tracer.newChild(applicationSpan.context());
-    handler.handleSend(injector, sdkHttpRequestBuilder, span);
-    return span.name(operation).remoteServiceName(serviceName);
   }
 
   private String getAwsOperationNameFromRequestClass(SdkRequest request) {

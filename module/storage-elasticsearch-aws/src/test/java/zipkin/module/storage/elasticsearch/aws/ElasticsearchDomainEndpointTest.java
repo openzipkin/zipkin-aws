@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -14,7 +14,7 @@
 package zipkin.module.storage.elasticsearch.aws;
 
 import com.linecorp.armeria.client.Endpoint;
-import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.client.WebClient;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpResponse;
@@ -25,12 +25,11 @@ import com.linecorp.armeria.testing.junit4.server.ServerRule;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Before;
 import org.junit.ClassRule;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 
 import static com.linecorp.armeria.common.SessionProtocol.HTTP;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class ElasticsearchDomainEndpointTest {
 
@@ -44,20 +43,17 @@ public class ElasticsearchDomainEndpointTest {
       sb.serviceUnder("/", (ctx, req) -> HttpResponse.from(
           req.aggregate().thenApply(agg -> {
             CAPTURED_REQUEST.set(agg);
-            return HttpResponse.of(MOCK_RESPONSE.get());
+            return MOCK_RESPONSE.get().toHttpResponse();
           })));
     }
   };
 
-  @Rule public ExpectedException thrown = ExpectedException.none();
-
   ElasticsearchDomainEndpoint client;
 
   @Before public void setUp() {
-    client = new ElasticsearchDomainEndpoint((endpoint) -> HttpClient.of(HTTP, endpoint),
+    client = new ElasticsearchDomainEndpoint((endpoint) -> WebClient.of(HTTP, endpoint),
         Endpoint.of("localhost", server.httpPort()), "ap-southeast-1", "zipkin53");
   }
-
 
   @Test public void niceToString() {
     assertThat(client).hasToString("aws://ap-southeast-1/zipkin53");
@@ -138,21 +134,19 @@ public class ElasticsearchDomainEndpointTest {
         MediaType.JSON_UTF_8,
         body));
 
-    thrown.expect(RuntimeException.class);
-    thrown.expectMessage(
-        "Neither DomainStatus.Endpoints.vpc nor DomainStatus.Endpoint were present in response: "
-            + body);
-
-    client.get();
+    assertThatThrownBy(client::get)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessage(
+            "Neither DomainStatus.Endpoints.vpc nor DomainStatus.Endpoint were present in response: "
+                + body);
   }
 
   /** Not quite sure why, but some have reported receiving no URLs at all */
   @Test public void unauthorizedNoMessage() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.FORBIDDEN));
 
-    thrown.expect(RuntimeException.class);
-    thrown.expectMessage("/2015-01-01/es/domain/zipkin53 failed with status 403");
-
-    client.get();
+    assertThatThrownBy(client::get)
+        .isInstanceOf(RuntimeException.class)
+        .hasMessageStartingWith("/2015-01-01/es/domain/zipkin53 failed with status 403");
   }
 }

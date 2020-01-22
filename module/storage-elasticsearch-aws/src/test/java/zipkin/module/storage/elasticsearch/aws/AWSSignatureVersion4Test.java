@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -14,16 +14,13 @@
 package zipkin.module.storage.elasticsearch.aws;
 
 import com.linecorp.armeria.client.ClientRequestContext;
-import com.linecorp.armeria.client.ClientRequestContextBuilder;
 import com.linecorp.armeria.client.Endpoint;
-import com.linecorp.armeria.client.HttpClient;
-import com.linecorp.armeria.client.HttpClientBuilder;
+import com.linecorp.armeria.client.WebClient;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
 import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpMethod;
-import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
@@ -56,7 +53,7 @@ public class AWSSignatureVersion4Test {
       sb.serviceUnder("/", (ctx, req) -> HttpResponse.from(
           req.aggregate().thenApply(agg -> {
             CAPTURED_REQUEST.set(agg);
-            return HttpResponse.of(MOCK_RESPONSE.get());
+            return MOCK_RESPONSE.get().toHttpResponse();
           })));
     }
   };
@@ -64,7 +61,7 @@ public class AWSSignatureVersion4Test {
   String region = "us-east-1";
   AWSCredentials.Provider credentials = () -> new AWSCredentials("access-key", "secret-key", null);
 
-  HttpClient client;
+  WebClient client;
 
   @Before public void setUp() {
     // Make a manual endpoint so that we can get a hostname
@@ -73,7 +70,7 @@ public class AWSSignatureVersion4Test {
         server.httpPort())
         .withIpAddr("127.0.0.1");
 
-    client = new HttpClientBuilder(SessionProtocol.HTTP, endpoint)
+    client = WebClient.builder(SessionProtocol.HTTP, endpoint)
         .decorator(AWSSignatureVersion4.newDecorator(region, () -> credentials.get()))
         .build();
   }
@@ -118,7 +115,7 @@ public class AWSSignatureVersion4Test {
             .build(),
         HttpData.ofUtf8("{\n" + "    \"query\" : {\n" + "      \"match_all\" : { }\n" + "    }")
     );
-    ClientRequestContext ctx = ClientRequestContextBuilder.of(HttpRequest.of(request))
+    ClientRequestContext ctx = ClientRequestContext.builder(request.toHttpRequest())
         .endpoint(Endpoint.of(
             "search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com"))
         .build();
@@ -145,7 +142,7 @@ public class AWSSignatureVersion4Test {
         .set(AWSSignatureVersion4.X_AMZ_DATE, "20170830T143137Z")
         .build()
     );
-    ClientRequestContext ctx = ClientRequestContextBuilder.of(HttpRequest.of(request))
+    ClientRequestContext ctx = ClientRequestContext.builder(request.toHttpRequest())
         .endpoint(Endpoint.of(
             "search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com"))
         .build();
@@ -166,7 +163,7 @@ public class AWSSignatureVersion4Test {
         + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
   }
 
-  @Test public void canonicalString_getDomain() throws Exception {
+  @Test public void canonicalString_getDomain() {
     String timestamp = "20190730T134617Z";
     String yyyyMMdd = timestamp.substring(0, 8);
     AggregatedHttpRequest request = AggregatedHttpRequest.of(
@@ -174,7 +171,7 @@ public class AWSSignatureVersion4Test {
             .set(AWSSignatureVersion4.X_AMZ_DATE, timestamp)
             .build()
     );
-    ClientRequestContext ctx = ClientRequestContextBuilder.of(HttpRequest.of(request))
+    ClientRequestContext ctx = ClientRequestContext.builder(request.toHttpRequest())
         .endpoint(Endpoint.of("es.ap-southeast-1.amazonaws.com"))
         .build();
 
