@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -20,7 +20,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -39,9 +38,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static zipkin2.TestObjects.CLIENT_SPAN;
 
 public class SQSSenderTest {
-  @Rule
-  public AmazonSQSRule sqsRule = new AmazonSQSRule().start(9324);
-  @Rule public ExpectedException thrown = ExpectedException.none();
+  @Rule public AmazonSQSRule sqsRule = new AmazonSQSRule().start(9324);
 
   SqsClient sqsClient = SqsClient.builder()
       .httpClient(UrlConnectionHttpClient.create())
@@ -107,7 +104,7 @@ public class SQSSenderTest {
   }
 
   @Test
-  public void checkOk() throws Exception {
+  public void checkOk() {
     assertThat(sender.check()).isEqualTo(CheckResult.OK);
   }
 

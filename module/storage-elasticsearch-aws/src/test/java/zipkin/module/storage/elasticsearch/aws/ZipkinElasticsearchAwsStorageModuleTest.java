@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -14,11 +14,12 @@
 package zipkin.module.storage.elasticsearch.aws;
 
 import com.linecorp.armeria.client.Client;
+import com.linecorp.armeria.client.ClientOptions;
 import com.linecorp.armeria.client.ClientOptionsBuilder;
 import com.linecorp.armeria.client.Endpoint;
 import com.linecorp.armeria.client.HttpClient;
+import com.linecorp.armeria.client.WebClient;
 import com.linecorp.armeria.client.endpoint.EndpointGroup;
-import com.linecorp.armeria.client.endpoint.StaticEndpointGroup;
 import com.linecorp.armeria.common.HttpRequest;
 import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.SessionProtocol;
@@ -50,7 +51,7 @@ public class ZipkinElasticsearchAwsStorageModuleTest {
 
   @Rule public MockitoRule mocks = MockitoJUnit.rule();
 
-  @Mock Client<HttpRequest, HttpResponse> mockHttpClient;
+  @Mock HttpClient mockHttpClient;
 
   AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 
@@ -106,12 +107,12 @@ public class ZipkinElasticsearchAwsStorageModuleTest {
     Consumer<ClientOptionsBuilder> customizer =
         (Consumer<ClientOptionsBuilder>) context.getBean("awsSignatureVersion4", Consumer.class);
 
-    ClientOptionsBuilder clientBuilder = new ClientOptionsBuilder();
+    ClientOptionsBuilder clientBuilder = ClientOptions.builder();
 
     // TODO(anuraaga): Can be simpler after https://github.com/line/armeria/issues/1883
     customizer.accept(clientBuilder);
     Client<HttpRequest, HttpResponse> decorated = clientBuilder.build().decoration()
-        .decorate(HttpRequest.class, HttpResponse.class, mockHttpClient);
+        .decorate(mockHttpClient);
     assertThat(decorated).isInstanceOf(AWSSignatureVersion4.class);
   }
 
@@ -150,8 +151,8 @@ public class ZipkinElasticsearchAwsStorageModuleTest {
   }
 
   @Configuration static class DefaultHostsConfiguration {
-    @Bean Function<Endpoint, HttpClient> esHttpClientFactory() {
-      return (endpoint) -> HttpClient.of(HTTP, endpoint);
+    @Bean Function<Endpoint, WebClient> esHttpClientFactory() {
+      return (endpoint) -> WebClient.of(HTTP, endpoint);
     }
 
     @Bean @Qualifier(QUALIFIER) @ConditionalOnMissingBean SessionProtocol esSessionProtocol() {
@@ -160,7 +161,7 @@ public class ZipkinElasticsearchAwsStorageModuleTest {
 
     @Bean @Qualifier(QUALIFIER) @ConditionalOnMissingBean
     Supplier<EndpointGroup> esInitialEndpoints() {
-      return StaticEndpointGroup::new;
+      return EndpointGroup::empty;
     }
   }
 }

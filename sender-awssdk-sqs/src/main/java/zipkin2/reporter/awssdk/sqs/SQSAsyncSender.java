@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,7 +13,6 @@
  */
 package zipkin2.reporter.awssdk.sqs;
 
-import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
@@ -75,7 +74,8 @@ public final class SQSAsyncSender extends AbstractSender {
       this.messageMaxBytes = sender.messageMaxBytes;
     }
 
-    Builder() {}
+    Builder() {
+    }
   }
 
   public Builder toBuilder() {
@@ -112,7 +112,7 @@ public final class SQSAsyncSender extends AbstractSender {
       this.message = message;
     }
 
-    @Override protected Void doExecute() throws IOException {
+    @Override protected Void doExecute() {
       sqsClient.sendMessage(message);
       return null;
     }
@@ -144,5 +144,4 @@ public final class SQSAsyncSender extends AbstractSender {
       return maybeFuture != null && maybeFuture.isCancelled();
     }
   }
-
 }

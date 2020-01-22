@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -14,9 +14,7 @@
 package zipkin.module.storage.xray;
 
 import org.junit.After;
-import org.junit.Rule;
 import org.junit.Test;
-import org.junit.rules.ExpectedException;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.test.util.TestPropertyValues;
@@ -27,8 +25,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class ZipkinXRayStorageModuleTest {
 
-  @Rule public ExpectedException thrown = ExpectedException.none();
-
   AnnotationConfigApplicationContext context;
 
   @After
@@ -38,7 +34,7 @@ public class ZipkinXRayStorageModuleTest {
     }
   }
 
-  @Test
+  @Test(expected = NoSuchBeanDefinitionException.class)
   public void doesntProvideStorageComponent_whenStorageTypeNotXRay() {
     context = new AnnotationConfigApplicationContext();
     TestPropertyValues.of("zipkin.storage.type:elasticsearch").applyTo(context);
@@ -46,7 +42,6 @@ public class ZipkinXRayStorageModuleTest {
         PropertyPlaceholderAutoConfiguration.class, ZipkinXRayStorageModule.class);
     context.refresh();
 
-    thrown.expect(NoSuchBeanDefinitionException.class);
     context.getBean(XRayUDPStorage.class);
   }
 
