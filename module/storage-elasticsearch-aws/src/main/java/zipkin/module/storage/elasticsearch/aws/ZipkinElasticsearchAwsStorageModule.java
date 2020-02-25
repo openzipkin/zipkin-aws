@@ -63,7 +63,7 @@ class ZipkinElasticsearchAwsStorageModule {
    * AWS api. Otherwise, we assume the URL specified in ES_HOSTS is correct.
    */
   @Bean @Qualifier(QUALIFIER) @Conditional(AwsDomainSetCondition.class)
-  Supplier<EndpointGroup> esInitialEndpoints(Function<Endpoint, WebClient> clientFactory,
+  Supplier<EndpointGroup> esInitialEndpoints(Function<EndpointGroup, WebClient> clientFactory,
       String region, ZipkinElasticsearchAwsStorageProperties aws) {
     return new ElasticsearchDomainEndpoint(clientFactory,
         Endpoint.of("es." + region + ".amazonaws.com", 443), region, aws.getDomain());

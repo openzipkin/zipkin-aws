@@ -101,7 +101,7 @@ public class ZipkinElasticsearchAwsStorageModuleTest {
         .options(clientBuilder.build())
         .build();
 
-    assertThat(client.as(AWSSignatureVersion4.class)).isPresent();
+    assertThat(client.as(AWSSignatureVersion4.class)).isNotNull();
   }
 
   static class TestGraph { // easier than generics with getBean
@@ -139,7 +139,7 @@ public class ZipkinElasticsearchAwsStorageModuleTest {
   }
 
   @Configuration static class DefaultHostsConfiguration {
-    @Bean Function<Endpoint, WebClient> esHttpClientFactory() {
+    @Bean Function<EndpointGroup, WebClient> esHttpClientFactory() {
       return (endpoint) -> WebClient.of(HTTP, endpoint);
     }
 
