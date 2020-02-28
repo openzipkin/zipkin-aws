@@ -53,8 +53,8 @@
     <jackson.version>2.10.2</jackson.version>
     <!-- This allows you to test feature branches with jitpack -->
     <armeria.groupId>com.linecorp.armeria</armeria.groupId>
-    <armeria.version>0.97.0</armeria.version>
-    <zipkin.version>2.19.3</zipkin.version>
+    <armeria.version>0.98.3</armeria.version>
+    <zipkin.version>2.20.0</zipkin.version>
     <zipkin-reporter.version>2.12.1</zipkin-reporter.version>
     <brave.version>5.9.1</brave.version>
 

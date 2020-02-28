@@ -35,13 +35,12 @@ import static com.linecorp.armeria.common.HttpMethod.GET;
 import static zipkin.module.storage.elasticsearch.aws.ZipkinElasticsearchAwsStorageModule.JSON;
 
 final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
-  static final AttributeKey<String> NAME = AttributeKey.valueOf("name");
 
-  final Function<Endpoint, WebClient> clientFactory;
+  final Function<EndpointGroup, WebClient> clientFactory;
   final Endpoint endpoint;
   final String region, domain;
 
-  ElasticsearchDomainEndpoint(Function<Endpoint, WebClient> clientFactory, Endpoint endpoint,
+  ElasticsearchDomainEndpoint(Function<EndpointGroup, WebClient> clientFactory, Endpoint endpoint,
       String region, String domain) {
     this.clientFactory = clientFactory;
     this.endpoint = endpoint;
@@ -58,7 +57,7 @@ final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
     String body;
 
     AggregatedHttpRequest req = AggregatedHttpRequest.of(GET, "/2015-01-01/es/domain/" + domain);
-    try (SafeCloseable sc = withContextCustomizer(ctx -> ctx.attr(NAME).set("es-get-domain"))) {
+    try (SafeCloseable sc = withContextCustomizer(ctx -> ctx.logBuilder().name("es-get-domain"))) {
       AggregatedHttpResponse res = clientFactory.apply(endpoint).execute(req).aggregate().join();
       status = res.status();
       body = res.contentUtf8();
@@ -92,7 +91,7 @@ final class ElasticsearchDomainEndpoint implements Supplier<EndpointGroup> {
 
     DnsAddressEndpointGroup result = DnsAddressEndpointGroup.builder(endpoint).port(443).build();
     try {
-      result.awaitInitialEndpoints(1, TimeUnit.SECONDS);
+      result.whenReady().get(1, TimeUnit.SECONDS);
     } catch (Exception e) {
       // let it fail later
     }
