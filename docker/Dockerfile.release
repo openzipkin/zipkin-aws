@@ -37,7 +37,7 @@ RUN mkdir kinesis && cd kinesis && cp ${AWS_REPO}/zipkin-module-collector-kinesi
 RUN mkdir elasticsearch-aws && cd elasticsearch-aws && cp ${AWS_REPO}/zipkin-module-storage-elasticsearch-aws/${version}/zipkin-module-elasticsearch-aws-${version}-module.jar . && jar xf *.jar && rm *.jar
 RUN mkdir xray && cd xray && cp ${AWS_REPO}/zipkin-module-storage-xray/${version}/zipkin-module-storage-xray-${version}-module.jar . && jar xf *.jar && rm *.jar
 
-FROM openzipkin/zipkin:2.18.0
+FROM openzipkin/zipkin:2.20.0
 MAINTAINER Zipkin "https://zipkin.io/"
 
 COPY --from=0 /zipkin-aws/ /zipkin/lib/
