@@ -1,5 +1,5 @@
 #
-# Copyright 2016-2019 The OpenZipkin Authors
+# Copyright 2016-2020 The OpenZipkin Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
 # in compliance with the License. You may obtain a copy of the License at
@@ -15,33 +15,38 @@
 
 FROM openzipkin/zipkin-builder as built
 
-ARG version
 
-# Download jars using Maven. It will try to resolve the artifact from Maven Central, which might
-# not work right away if the sync is taking time, followed by bintray, which should always work
-# since it's where we publish to.
+ARG source_branch
 
-ARG MAVEN_GET="mvn org.apache.maven.plugins:maven-dependency-plugin:get -DremoteRepositories=bintray::::https://dl.bintray.com/openzipkin/maven -Dtransitive=false"
-
-RUN $MAVEN_GET -Dartifact=io.zipkin.aws:zipkin-module-collector-sqs:${version}:jar:module
-RUN $MAVEN_GET -Dartifact=io.zipkin.aws:zipkin-module-collector-kinesis:${version}:jar:module
-RUN $MAVEN_GET -Dartifact=io.zipkin.aws:zipkin-module-storage-elasticsearch-aws:${version}:jar:module
-RUN $MAVEN_GET -Dartifact=io.zipkin.aws:zipkin-module-storage-xray:${version}:jar:module
+# source_branch is something like
+#
+#   master       - Building the master branch. This cut command will return 'master', and Dockerfiles will ignore it
+#   1.0.1        - Building a release image along with a new Zipkin server version. This cut command will return
+#                  '1.0.1' and Dockerfiles will use it to fetch the correct version of Zipkin.
+#   docker-1.0.1 - Building a release image, but not a new Zipkin server. This cut command will return
+#                  '1.0.1' and Dockerfiles will use it to fetch the correct version of Zipkin.
 
 WORKDIR /zipkin-aws
 
-ARG AWS_REPO=~/.m2/repository/io/zipkin/aws
+ARG MAVEN_GET="mvn org.apache.maven.plugins:maven-dependency-plugin:get -DremoteRepositories=bintray::::https://dl.bintray.com/openzipkin/maven -Dtransitive=false"
 
-RUN mkdir sqs && cd sqs && cp ${AWS_REPO}/zipkin-module-collector-sqs/${version}/zipkin-module-collector-sqs-${version}-module.jar . && jar xf *.jar && rm *.jar
-RUN mkdir kinesis && cd kinesis && cp ${AWS_REPO}/zipkin-module-collector-kinesis/${version}/zipkin-module-collector-kinesis-${version}-module.jar . && jar xf *.jar && rm *.jar
-RUN mkdir elasticsearch-aws && cd elasticsearch-aws && cp ${AWS_REPO}/zipkin-module-storage-elasticsearch-aws/${version}/zipkin-module-elasticsearch-aws-${version}-module.jar . && jar xf *.jar && rm *.jar
-RUN mkdir xray && cd xray && cp ${AWS_REPO}/zipkin-module-storage-xray/${version}/zipkin-module-storage-xray-${version}-module.jar . && jar xf *.jar && rm *.jar
+RUN export version=$(echo "${source_branch}" | cut -d '-' -f 2) && \
+# Download jars using Maven. It will try to resolve the artifact from Maven Central, which might
+# not work right away if the sync is taking time, followed by bintray, which should always work
+# since it's where we publish to.
+  $MAVEN_GET -Dartifact=io.zipkin.aws:zipkin-module-collector-sqs:${version}:jar:module && \
+  $MAVEN_GET -Dartifact=io.zipkin.aws:zipkin-module-collector-kinesis:${version}:jar:module && \
+  $MAVEN_GET -Dartifact=io.zipkin.aws:zipkin-module-storage-elasticsearch-aws:${version}:jar:module && \
+  $MAVEN_GET -Dartifact=io.zipkin.aws:zipkin-module-storage-xray:${version}:jar:module && \
+  (mkdir sqs && cd sqs && cp ~/.m2/repository/io/zipkin/aws/zipkin-module-collector-sqs/${version}/*.jar . && jar xf *.jar && rm *.jar) && \
+  (mkdir kinesis && cd kinesis && cp ~/.m2/repository/io/zipkin/aws/zipkin-module-collector-kinesis/${version}/*.jar . && jar xf *.jar && rm *.jar) && \
+  (mkdir elasticsearch-aws && cd elasticsearch-aws && cp ~/.m2/repository/io/zipkin/aws/zipkin-module-storage-elasticsearch-aws/${version}/*.jar . && jar xf *.jar && rm *.jar) && \
+  (mkdir xray && cd xray && cp ~/.m2/repository/io/zipkin/aws/zipkin-module-storage-xray/${version}/*.jar . && jar xf *.jar && rm *.jar) && \
+  echo > .xray_profile
 
 FROM openzipkin/zipkin:2.20.0
 MAINTAINER Zipkin "https://zipkin.io/"
 
-COPY --from=0 /zipkin-aws/ /zipkin/lib/
+COPY --from=built /zipkin-aws/ /zipkin/
 
-RUN echo > .xray_profile
-
-ENV MODULE_OPTS="-Dloader.path=lib/sqs,lib/kinesis,lib/elasticsearch-aws,lib/xray -Dspring.profiles.active=sqs,kinesis,elasticsearch-aws,xray"
+ENV MODULE_OPTS="-Dloader.path=sqs,kinesis,elasticsearch-aws,xray -Dspring.profiles.active=sqs,kinesis,elasticsearch-aws,xray"
