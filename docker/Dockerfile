@@ -1,5 +1,5 @@
 #
-# Copyright 2016-2019 The OpenZipkin Authors
+# Copyright 2016-2020 The OpenZipkin Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
 # in compliance with the License. You may obtain a copy of the License at
@@ -12,10 +12,19 @@
 # the License.
 #
 
-FROM openzipkin/zipkin-builder
+# We copy files from the context into a scratch container first to avoid a problem where docker and
+# docker-compose don't share layer hashes https://github.com/docker/compose/issues/883 normally.
+# COPY --from= works around the issue.
+FROM scratch as scratch
+
+COPY . /code/
+
+FROM openzipkin/zipkin-builder as built
+
+COPY --from=scratch /code /code
 
 WORKDIR /code
-COPY . /code
+
 RUN mvn -B --no-transfer-progress package -DskipTests=true -pl module/collector-sqs,module/collector-kinesis,module/storage-elasticsearch-aws,module/storage-xray -am
 
 WORKDIR /zipkin-aws
@@ -40,6 +49,6 @@ RUN cp /code/module/storage-xray/target/zipkin-module-storage-xray-*-module.jar 
 FROM openzipkin/zipkin:master
 MAINTAINER Zipkin "https://zipkin.io/"
 
-COPY --from=0 /zipkin-aws/ /zipkin/
+COPY --from=built /zipkin-aws/ /zipkin/
 
 ENV MODULE_OPTS="-Dloader.path=sqs,kinesis,elasticsearch-aws,xray -Dspring.profiles.active=sqs,kinesis,elasticsearch-aws,xray"
