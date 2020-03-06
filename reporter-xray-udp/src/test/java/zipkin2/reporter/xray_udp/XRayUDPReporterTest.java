@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,4 +13,79 @@
  */
 package zipkin2.reporter.xray_udp;
 
-public class XRayUDPReporterTest {}
+import io.netty.bootstrap.Bootstrap;
+import io.netty.buffer.ByteBufUtil;
+import io.netty.channel.Channel;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.EventLoopGroup;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.DatagramPacket;
+import io.netty.channel.socket.nio.NioDatagramChannel;
+import java.net.InetSocketAddress;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
+import org.junit.Test;
+import zipkin2.TestObjects;
+import zipkin2.storage.xray_udp.InternalStorageAccess;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+public class XRayUDPReporterTest {
+
+  private static EventLoopGroup workerGroup;
+  private static Channel serverChannel;
+  private static BlockingQueue<byte[]> receivedPayloads;
+
+  private static XRayUDPReporter reporter;
+
+  @BeforeClass
+  public static void startServer() {
+    workerGroup = new NioEventLoopGroup();
+    receivedPayloads = new LinkedBlockingQueue<>();
+
+    Bootstrap bootstrap = new Bootstrap();
+    bootstrap.group(workerGroup)
+        .channel(NioDatagramChannel.class)
+        .handler(new ChannelInitializer<NioDatagramChannel>() {
+          @Override protected void initChannel(NioDatagramChannel channel) {
+            channel.pipeline().addLast(new SimpleChannelInboundHandler<DatagramPacket>() {
+              @Override protected void channelRead0(ChannelHandlerContext ctx, DatagramPacket msg) {
+                receivedPayloads.add(ByteBufUtil.getBytes(msg.content()));
+              }
+            });
+          }
+        });
+
+    serverChannel = bootstrap.bind(0).syncUninterruptibly().channel();
+
+    // TODO(anuraaga): Consider changing return type of create to XRayUdpReporter so it's more
+    // obvious the type is Closeable.
+    reporter = (XRayUDPReporter) XRayUDPReporter
+        .create("localhost:" + ((InetSocketAddress) serverChannel.localAddress()).getPort());
+  }
+
+  @AfterClass
+  public static void stopServer() {
+    reporter.close();
+    serverChannel.close().syncUninterruptibly();
+    workerGroup.shutdownGracefully();
+  }
+
+  @Before
+  public void setUp() {
+    receivedPayloads.clear();
+  }
+
+  @Test
+  public void sendSingleSpan() throws Exception {
+    reporter.report(TestObjects.CLIENT_SPAN);
+    assertThat(receivedPayloads.take())
+        .containsExactly(InternalStorageAccess.encode(TestObjects.CLIENT_SPAN));
+    assertThat(receivedPayloads).isEmpty();
+  }
+}
