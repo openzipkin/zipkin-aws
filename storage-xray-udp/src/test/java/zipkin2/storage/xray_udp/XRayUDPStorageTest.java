@@ -66,7 +66,7 @@ public class XRayUDPStorageTest {
     serverChannel = bootstrap.bind(0).syncUninterruptibly().channel();
 
     storage = XRayUDPStorage.newBuilder()
-        .address("localhost:" + ((InetSocketAddress)serverChannel.localAddress()).getPort())
+        .address("localhost:" + ((InetSocketAddress) serverChannel.localAddress()).getPort())
         .build();
   }
 
