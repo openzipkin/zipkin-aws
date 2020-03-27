@@ -165,6 +165,12 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
     assertThat(span.name()).isEqualTo("getitem");
     assertThat(span.annotations()).extracting(Annotation::value)
         .containsExactly("ws", "wr", "ws", "wr");
+
+    // Ensure all requests have the injected headers.
+    assertThat(server.takeRequest().getHeader("x-b3-spanid"))
+        .isEqualTo(span.id());
+    assertThat(server.takeRequest().getHeader("x-b3-spanid"))
+        .isEqualTo(span.id());
   }
 
   /*
