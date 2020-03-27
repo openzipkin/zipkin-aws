@@ -77,7 +77,8 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
   }
 
   /**
-   * Before an individual http request happens, may be run multiple times if retries occur
+   * Before an individual http request is finalized. This is only called once per operation, meaning
+   * we can only have one span per operation.
    */
   @Override public SdkHttpRequest modifyHttpRequest(
       Context.ModifyHttpRequest context,
