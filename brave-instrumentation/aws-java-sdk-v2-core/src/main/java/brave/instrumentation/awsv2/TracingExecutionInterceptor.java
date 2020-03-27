@@ -48,8 +48,6 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       new ExecutionAttribute<>("DEFERRED_ROOT_CONTEXT");
   static final ExecutionAttribute<Span> APPLICATION_SPAN =
       new ExecutionAttribute<>("APPLICATION_SPAN");
-  static final ExecutionAttribute<Span> CLIENT_SPAN =
-      new ExecutionAttribute<>(Span.class.getCanonicalName());
 
   final Tracer tracer;
   final HttpTracing httpTracing;
@@ -86,48 +84,41 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       ExecutionAttributes executionAttributes
   ) {
     TraceContext maybeDeferredRootSpan = executionAttributes.getAttribute(DEFERRED_ROOT_CONTEXT);
-    Span applicationSpan;
+    Span span;
     HttpClientRequest request = new HttpClientRequest(context.httpRequest());
     if (maybeDeferredRootSpan != null) {
       Boolean sampled = httpTracing.clientRequestSampler().trySample(request);
       if (sampled == null) {
         sampled = httpTracing.tracing().sampler().isSampled(maybeDeferredRootSpan.traceId());
       }
-      applicationSpan = tracer.toSpan(maybeDeferredRootSpan.toBuilder().sampled(sampled).build());
-      executionAttributes.putAttribute(APPLICATION_SPAN, applicationSpan.start());
+      span = tracer.toSpan(maybeDeferredRootSpan.toBuilder().sampled(sampled).build());
+      executionAttributes.putAttribute(APPLICATION_SPAN, span.start());
     } else {
-      applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
+      span = executionAttributes.getAttribute(APPLICATION_SPAN);
     }
 
     String serviceName = executionAttributes.getAttribute(SdkExecutionAttribute.SERVICE_NAME);
     String operation = getAwsOperationNameFromRequestClass(context.request());
-    applicationSpan.name("aws-sdk")
+    span.name("aws-sdk")
         .tag("aws.service_name", serviceName)
         .tag("aws.operation", operation);
 
-    Span span = tracer.newChild(applicationSpan.context());
     handler.handleSend(request, span);
     span.name(operation).remoteServiceName(serviceName);
-    executionAttributes.putAttribute(CLIENT_SPAN, span);
 
     return request.build();
   }
 
-  /**
-   * After individual http response, may run multiple times if retries occur
-   */
-  @Override
-  public void beforeUnmarshalling(
-      Context.BeforeUnmarshalling context,
-      ExecutionAttributes executionAttributes
-  ) {
-    Span clientSpan = executionAttributes.getAttribute(CLIENT_SPAN);
-    if (!context.httpResponse().isSuccessful()) {
-      clientSpan.tag("error", context.httpResponse().statusText()
-          .orElse("Unknown AWS service error"));
-    }
-    handler.handleReceive(new HttpClientResponse(context.httpResponse()), null, clientSpan);
-    executionAttributes.putAttribute(CLIENT_SPAN, null);
+  @Override public void beforeTransmission(Context.BeforeTransmission context,
+      ExecutionAttributes executionAttributes) {
+    Span span = executionAttributes.getAttribute(APPLICATION_SPAN);
+    span.annotate("ws");
+  }
+
+  @Override public void afterTransmission(Context.AfterTransmission context,
+      ExecutionAttributes executionAttributes) {
+    Span span = executionAttributes.getAttribute(APPLICATION_SPAN);
+    span.annotate("wr");
   }
 
   /**
@@ -137,8 +128,9 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       Context.AfterExecution context,
       ExecutionAttributes executionAttributes
   ) {
-    Span applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
-    applicationSpan.finish();
+    Span span = executionAttributes.getAttribute(APPLICATION_SPAN);
+    handler.handleReceive(new HttpClientResponse(context.httpResponse()), null, span);
+    span.finish();
   }
 
   /**
@@ -148,14 +140,10 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       Context.FailedExecution context,
       ExecutionAttributes executionAttributes
   ) {
-    Span clientSpan = executionAttributes.getAttribute(CLIENT_SPAN);
-    if (clientSpan != null) {
-      handler.handleReceive(null, context.exception(), clientSpan);
-      executionAttributes.putAttribute(CLIENT_SPAN, null);
-    }
-    Span applicationSpan = executionAttributes.getAttribute(APPLICATION_SPAN);
-    applicationSpan.error(context.exception());
-    applicationSpan.finish();
+    Span span = executionAttributes.getAttribute(APPLICATION_SPAN);
+    handler.handleReceive(null, context.exception(), span);
+    span.error(context.exception());
+    span.finish();
   }
 
   private String getAwsOperationNameFromRequestClass(SdkRequest request) {
