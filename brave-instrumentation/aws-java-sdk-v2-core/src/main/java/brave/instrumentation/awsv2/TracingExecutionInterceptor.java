@@ -65,11 +65,10 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
 
     String serviceName = executionAttributes.getAttribute(SdkExecutionAttribute.SERVICE_NAME);
     String operation = getAwsOperationNameFromRequestClass(context.request());
-    span.name("aws-sdk")
+    span.name(operation)
+        .remoteServiceName(serviceName)
         .tag("aws.service_name", serviceName)
         .tag("aws.operation", operation);
-
-    span.name(operation).remoteServiceName(serviceName);
 
     return request.build();
   }
@@ -80,6 +79,10 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
   @Override public void beforeTransmission(Context.BeforeTransmission context,
       ExecutionAttributes executionAttributes) {
     Span span = executionAttributes.getAttribute(SPAN);
+    if (span == null) {
+      // An evil interceptor deleted our attribute.
+      return;
+    }
     span.annotate("ws");
   }
 
@@ -89,6 +92,10 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
   @Override public void afterTransmission(Context.AfterTransmission context,
       ExecutionAttributes executionAttributes) {
     Span span = executionAttributes.getAttribute(SPAN);
+    if (span == null) {
+      // An evil interceptor deleted our attribute.
+      return;
+    }
     span.annotate("wr");
   }
 
@@ -100,6 +107,10 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       ExecutionAttributes executionAttributes
   ) {
     Span span = executionAttributes.getAttribute(SPAN);
+    if (span == null) {
+      // An evil interceptor deleted our attribute.
+      return;
+    }
     handler.handleReceive(new HttpClientResponse(context.httpResponse()), null, span);
   }
 
@@ -111,6 +122,10 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       ExecutionAttributes executionAttributes
   ) {
     Span span = executionAttributes.getAttribute(SPAN);
+    if (span == null) {
+      // An evil interceptor deleted our attribute.
+      return;
+    }
     handler.handleReceive(null, context.exception(), span);
   }
 
