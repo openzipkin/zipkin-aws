@@ -74,12 +74,18 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
     return request.build();
   }
 
+  /**
+   * Before sending an http request. Will be called multiple times in the case of retries.
+   */
   @Override public void beforeTransmission(Context.BeforeTransmission context,
       ExecutionAttributes executionAttributes) {
     Span span = executionAttributes.getAttribute(SPAN);
     span.annotate("ws");
   }
 
+  /**
+   * After sending an http request. Will be called multiple times in the case of retries.
+   */
   @Override public void afterTransmission(Context.AfterTransmission context,
       ExecutionAttributes executionAttributes) {
     Span span = executionAttributes.getAttribute(SPAN);
