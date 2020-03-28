@@ -14,12 +14,10 @@
 package brave.instrumentation.awsv2;
 
 import brave.Span;
-import brave.Tracer;
 import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
 import brave.instrumentation.awsv2.AwsSdkTracing.HttpClientRequest;
 import brave.instrumentation.awsv2.AwsSdkTracing.HttpClientResponse;
-import brave.propagation.TraceContext;
 import software.amazon.awssdk.core.SdkRequest;
 import software.amazon.awssdk.core.interceptor.Context;
 import software.amazon.awssdk.core.interceptor.ExecutionAttribute;
@@ -44,36 +42,12 @@ import software.amazon.awssdk.http.SdkHttpRequest;
  * with the error. The AWS request ID is added when available.
  */
 final class TracingExecutionInterceptor implements ExecutionInterceptor {
-  static final ExecutionAttribute<TraceContext> DEFERRED_ROOT_CONTEXT =
-      new ExecutionAttribute<>("DEFERRED_ROOT_CONTEXT");
-  static final ExecutionAttribute<Span> APPLICATION_SPAN =
-      new ExecutionAttribute<>("APPLICATION_SPAN");
+  static final ExecutionAttribute<Span> SPAN = new ExecutionAttribute<>(Span.class.getName());
 
-  final Tracer tracer;
-  final HttpTracing httpTracing;
   final HttpClientHandler<brave.http.HttpClientRequest, brave.http.HttpClientResponse> handler;
 
   TracingExecutionInterceptor(HttpTracing httpTracing) {
-    this.httpTracing = httpTracing;
-    this.tracer = httpTracing.tracing().tracer();
     this.handler = HttpClientHandler.create(httpTracing);
-  }
-
-  /**
-   * Before the SDK request leaves the calling thread
-   */
-  @Override public void beforeExecution(
-      Context.BeforeExecution context,
-      ExecutionAttributes executionAttributes
-  ) {
-    Span maybeDeferredRootSpan = tracer.nextSpan();
-    if (maybeDeferredRootSpan.context().parentIdAsLong() == 0) {
-      // Deferred to sampling when we have http context
-      // We will build a new span with this context later when we can make the sampling decision
-      executionAttributes.putAttribute(DEFERRED_ROOT_CONTEXT, maybeDeferredRootSpan.context());
-    } else {
-      executionAttributes.putAttribute(APPLICATION_SPAN, maybeDeferredRootSpan.start());
-    }
   }
 
   /**
@@ -84,19 +58,10 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       Context.ModifyHttpRequest context,
       ExecutionAttributes executionAttributes
   ) {
-    TraceContext maybeDeferredRootSpan = executionAttributes.getAttribute(DEFERRED_ROOT_CONTEXT);
-    Span span;
     HttpClientRequest request = new HttpClientRequest(context.httpRequest());
-    if (maybeDeferredRootSpan != null) {
-      Boolean sampled = httpTracing.clientRequestSampler().trySample(request);
-      if (sampled == null) {
-        sampled = httpTracing.tracing().sampler().isSampled(maybeDeferredRootSpan.traceId());
-      }
-      span = tracer.toSpan(maybeDeferredRootSpan.toBuilder().sampled(sampled).build());
-      executionAttributes.putAttribute(APPLICATION_SPAN, span.start());
-    } else {
-      span = executionAttributes.getAttribute(APPLICATION_SPAN);
-    }
+
+    Span span = handler.handleSend(request);
+    executionAttributes.putAttribute(SPAN, span);
 
     String serviceName = executionAttributes.getAttribute(SdkExecutionAttribute.SERVICE_NAME);
     String operation = getAwsOperationNameFromRequestClass(context.request());
@@ -104,7 +69,6 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
         .tag("aws.service_name", serviceName)
         .tag("aws.operation", operation);
 
-    handler.handleSend(request, span);
     span.name(operation).remoteServiceName(serviceName);
 
     return request.build();
@@ -112,13 +76,13 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
 
   @Override public void beforeTransmission(Context.BeforeTransmission context,
       ExecutionAttributes executionAttributes) {
-    Span span = executionAttributes.getAttribute(APPLICATION_SPAN);
+    Span span = executionAttributes.getAttribute(SPAN);
     span.annotate("ws");
   }
 
   @Override public void afterTransmission(Context.AfterTransmission context,
       ExecutionAttributes executionAttributes) {
-    Span span = executionAttributes.getAttribute(APPLICATION_SPAN);
+    Span span = executionAttributes.getAttribute(SPAN);
     span.annotate("wr");
   }
 
@@ -129,9 +93,8 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       Context.AfterExecution context,
       ExecutionAttributes executionAttributes
   ) {
-    Span span = executionAttributes.getAttribute(APPLICATION_SPAN);
+    Span span = executionAttributes.getAttribute(SPAN);
     handler.handleReceive(new HttpClientResponse(context.httpResponse()), null, span);
-    span.finish();
   }
 
   /**
@@ -141,10 +104,8 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       Context.FailedExecution context,
       ExecutionAttributes executionAttributes
   ) {
-    Span span = executionAttributes.getAttribute(APPLICATION_SPAN);
+    Span span = executionAttributes.getAttribute(SPAN);
     handler.handleReceive(null, context.exception(), span);
-    span.error(context.exception());
-    span.finish();
   }
 
   private String getAwsOperationNameFromRequestClass(SdkRequest request) {
