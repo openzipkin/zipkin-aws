@@ -49,18 +49,18 @@
     <license-maven-plugin.version>3.0</license-maven-plugin.version>
 
     <!-- matching armeria/zipkin -->
-    <spring-boot.version>2.2.4.RELEASE</spring-boot.version>
-    <jackson.version>2.10.2</jackson.version>
+    <spring-boot.version>2.2.6.RELEASE</spring-boot.version>
+    <jackson.version>2.10.3</jackson.version>
     <!-- This allows you to test feature branches with jitpack -->
     <armeria.groupId>com.linecorp.armeria</armeria.groupId>
-    <armeria.version>0.98.3</armeria.version>
+    <armeria.version>0.99.1</armeria.version>
 
     <!-- Generally best to match this with armeria's dependency -->
-    <netty.version>4.1.46.Final</netty.version>
+    <netty.version>4.1.48.Final</netty.version>
 
-    <zipkin.version>2.20.0</zipkin.version>
+    <zipkin.version>2.21.0</zipkin.version>
     <zipkin-reporter.version>2.12.1</zipkin-reporter.version>
-    <brave.version>5.9.1</brave.version>
+    <brave.version>5.10.2</brave.version>
 
     <slf4j.version>1.7.30</slf4j.version>
     <log4j.version>2.13.0</log4j.version>
