@@ -16,12 +16,13 @@ package brave.instrumentation.awsv2;
 import brave.SpanCustomizer;
 import brave.http.HttpAdapter;
 import brave.http.HttpClientParser;
+import brave.http.HttpResponseParser;
+import brave.http.HttpTags;
 import brave.test.http.ITHttpClient;
 import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
-import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import org.junit.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -43,8 +44,9 @@ import zipkin2.Span;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> {
-
-  @Override protected DynamoDbClient newClient(int i) {
+  // TODO: make a TestClient which acts like the ones AWS generates, but uses features not in
+  // Dynamo, such as HTTP paths and query parameters (that or switch to S3 or Route53, as they do).
+  @Override protected DynamoDbClient newClient(int port) throws IOException {
     ClientOverrideConfiguration configuration = ClientOverrideConfiguration.builder()
         .retryPolicy(RetryPolicy.builder().numRetries(3).build())
         .apiCallTimeout(Duration.ofSeconds(1))
@@ -56,12 +58,12 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
         .httpClient(primeHttpClient())
         .region(Region.US_EAST_1)
         .overrideConfiguration(configuration)
-        .endpointOverride(URI.create("http://127.0.0.1:" + i))
+        .endpointOverride(URI.create("http://127.0.0.1:" + port))
         .build();
   }
 
   // For some reason, the first request will fail. This primes the connection until we know why
-  SdkHttpClient primeHttpClient() {
+  SdkHttpClient primeHttpClient() throws IOException {
     server.enqueue(new MockResponse());
     SdkHttpClient httpClient = UrlConnectionHttpClient.builder().build();
     try {
@@ -71,12 +73,8 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
               .uri(server.url("/").uri())
               .build())
           .build()).call();
-    } catch (IOException e) {
     } finally {
-      try {
-        server.takeRequest(1, TimeUnit.MILLISECONDS);
-      } catch (InterruptedException ex) {
-      }
+      takeRequest();
     }
     return httpClient;
   }
@@ -86,32 +84,89 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
   }
 
   @Override protected void get(DynamoDbClient client, String s) {
-    client.getItem(
-        GetItemRequest.builder().tableName(s).key(Collections.emptyMap()).build());
+    client.getItem(GetItemRequest.builder().tableName(s).key(Collections.emptyMap()).build());
   }
 
   @Override protected void post(DynamoDbClient client, String s, String s1) {
-    client.putItem(
-        PutItemRequest.builder().tableName(s).item(Collections.emptyMap()).build());
+    client.putItem(PutItemRequest.builder().tableName(s).item(Collections.emptyMap()).build());
   }
 
   /*
-   * Tests overridden due to RPC nature of AWS API
+   * Tests are overridden due to reasons that should be revisited:
+   *  * Modeling choices that overwrite user configuration, such as overwriting names
+   *  * This test assumes AWS requests have "/" path with no parameters (not universally true ex S3)
    */
 
-  /** Span name doesn't conform to expectation */
-  @Override public void supportsPortableCustomization() throws Exception {
-    String uri = "/"; // Always '/'
-    close();
+  @Test public void readsRequestAtResponseTime() throws IOException {
+    String uri = "/"; // This test doesn't currently allow non-root HTTP paths
+
+    closeClient(client);
+    httpTracing = httpTracing.toBuilder()
+        .clientResponseParser((response, context, span) -> {
+          HttpTags.URL.tag(response.request(), span); // just the path is tagged by default
+        })
+        .build();
+
+    client = newClient(server.getPort());
+    server.enqueue(new MockResponse());
+    get(client, uri);
+
+    assertThat(reporter.takeRemoteSpan(Span.Kind.CLIENT).tags())
+        .containsEntry("http.url", url(uri));
+  }
+
+  /** Service and span names don't conform to expectations. */
+  @Override @Test public void supportsPortableCustomization() throws IOException {
+    String uri = "/"; // This test doesn't currently allow non-root HTTP paths
+
+    closeClient(client);
+    httpTracing = httpTracing.toBuilder()
+        .clientRequestParser((request, context, span) -> {
+          span.name(request.method().toLowerCase() + " " + request.path());
+          HttpTags.URL.tag(request, span); // just the path is tagged by default
+          span.tag("request_customizer.is_span", (span instanceof brave.Span) + "");
+        })
+        .clientResponseParser((response, context, span) -> {
+          HttpResponseParser.DEFAULT.parse(response, context, span);
+          span.tag("response_customizer.is_span", (span instanceof brave.Span) + "");
+        })
+        .build().clientOf("remote-service");
+
+    client = newClient(server.getPort());
+    server.enqueue(new MockResponse());
+    get(client, uri);
+
+    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
+    assertThat(span.name())
+        .isEqualTo("getitem"); // Overwrites default span name
+
+    assertThat(span.remoteServiceName())
+        .isEqualTo("dynamodb"); // Ignores HttpTracing.serverName()
+
+    assertThat(span.tags())
+        .containsEntry("http.url", url(uri))
+        .containsEntry("request_customizer.is_span", "false")
+        .containsEntry("response_customizer.is_span", "false");
+  }
+
+  /** Service and span names don't conform to expectations. */
+  @Override
+  @Deprecated @Test public void supportsDeprecatedPortableCustomization() throws IOException {
+    String uri = "/"; // This test doesn't currently allow non-root HTTP paths
+
+    closeClient(client);
     httpTracing = httpTracing.toBuilder()
         .clientParser(new HttpClientParser() {
           @Override
-          public <Req> void request(brave.http.HttpAdapter<Req, ?> adapter, Req req,
+          public <Req> void request(HttpAdapter<Req, ?> adapter, Req req,
               SpanCustomizer customizer) {
-            customizer.tag("http.url", adapter.url(req)); // just the path is logged by default
+            customizer.name(adapter.method(req).toLowerCase() + " " + adapter.path(req));
+            customizer.tag("http.url", adapter.url(req)); // just the path is tagged by default
+            customizer.tag("context.visible", String.valueOf(currentTraceContext.get() != null));
             customizer.tag("request_customizer.is_span", (customizer instanceof brave.Span) + "");
           }
 
+          @Override
           public <Resp> void response(HttpAdapter<?, Resp> adapter, Resp res, Throwable error,
               SpanCustomizer customizer) {
             super.response(adapter, res, error, customizer);
@@ -124,27 +179,32 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
     server.enqueue(new MockResponse());
     get(client, uri);
 
-    Span span = takeSpan();
-    assertThat(span.remoteServiceName()).isEqualTo("dynamodb");
-    assertThat(span.name()).isEqualTo("getitem");
+    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
+    assertThat(span.name())
+        .isEqualTo("getitem"); // Overwrites default span name
+
+    assertThat(span.remoteServiceName())
+        .isEqualTo("dynamodb"); // Ignores HttpTracing.serverName()
+
     assertThat(span.tags())
         .containsEntry("http.url", url(uri))
+        .containsEntry("context.visible", "true")
         .containsEntry("request_customizer.is_span", "false")
         .containsEntry("response_customizer.is_span", "false");
   }
 
   /** Body's inherently have a structure, and we use the operation name as the span name */
-  @Override public void post() throws Exception {
+  @Override public void post() {
     String path = "table";
     String body = "{\"TableName\":\"table\",\"Item\":{}}";
     server.enqueue(new MockResponse());
 
     post(client, path, body);
 
-    assertThat(server.takeRequest().getBody().readUtf8())
+    assertThat(takeRequest().getBody().readUtf8())
         .isEqualTo(body);
 
-    Span span = takeSpan();
+    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.remoteServiceName())
         .isEqualTo("dynamodb");
     assertThat(span.name())
@@ -159,8 +219,10 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
   @Test public void retriesAnnotated() throws Exception {
     server.enqueue(new MockResponse().setResponseCode(500));
     server.enqueue(new MockResponse());
+
     get(client, "/");
-    Span span = takeSpan();
+
+    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.remoteServiceName()).isEqualTo("dynamodb");
     assertThat(span.name()).isEqualTo("getitem");
     assertThat(span.annotations()).extracting(Annotation::value)
@@ -191,10 +253,6 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
 
   /** Path is always empty */
   @Override public void httpPathTagExcludesQueryParams() {
-  }
-
-  /** Error has exception instead of status code */
-  @Override public void addsStatusCodeWhenNotOk() {
   }
 
   /** All http methods are POST */

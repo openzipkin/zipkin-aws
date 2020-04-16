@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,49 +13,36 @@
  */
 package brave.instrumentation.aws;
 
-import brave.ScopedSpan;
 import brave.SpanCustomizer;
-import brave.Tracer;
 import brave.http.HttpAdapter;
 import brave.http.HttpClientParser;
-import brave.http.HttpTracing;
-import brave.internal.HexCodec;
-import brave.sampler.Sampler;
-import brave.test.http.ITHttpAsyncClient;
+import brave.http.HttpResponseParser;
+import brave.http.HttpTags;
+import brave.test.http.ITHttpClient;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
-import java.util.ArrayList;
-import java.util.Arrays;
+import java.io.IOException;
 import java.util.Collections;
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 import okhttp3.mockwebserver.MockResponse;
-import okhttp3.mockwebserver.RecordedRequest;
-import okhttp3.mockwebserver.SocketPolicy;
 import org.junit.Test;
 import zipkin2.Span;
 
-import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
-  @Override protected void getAsync(AmazonDynamoDB dynamoDB, String s) {
-    dynamoDB.getItem(s, Collections.emptyMap());
-  }
-
+public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
   @Override protected AmazonDynamoDB newClient(int i) {
     ClientConfiguration clientConfiguration = new ClientConfiguration();
-    clientConfiguration.setMaxErrorRetry(2);
+    clientConfiguration.setMaxErrorRetry(0);
     clientConfiguration.setRequestTimeout(1000);
 
     return AmazonDynamoDBAsyncClientBuilder.standard()
         .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "y")))
-        .withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration("http://127.0.0.1:" + i, "us-east-1"))
+        .withEndpointConfiguration(
+            new AwsClientBuilder.EndpointConfiguration("http://127.0.0.1:" + i, "us-east-1"))
         .withRequestHandlers(new TracingRequestHandler(httpTracing))
         .withClientConfiguration(clientConfiguration)
         .build();
@@ -70,23 +57,65 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
   }
 
   @Override protected void post(AmazonDynamoDB dynamoDB, String s, String s1) {
-    dynamoDB.getItem(s, Collections.emptyMap());
+    dynamoDB.putItem(s, Collections.emptyMap());
   }
 
   /*
-   * Tests overridden due to RPC nature of AWS API
+   * Tests are overridden due to reasons that should be revisited:
+   *  * Modeling choices that overwrite user configuration, such as overwriting names
+   *  * This test assumes AWS requests have "/" path with no parameters (not universally true ex S3)
    */
 
-  /** Span name doesn't conform to expectation */
-  @Override public void supportsPortableCustomization() throws Exception {
-    String uri = "/"; // Always '/'
-    close();
+  /** Service and span names don't conform to expectations. */
+  @Override @Test public void supportsPortableCustomization() {
+    String uri = "/"; // This test doesn't currently allow non-root HTTP paths
+
+    closeClient(client);
+    httpTracing = httpTracing.toBuilder()
+        .clientRequestParser((request, context, span) -> {
+          span.name(request.method().toLowerCase() + " " + request.path());
+          HttpTags.URL.tag(request, span); // just the path is tagged by default
+          span.tag("request_customizer.is_span", (span instanceof brave.Span) + "");
+        })
+        .clientResponseParser((response, context, span) -> {
+          HttpResponseParser.DEFAULT.parse(response, context, span);
+          span.tag("response_customizer.is_span", (span instanceof brave.Span) + "");
+        })
+        .build().clientOf("remote-service");
+
+    client = newClient(server.getPort());
+    server.enqueue(new MockResponse());
+    get(client, uri);
+
+    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
+    assertThat(span.name())
+        .isEqualTo("getitem"); // Overwrites default span name
+
+    assertThat(span.remoteServiceName())
+        .isEqualTo("amazondynamodbv2"); // Ignores HttpTracing.serverName()
+
+    assertThat(span.tags())
+        .containsEntry("http.url", url(uri))
+        .containsEntry("request_customizer.is_span", "false")
+        .containsEntry("response_customizer.is_span", "false");
+
+    reporter.takeLocalSpan();
+  }
+
+  /** Service and span names don't conform to expectations. */
+  @Override
+  @Deprecated @Test public void supportsDeprecatedPortableCustomization() throws IOException {
+    String uri = "/"; // This test doesn't currently allow non-root HTTP paths
+
+    closeClient(client);
     httpTracing = httpTracing.toBuilder()
         .clientParser(new HttpClientParser() {
           @Override
-          public <Req> void request(brave.http.HttpAdapter<Req, ?> adapter, Req req,
+          public <Req> void request(HttpAdapter<Req, ?> adapter, Req req,
               SpanCustomizer customizer) {
-            customizer.tag("http.url", adapter.url(req)); // just the path is logged by default
+            customizer.name(adapter.method(req).toLowerCase() + " " + adapter.path(req));
+            customizer.tag("http.url", adapter.url(req)); // just the path is tagged by default
+            customizer.tag("context.visible", String.valueOf(currentTraceContext.get() != null));
             customizer.tag("request_customizer.is_span", (customizer instanceof brave.Span) + "");
           }
 
@@ -103,203 +132,108 @@ public class ITTracingRequestHandler extends ITHttpAsyncClient<AmazonDynamoDB> {
     server.enqueue(new MockResponse());
     get(client, uri);
 
-    List<Span> spans = Arrays.asList(takeSpan(), takeSpan());
-    spans.stream().filter(s -> s.parentId() != null).forEach(s -> {
-      assertThat(s.remoteServiceName())
-          .isEqualTo("amazondynamodbv2");
-      assertThat(s.name()).isEqualTo("getitem");
+    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
+    assertThat(span.name())
+        .isEqualTo("getitem"); // Overwrites default span name
 
-      assertThat(s.tags())
-          .containsEntry("http.url", url(uri))
-          .containsEntry("request_customizer.is_span", "false")
-          .containsEntry("response_customizer.is_span", "false");
-    });
-  }
+    assertThat(span.remoteServiceName())
+        .isEqualTo("amazondynamodbv2"); // Ignores HttpTracing.serverName()
 
-  /*
-   * Tests overriden due to the multi-span implementation of the client, application and client
-   */
+    assertThat(span.tags())
+        .containsEntry("http.url", url(uri))
+        .containsEntry("context.visible", "true")
+        .containsEntry("request_customizer.is_span", "false")
+        .containsEntry("response_customizer.is_span", "false");
 
-  @Override public void usesParentFromInvocationTime() throws Exception {
-    Tracer tracer = httpTracing.tracing().tracer();
-    server.enqueue(new MockResponse().setBodyDelay(300, TimeUnit.MILLISECONDS));
-    server.enqueue(new MockResponse());
-
-    ScopedSpan parent = tracer.startScopedSpan("test");
-    try {
-      getAsync(client, "/items/1");
-      getAsync(client, "/items/2");
-    } finally {
-      parent.finish();
-    }
-
-    ScopedSpan otherSpan = tracer.startScopedSpan("test2");
-    List<String> requestSpanIds = new ArrayList<>();
-    try {
-      for (int i = 0; i < 2; i++) {
-        RecordedRequest request = server.takeRequest();
-        assertThat(request.getHeader("x-b3-traceId"))
-            .isEqualTo(parent.context().traceIdString());
-        requestSpanIds.add(request.getHeader("x-b3-spanId"));
-      }
-    } finally {
-      otherSpan.finish();
-    }
-
-    // Check we reported 2 in-process spans, 2 sdk spans, and 2 RPC client spans
-    List<Span> spans = Arrays.asList(takeSpan(), takeSpan(), takeSpan(), takeSpan(), takeSpan(), takeSpan());
-
-    // Get request spans, then get their parents (sdk spans), then make sure the sdk spans have the
-    // correct parent
-    List<String> sdkSpanIds = spans.stream().filter(s -> requestSpanIds.contains(s.id()))
-        .map(Span::parentId).collect(Collectors.toList());
-    spans.stream().filter(s -> sdkSpanIds.contains(s.id())).forEach(s -> {
-      assertThat(s.parentId()).isEqualToIgnoringCase(HexCodec.toLowerHex(parent.context().spanId()));
-    });
-
-
-    assertThat(spans)
-        .extracting(Span::kind)
-        .containsOnly(null, Span.Kind.CLIENT);
-  }
-
-  /** Modified to check hierarchy from parent->application->client */
-  @Override public void makesChildOfCurrentSpan() throws Exception {
-    Tracer tracer = httpTracing.tracing().tracer();
-    server.enqueue(new MockResponse());
-
-    ScopedSpan parent = tracer.startScopedSpan("test");
-    try {
-      get(client, "/foo");
-    } finally {
-      parent.finish();
-    }
-
-    List<Span> spans = Arrays.asList(takeSpan(), takeSpan(), takeSpan());
-    Span applicationSpan = spans.stream().filter(s -> s.parentId().equals(HexCodec.toLowerHex(parent.context().spanId()))).findFirst().get();
-    Span clientSpan = spans.stream().filter(s -> s.parentId().equals(applicationSpan.id())).findFirst().get();
-
-    RecordedRequest request = server.takeRequest();
-    assertThat(request.getHeader("x-b3-traceId"))
-        .isEqualTo(parent.context().traceIdString());
-    assertThat(request.getHeader("x-b3-parentspanid"))
-        .isEqualTo(applicationSpan.id());
-    assertThat(request.getHeader("x-b3-spanid"))
-        .isEqualTo(clientSpan.id());
-
-    assertThat(spans)
-        .extracting(Span::kind)
-        .containsOnly(null, Span.Kind.CLIENT, null);
-  }
-
-  @Override public void propagatesSpan() throws Exception {
-    super.propagatesSpan();
-    takeSpan();
-  }
-
-  @Override public void reportsSpanOnTransportException() throws Exception {
-    getWithRetries(); // Our new impl of this method
-  }
-
-  @Override public void propagates_sampledFalse() throws Exception {
-    close();
-    httpTracing = HttpTracing.create(tracingBuilder(Sampler.NEVER_SAMPLE).build());
-    client = newClient(server.getPort());
-
-    server.enqueue(new MockResponse());
-    get(client, "/foo");
-
-    RecordedRequest request = server.takeRequest();
-    assertThat(request.getHeaders().toMultimap())
-        .containsKeys("x-b3-traceId", "x-b3-spanId")
-        // .doesNotContainKey("x-b3-parentSpanId") AWS SDK tracing uses 2 spans, so there is a parent
-        .containsEntry("x-b3-sampled", asList("0"));
-  }
-
-  @Override public void addsErrorTagOnTransportException() throws Exception {
-    List<Span> spans = getWithRetries();
-    for (Span span : spans) {
-      assertThat(span.tags())
-          .containsKey("error");
-    }
-  }
-
-  @Test public void retriesAreChildrenOfApplicationSpan() throws Exception {
-    List<Span> spans = getWithRetries();
-    assertThat(spans.stream().anyMatch(s -> s.parentId() == null)).isTrue();
-    Span parent = spans.stream().filter(s -> s.parentId() == null).findFirst().get();
-    assertThat(parent.kind()).isNull();
-
-    spans.stream().filter(s -> s.parentId() != null).forEach(s -> {
-      assertThat(s.parentId()).isEqualTo(parent.id());
-      assertThat(s.kind()).isEqualTo(Span.Kind.CLIENT);
-    });
-  }
-
-  private List<Span> getWithRetries() throws InterruptedException {
-    server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
-    server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
-    server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
-    server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_AT_START));
-
-    try {
-      get(client, "");
-    } catch (Exception e) {
-      // Span will have error
-    }
-
-    return new ArrayList<>(Arrays.asList(takeSpan(), takeSpan(), takeSpan(), takeSpan()));
+    reporter.takeLocalSpan();
   }
 
   /** Body's inherently have a structure, and we use the operation name as the span name */
-  @Override public void post() throws Exception {
+  @Override public void post() {
     String path = "table";
-    String body = "{\"TableName\":\"table\",\"Key\":{}}";
+    String body = "{\"TableName\":\"table\",\"Item\":{}}";
     server.enqueue(new MockResponse());
 
     post(client, path, body);
 
-    assertThat(server.takeRequest().getBody().readUtf8())
+    assertThat(takeRequest().getBody().readUtf8())
         .isEqualTo(body);
 
-    Span span = takeSpan();
-    assertThat(span.name())
-        .isEqualTo("getitem");
+    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.remoteServiceName())
         .isEqualTo("amazondynamodbv2");
+    assertThat(span.name())
+        .isEqualTo("putitem");
 
-    takeSpan();
+    assertThat(reporter.takeLocalSpan().tags())
+        .containsEntry("aws.service_name", "AmazonDynamoDBv2")
+        .containsEntry("aws.operation", "PutItem");
   }
 
-  @Override public void propagatesExtra_newTrace() throws Exception {
-    super.propagatesExtra_newTrace();
-    takeSpan();
+  @Override public void propagatesBaggage() throws IOException {
+    super.propagatesBaggage();
+    reporter.takeLocalSpan();
   }
 
-  @Override public void reportsClientKindToZipkin() throws Exception {
+  @Override public void reportsClientKindToZipkin() throws IOException {
     super.reportsClientKindToZipkin();
-    takeSpan();
+    reporter.takeLocalSpan();
+  }
+
+  @Override public void finishedSpanHandlerSeesException() throws IOException {
+    super.finishedSpanHandlerSeesException();
+    reporter.takeLocalSpanWithError(".*Connection reset");
+  }
+
+  @Override public void errorTag_onTransportException() {
+    super.errorTag_onTransportException();
+    reporter.takeLocalSpanWithError(".*Connection reset");
   }
 
   /*
-   * Tests that don't work
+   * Tests that don't work because there's an application span above the HTTP requests
+   */
+  @Override public void propagatesUnsampledContext() {
+  }
+
+  @Override public void clientTimestampAndDurationEnclosedByParent() {
+  }
+
+  @Override public void propagatesNewTrace() {
+  }
+
+  @Override public void propagatesChildOfCurrentSpan() {
+  }
+
+  /*
+   * Tests that don't work for other reasons
    */
 
+  /** unwrapping Amazon's default exception for HTTP status isn't implemented */
+  @Override public void addsStatusCodeWhenNotOk() {
+  }
+
+  /** Not yet implemented */
+  @Override public void readsRequestAtResponseTime() {
+  }
+
   /** AWS doesn't use redirect */
-  @Override public void redirect() {}
+  @Override public void redirect() {
+  }
 
   /** Paths don't conform to expectation, always / */
-  @Override public void customSampler() {}
+  @Override public void customSampler() {
+  }
 
   /** Unable to parse remote endpoint IP, would require DNS lookup */
-  @Override public void reportsServerAddress() {}
+  @Override public void reportsServerAddress() {
+  }
 
   /** Path is always empty */
-  @Override public void httpPathTagExcludesQueryParams() {}
-
-  /** Error has exception instead of status code */
-  @Override public void addsStatusCodeWhenNotOk() {}
+  @Override public void httpPathTagExcludesQueryParams() {
+  }
 
   /** All http methods are POST */
-  @Override public void defaultSpanNameIsMethodName() {}
+  @Override public void defaultSpanNameIsMethodName() {
+  }
 }

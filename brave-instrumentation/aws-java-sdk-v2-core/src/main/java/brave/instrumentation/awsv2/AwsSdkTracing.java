@@ -20,6 +20,7 @@ import java.util.Map;
 import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
 import software.amazon.awssdk.http.SdkHttpRequest;
 import software.amazon.awssdk.http.SdkHttpResponse;
+import zipkin2.internal.Nullable;
 
 public final class AwsSdkTracing {
   public static AwsSdkTracing create(HttpTracing httpTracing) {
@@ -94,18 +95,31 @@ public final class AwsSdkTracing {
   }
 
   static final class HttpClientResponse extends brave.http.HttpClientResponse {
-    final SdkHttpResponse delegate;
+    @Nullable final SdkHttpRequest request;
+    final SdkHttpResponse response;
+    @Nullable final Throwable error;
 
-    HttpClientResponse(SdkHttpResponse delegate) {
-      this.delegate = delegate;
+    HttpClientResponse(
+        @Nullable SdkHttpRequest request, SdkHttpResponse response, @Nullable Throwable error) {
+      this.request = request;
+      this.response = response;
+      this.error = error;
+    }
+
+    @Override public brave.http.HttpClientRequest request() {
+      return request != null ? new HttpClientRequest(request) : null;
+    }
+
+    @Override public Throwable error() {
+      return error;
     }
 
     @Override public Object unwrap() {
-      return delegate;
+      return response;
     }
 
     @Override public int statusCode() {
-      return delegate.statusCode();
+      return response.statusCode();
     }
   }
 }
