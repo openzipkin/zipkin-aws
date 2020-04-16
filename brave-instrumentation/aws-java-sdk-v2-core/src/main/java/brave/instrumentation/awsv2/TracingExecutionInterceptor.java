@@ -18,6 +18,7 @@ import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
 import brave.instrumentation.awsv2.AwsSdkTracing.HttpClientRequest;
 import brave.instrumentation.awsv2.AwsSdkTracing.HttpClientResponse;
+import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.SdkRequest;
 import software.amazon.awssdk.core.interceptor.Context;
 import software.amazon.awssdk.core.interceptor.ExecutionAttribute;
@@ -25,6 +26,7 @@ import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
 import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
 import software.amazon.awssdk.core.interceptor.SdkExecutionAttribute;
 import software.amazon.awssdk.http.SdkHttpRequest;
+import zipkin2.internal.Nullable;
 
 /**
  * Traces AWS Java SDK V2 calls. Adds on the standard zipkin/brave http tags, as well as tags that
@@ -65,6 +67,9 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
 
     String serviceName = executionAttributes.getAttribute(SdkExecutionAttribute.SERVICE_NAME);
     String operation = getAwsOperationNameFromRequestClass(context.request());
+    // TODO: This overwrites user configuration. We don't do this in other layered tools such
+    // as WebMVC. Instead, we add tags (such as we do here) and neither overwrite the name, nor
+    // remoteServiceName. Users can always remap in an span handler using tags!
     span.name(operation)
         .remoteServiceName(serviceName)
         .tag("aws.service_name", serviceName)
@@ -111,7 +116,8 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       // An evil interceptor deleted our attribute.
       return;
     }
-    handler.handleReceive(new HttpClientResponse(context.httpResponse()), null, span);
+    handler.handleReceive(
+        new HttpClientResponse(context.httpRequest(), context.httpResponse(), null), null, span);
   }
 
   /**
@@ -126,10 +132,29 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       // An evil interceptor deleted our attribute.
       return;
     }
-    handler.handleReceive(null, context.exception(), span);
+    Throwable error = maybeError(context);
+    HttpClientResponse response = context.httpResponse().map(r ->
+        new HttpClientResponse(context.httpRequest().orElse(null), r, error)
+    ).orElse(null);
+    handler.handleReceive(response, error, span);
   }
 
-  private String getAwsOperationNameFromRequestClass(SdkRequest request) {
+  /**
+   * Returns {@code null} when there's neither a cause nor an AWS error message. This assumes it was
+   * a plain HTTP status failure.
+   */
+  @Nullable static Throwable maybeError(Context.FailedExecution context) {
+    Throwable error = context.exception();
+    if (error.getCause() == null && error instanceof AwsServiceException) {
+      AwsServiceException serviceException = (AwsServiceException) error;
+      if (serviceException.awsErrorDetails().errorMessage() == null) {
+        return null;
+      }
+    }
+    return error;
+  }
+
+  static String getAwsOperationNameFromRequestClass(SdkRequest request) {
     String operation = request.getClass().getSimpleName();
     if (operation.endsWith("Request")) {
       return operation.substring(0, operation.length() - 7);

@@ -78,6 +78,12 @@
       <version>${sdk-core.version}</version>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>software.amazon.awssdk</groupId>
+      <artifactId>aws-core</artifactId>
+      <version>2.10.54</version>
+      <scope>compile</scope>
+    </dependency>
   </dependencies>
 
   <build>
