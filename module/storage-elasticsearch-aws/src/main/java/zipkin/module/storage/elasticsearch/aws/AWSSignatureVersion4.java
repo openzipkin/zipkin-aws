@@ -200,6 +200,21 @@ final class AWSSignatureVersion4 extends SimpleDecoratingHttpClient {
     RequestHeadersBuilder builder = req.headers().toBuilder()
         .set(X_AMZ_DATE, timestamp);
 
+    // TODO: Test this, it requires significant mocking since these ports can't normally be used by
+    // a unit test.
+    String authority = req.authority();
+    int colonIndex = -1;
+    if (authority != null) {
+      colonIndex = authority.indexOf(':');
+    }
+    if (colonIndex != -1) {
+      if (ctx.sessionProtocol().isTls() && authority.endsWith(":443") ||
+          !ctx.sessionProtocol().isTls() && authority.endsWith(":80")) {
+        // AWS requests must not include standard ports in host header.
+        builder.authority(authority.substring(0, colonIndex));
+      }
+    }
+
     if (credentials.sessionToken != null) {
       builder.set(X_AMZ_SECURITY_TOKEN, credentials.sessionToken);
     }
@@ -281,8 +296,8 @@ final class AWSSignatureVersion4 extends SimpleDecoratingHttpClient {
   //   headers.
   //
   // - The host extracted from additional headers usually has a port attached, even for well-defined
-  //   ones like HTTPS:443. Armeria strips this off in the end before sending the request it seems
-  //   so we need to make sure to strip it here too since we always use port 443 for AWS ES.
+  //   ones like HTTPS:443. We go ahead and remove this port since all the time to reduce
+  //   variability when generating signature.
   static String host(RequestHeaders headers, ClientRequestContext ctx) {
     String host = headers.get(AUTHORITY);
     if (host == null) {

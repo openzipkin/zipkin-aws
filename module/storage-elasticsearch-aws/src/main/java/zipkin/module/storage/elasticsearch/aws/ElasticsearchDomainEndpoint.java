@@ -23,7 +23,6 @@ import com.linecorp.armeria.common.AggregatedHttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.HttpStatusClass;
 import com.linecorp.armeria.common.util.SafeCloseable;
-import io.netty.util.AttributeKey;
 import java.io.IOException;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.TimeUnit;
