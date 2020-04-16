@@ -24,7 +24,7 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
+import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import okhttp3.mockwebserver.MockResponse;
@@ -39,7 +39,7 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
     clientConfiguration.setMaxErrorRetry(0);
     clientConfiguration.setRequestTimeout(1000);
 
-    return AmazonDynamoDBAsyncClientBuilder.standard()
+    return AmazonDynamoDBClientBuilder.standard()
         .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "y")))
         .withEndpointConfiguration(
             new AwsClientBuilder.EndpointConfiguration("http://127.0.0.1:" + i, "us-east-1"))
