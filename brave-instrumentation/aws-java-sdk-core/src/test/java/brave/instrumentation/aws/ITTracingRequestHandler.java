@@ -182,12 +182,12 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
 
   @Override public void finishedSpanHandlerSeesException() throws IOException {
     super.finishedSpanHandlerSeesException();
-    reporter.takeLocalSpanWithError(".*Connection reset");
+    reporter.takeLocalSpanWithError("Unable to execute HTTP request.*");
   }
 
   @Override public void errorTag_onTransportException() {
     super.errorTag_onTransportException();
-    reporter.takeLocalSpanWithError(".*Connection reset");
+    reporter.takeLocalSpanWithError("Unable to execute HTTP request.*");
   }
 
   /*
