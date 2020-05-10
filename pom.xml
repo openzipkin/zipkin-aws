@@ -19,7 +19,7 @@
 
   <groupId>io.zipkin.aws</groupId>
   <artifactId>zipkin-aws-parent</artifactId>
-  <version>0.21.1-SNAPSHOT</version>
+  <version>0.21.2-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -75,6 +75,8 @@
     <errorprone.version>2.3.4</errorprone.version>
 
     <maven-failsafe-plugin.version>3.0.0-M4</maven-failsafe-plugin.version>
+
+    <guava-core.version>29.0-jre</guava-core.version>
   </properties>
 
   <name>Zipkin AWS (Parent)</name>
@@ -195,6 +197,11 @@
         <groupId>software.amazon.awssdk</groupId>
         <artifactId>sqs</artifactId>
         <version>${sdk-core.version}</version>
+      </dependency>
+      <dependency>
+        <groupId>com.google.guava</groupId>
+        <artifactId>guava</artifactId>
+        <version>${guava-core.version}</version>
       </dependency>
     </dependencies>
   </dependencyManagement>

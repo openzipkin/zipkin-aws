@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -16,6 +16,7 @@ package zipkin2.storage.xray_udp;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.PathNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.Map;
 import okio.Buffer;
 import org.junit.Test;
@@ -235,6 +236,270 @@ public class UDPMessageEncoderTest {
             .containsExactly(
                     entry("availability_zone", "us-west-2c"),
                     entry("instance_id", "i-0b5a4678fc325bg98"));
+  }
+
+  @Test
+  public void writeJson_client_remoteServiceNameContainsAsterisk_no_replacement() throws Exception {
+    removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .remoteEndpoint(Endpoint.newBuilder().serviceName("a.*.b.*").build())
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("a.*.b.*");
+  }
+
+  @Test
+  public void writeJson_client_remoteServiceNameContainsAsterisk_replacement() throws Exception {
+    updateEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR", "&");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .remoteEndpoint(Endpoint.newBuilder().serviceName("a.*.b.*").build())
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("a.&.b.&");
+  }
+
+  @Test
+  public void writeJson_client_httpHostContainsAsterisk_no_replacement() throws Exception {
+    removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .putTag("http.host", "a*.com")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("a*.com");
+  }
+
+  @Test
+  public void writeJson_client_httpHostContainsAsterisk_replacement() throws Exception {
+    updateEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR", ":");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .putTag("http.host", "a*.com")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("a:.com");
+  }
+
+  @Test
+  public void writeJson_client_nameContainsAsterisk_no_replacement() throws Exception {
+    removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .name("http://localhost:2345/product/*")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("http://localhost:2345/product/*");
+  }
+
+  @Test
+  public void writeJson_client_nameContainsAsterisk_replacement() throws Exception {
+    updateEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR", "#");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.CLIENT)
+        .name("http://localhost:2345/product/*")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("http://localhost:2345/product/#");
+  }
+
+  @Test
+  public void writeJson_producer_remoteServiceNameContainsAsterisk_no_replacement() throws Exception {
+    removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.PRODUCER)
+        .remoteEndpoint(Endpoint.newBuilder().serviceName("http://localhost:2345/product/*").build())
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("http://localhost:2345/product/*");
+  }
+
+  @Test
+  public void writeJson_producer_remoteServiceNameContainsAsterisk_replacement() throws Exception {
+    updateEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR", "%");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.PRODUCER)
+        .remoteEndpoint(Endpoint.newBuilder().serviceName("http://localhost:2345/product/*").build())
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("http://localhost:2345/product/%");
+  }
+
+  @Test
+  public void writeJson_producer_httpHostContainsAsterisk_no_replacement() throws Exception {
+    removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.PRODUCER)
+        .putTag("http.host", "a*.com")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("a*.com");
+  }
+
+  @Test
+  public void writeJson_producer_httpHostContainsAsterisk_replacement() throws Exception {
+    updateEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR", ":");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.PRODUCER)
+        .putTag("http.host", "a*.com")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("a:.com");
+  }
+
+  @Test
+  public void writeJson_producer_nameContainsAsterisk_no_replacement() throws Exception {
+    removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.PRODUCER)
+        .name("http://localhost:2345/product/*")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("http://localhost:2345/product/*");
+  }
+
+  @Test
+  public void writeJson_producer_nameContainsAsterisk_replacement() throws Exception {
+    updateEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR", "_");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.PRODUCER)
+        .name("http://localhost:2345/product/*")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("http://localhost:2345/product/_");
+  }
+
+  @Test
+  public void writeJson_custom_nameContainsAsterisk_no_replacement() throws Exception {
+    removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
+    Span span = serverSpan.toBuilder()
+        .kind(null)
+        .name("http://localhost:2345/product/*")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("http://localhost:2345/product/*");
+  }
+
+  @Test
+  public void writeJson_custom_nameContainsAsterisk_replacement() throws Exception {
+    updateEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR", "+");
+    Span span = serverSpan.toBuilder()
+        .kind(null)
+        .name("http://localhost:2345/product/*")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("http://localhost:2345/product/+");
+  }
+
+  @Test
+  public void writeJson_server_localServiceNameContainsAsterisk_no_replacement() throws Exception {
+    removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.SERVER)
+        .localEndpoint(Endpoint.newBuilder().serviceName("a.b.*.c").build())
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("a.b.*.c");
+  }
+
+  @Test
+  public void writeJson_server_localServiceNameContainsAsterisk_replacement() throws Exception {
+    updateEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR", "=");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.SERVER)
+        .localEndpoint(Endpoint.newBuilder().serviceName("a.b.*.c").build())
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "name")).isEqualTo("a.b.=.c");
+  }
+
+  @Test
+  public void writeJson_httpMethod_nameContainsAsterisk_no_replacement() throws Exception {
+    removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.SERVER)
+        .name("*.b.*.d")
+        .putTag("http.url", "http://localhost:2345/product/*")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "http.request.method")).isEqualTo("*.B.*.D");
+  }
+
+  @Test
+  public void writeJson_httpMethod_nameContainsAsterisk_replacement() throws Exception {
+    updateEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR", "\\");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.SERVER)
+        .name("*.b.*.d")
+        .putTag("http.url", "http://localhost:2345/product/*")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "http.request.method")).isEqualTo("\\.B.\\.D");
+  }
+
+  @Test
+  public void writeJson_annotations_operation_nameContainsAsterisk_no_replacement() throws Exception {
+    removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.SERVER)
+        .name("*.b.*.d")
+        .putTag("http.url", "http://localhost:2345/product/*")
+        .putTag("http.method", "GET")
+        .putTag("environment", "test")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "annotations.operation")).isEqualTo("*.b.*.d");
+  }
+
+  @Test
+  public void writeJson_annotations_operation_nameContainsAsterisk_replacement() throws Exception {
+    updateEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR", ".");
+    Span span = serverSpan.toBuilder()
+        .kind(Span.Kind.SERVER)
+        .name("*.b.*.d")
+        .putTag("http.url", "http://localhost:2345/product/*")
+        .putTag("http.method", "GET")
+        .putTag("environment", "test")
+        .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "annotations.operation")).isEqualTo("..b...d");
+  }
+
+  @SuppressWarnings({ "unchecked" })
+  public static void updateEnv(String name, String val) throws ReflectiveOperationException {
+    Map<String, String> env = System.getenv();
+    Field field = env.getClass().getDeclaredField("m");
+    field.setAccessible(true);
+    ((Map<String, String>) field.get(env)).put(name, val);
+  }
+
+  @SuppressWarnings({ "unchecked" })
+  public static void removeEnv(String name) throws ReflectiveOperationException {
+    Map<String, String> env = System.getenv();
+    Field field = env.getClass().getDeclaredField("m");
+    field.setAccessible(true);
+    ((Map<String, String>) field.get(env)).remove(name);
   }
 
   String writeJson(Span span) throws IOException {

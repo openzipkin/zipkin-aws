@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,8 +13,12 @@
  */
 package zipkin2.storage.xray_udp;
 
+import com.google.common.cache.Cache;
+import com.google.common.cache.CacheBuilder;
 import com.squareup.moshi.JsonWriter;
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.logging.Level;
@@ -30,7 +34,15 @@ import static java.lang.Integer.parseInt;
 final class UDPMessageEncoder {
   static final Logger logger = Logger.getLogger(UDPMessageEncoder.class.getName());
 
+  static final char ASTERISK_CHAR = '*';
+
+  static final Cache<String, String> EPOCH_CACHE = CacheBuilder.newBuilder()
+                                                    .maximumSize(1000)
+                                                    .expireAfterWrite(1, TimeUnit.HOURS)
+                                                    .build();
+
   static void writeJson(Span span, Buffer buffer) throws IOException {
+    String spanName = replaceAsteriskInName(span.name());
     JsonWriter writer = JsonWriter.of(buffer);
     writer.beginObject();
     writer.name("trace_id");
@@ -38,7 +50,7 @@ final class UDPMessageEncoder {
         .writeByte('"')
         .writeByte('1') // version
         .writeByte('-')
-        .writeUtf8(span.traceId(), 0, 8) // 32-bit epoch seconds
+        .writeUtf8(traceEpoch(span)) // 32-bit epoch seconds
         .writeByte('-')
         .writeUtf8(span.traceId(), 8, 32) // 96-bit trace ID
         .writeByte('"'));
@@ -53,7 +65,7 @@ final class UDPMessageEncoder {
 
       // Subsegments are never root spans. Make sure root internal spans aren't marked as subsegment
       if (span.parentId() != null) writer.name("type").value("subsegment");
-      writer.name("name").value(span.name() == null ? "unknown" : span.name());
+      writer.name("name").value(spanName == null ? "unknown" : spanName);
     } else if (span.kind() == Span.Kind.CLIENT || span.kind() == Span.Kind.PRODUCER) {
       // Subsegments are never root spans. Make sure root client spans aren't marked as subsegment
       if (span.parentId() != null) writer.name("type").value("subsegment");
@@ -76,9 +88,9 @@ final class UDPMessageEncoder {
       if (name == null) name = span.tags().get("http.host");
       if (name == null) name = span.name();
       if (name == null) name = "unknown";
-      writer.name("name").value(name);
+      writer.name("name").value(replaceAsteriskInName(name));
     } else {
-      writer.name("name").value(span.localServiceName());
+      writer.name("name").value(replaceAsteriskInName(span.localServiceName()));
     }
     // override with the user remote tag
     if (span.tags().get("xray.namespace") != null) {
@@ -209,7 +221,7 @@ final class UDPMessageEncoder {
 
     if (http) {
       if (httpRequestMethod == null) {
-        httpRequestMethod = span.name(); // TODO validate
+        httpRequestMethod = spanName; // TODO validate
       }
       writer.name("http");
       writer.beginObject();
@@ -293,9 +305,9 @@ final class UDPMessageEncoder {
       writer.name("annotations");
       writer.beginObject();
       if (httpRequestMethod != null
-          && span.name() != null
-          && !httpRequestMethod.equals(span.name())) {
-        writer.name("operation").value(span.name());
+          && spanName != null
+          && !httpRequestMethod.equals(spanName)) {
+        writer.name("operation").value(spanName);
       }
       for (Map.Entry<String, String> annotation : annotations.entrySet()) {
         writer.name(annotation.getKey()).value(annotation.getValue());
@@ -330,5 +342,33 @@ final class UDPMessageEncoder {
     } catch (IOException e) {
       throw new AssertionError(e); // encoding error is a programming bug
     }
+  }
+
+  static String replaceAsteriskInName(String name) {
+    if (name == null) return name;
+
+    Character ch = getReplaceAsteriskInNameWithChar();
+    if (ch == null) return name;
+
+    return name.replace(ASTERISK_CHAR, ch);
+  }
+
+  static String traceEpoch(Span span) {
+    try {
+      return EPOCH_CACHE.get(span.traceId(), () -> {
+        if (span.timestamp() != null) {
+          return Long.toHexString(span.timestamp()/1000_000L);
+        }
+        return Long.toHexString(System.currentTimeMillis()/1000);
+      });
+    } catch (ExecutionException e) {
+      return Long.toHexString(System.currentTimeMillis()/1000);
+    }
+  }
+
+  static Character getReplaceAsteriskInNameWithChar() {
+    String replaceChar = System.getenv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
+    if (replaceChar == null) return null;
+    return replaceChar.charAt(0);
   }
 }
