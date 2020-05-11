@@ -17,8 +17,11 @@ import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.PathNotFoundException;
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 import okio.Buffer;
+import org.junit.Before;
 import org.junit.Test;
 import zipkin2.Endpoint;
 import zipkin2.Span;
@@ -29,19 +32,33 @@ import static org.assertj.core.data.MapEntry.entry;
 public class UDPMessageEncoderTest {
   Span serverSpan =
       Span.newBuilder()
-          .traceId("1234567890abcdef1234567890abcdef")
+          .traceId(TRACE_ID)
           .id("1234567890abcdef")
           .kind(Span.Kind.SERVER)
           .name("test-cemo")
           .build();
 
+  private static final String TRACE_ID = "1234567890abcdef1234567890abcdef";
+  private static final List<String> TRACE_IDS = Arrays.asList(TRACE_ID);
+
+  @Before
+  public void setup() throws Exception {
+    UDPMessageEncoder.EPOCH_CACHE.invalidateAll(TRACE_IDS);
+  }
+
   @Test
   public void writeJson_server_isSegment() throws Exception {
-    Span span = serverSpan;
+    long currentTimeMillis = System.currentTimeMillis();
+    String epoch = Long.toHexString(currentTimeMillis / 1000);
+    double startTime = currentTimeMillis / 1_000.0D;
+    Span span = serverSpan
+        .toBuilder()
+        .timestamp(currentTimeMillis * 1000)
+        .build();
 
     assertThat(writeJson(span))
         .isEqualTo(
-            "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\"}");
+            String.format("{\"trace_id\":\"1-%s-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\",\"start_time\":%s,\"in_progress\":true}", epoch, startTime));
   }
 
   @Test
