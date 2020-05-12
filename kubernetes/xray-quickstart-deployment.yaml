@@ -1,0 +1,77 @@
+# create role binding for XRay SDK to read config map
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: container-insights-discovery-role
+  namespace: amazon-cloudwatch
+rules:
+- apiGroups:
+  - ""
+  resourceNames:
+  - cluster-info
+  resources:
+  - configmaps
+  verbs:
+  - get
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: service-users-cloudwatch-discovery-role-binding
+  namespace: amazon-cloudwatch
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: container-insights-discovery-role
+subjects:
+- apiGroup: rbac.authorization.k8s.io
+  kind: Group
+  name: system:serviceaccounts
+
+---
+# Deploy XRay daemon
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: xray
+  namespace: amazon-cloudwatch
+spec:
+  selector:
+    matchLabels:
+      name: xray
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        name: xray
+    spec:
+      containers:
+        - name: xray-daemon
+          image: amazon/aws-xray-daemon:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 2000
+              protocol: UDP
+          resources:
+            limits:
+              cpu:  100m
+              memory: 256Mi
+            requests:
+              cpu: 50m
+              memory: 50Mi
+      terminationGracePeriodSeconds: 60
+---
+# k8s service definition for AWS X-Ray daemon service
+apiVersion: v1
+kind: Service
+metadata:
+  name: xray
+  namespace: amazon-cloudwatch
+spec:
+  selector:
+    name: xray
+  ports:
+    - name: udp-in
+      port: 2000
+      protocol: UDP
