@@ -28,15 +28,15 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.Test;
 
-import static brave.internal.HexCodec.lowerHexToUnsignedLong;
+import static brave.internal.codec.HexCodec.lowerHexToUnsignedLong;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class AWSPropagationTest {
   Map<String, String> carrier = new LinkedHashMap<>();
   TraceContext.Injector<Map<String, String>> injector =
-      AWSPropagation.FACTORY.create(Propagation.KeyFactory.STRING).injector(Map::put);
+      AWSPropagation.FACTORY.get().injector(Map::put);
   TraceContext.Extractor<Map<String, String>> extractor =
-      AWSPropagation.FACTORY.create(Propagation.KeyFactory.STRING).extractor(Map::get);
+      AWSPropagation.FACTORY.get().extractor(Map::get);
 
   String sampledTraceId =
       "Root=1-67891233-abcdef012345678912345678;Parent=463ac35c9f6413ad;Sampled=1";
