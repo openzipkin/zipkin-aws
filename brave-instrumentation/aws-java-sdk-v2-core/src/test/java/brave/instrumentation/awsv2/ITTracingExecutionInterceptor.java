@@ -139,10 +139,10 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
 
     MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.name())
-        .isEqualTo("getitem"); // Overwrites default span name
+        .isEqualTo("GetItem"); // Overwrites default span name
 
     assertThat(span.remoteServiceName())
-        .isEqualTo("dynamodb"); // Ignores HttpTracing.serverName()
+        .isEqualTo("DynamoDb"); // Ignores HttpTracing.serverName()
 
     assertThat(span.tags())
         .containsEntry("http.url", url(uri))
@@ -182,10 +182,10 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
 
     MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.name())
-        .isEqualTo("getitem"); // Overwrites default span name
+        .isEqualTo("GetItem"); // Overwrites default span name
 
     assertThat(span.remoteServiceName())
-        .isEqualTo("dynamodb"); // Ignores HttpTracing.serverName()
+        .isEqualTo("DynamoDb"); // Ignores HttpTracing.serverName()
 
     assertThat(span.tags())
         .containsEntry("http.url", url(uri))
@@ -207,9 +207,9 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
 
     MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.remoteServiceName())
-        .isEqualTo("dynamodb");
+        .isEqualTo("DynamoDb");
     assertThat(span.name())
-        .isEqualTo("putitem");
+        .isEqualTo("PutItem");
     assertThat(span.tags().get("aws.service_name"))
         .isEqualTo("DynamoDb");
     assertThat(span.tags().get("aws.operation"))
@@ -224,8 +224,8 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
     get(client, "/");
 
     MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
-    assertThat(span.remoteServiceName()).isEqualTo("dynamodb");
-    assertThat(span.name()).isEqualTo("getitem");
+    assertThat(span.remoteServiceName()).isEqualTo("DynamoDb");
+    assertThat(span.name()).isEqualTo("GetItem");
     assertThat(span.annotations()).extracting(Map.Entry::getValue)
         .containsExactly("ws", "wr", "ws", "wr");
 

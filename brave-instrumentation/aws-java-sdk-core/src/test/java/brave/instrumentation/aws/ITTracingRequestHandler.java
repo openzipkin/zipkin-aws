@@ -33,6 +33,7 @@ import okhttp3.mockwebserver.MockResponse;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
   @Override protected AmazonDynamoDB newClient(int i) {
@@ -181,8 +182,12 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
     testSpanHandler.takeLocalSpan();
   }
 
-  @Override public void spanHandlerSeesError() throws IOException {
-    super.spanHandlerSeesError();
+  @Override public void spanHandlerSeesError() {
+    assertThatThrownBy(super::spanHandlerSeesError)
+        .isInstanceOf(AssertionError.class)
+        // spanHandler was called twice. OK because the second time was for the application span.
+        .hasMessageContaining("Expected size:<1> but was:<2>");
+
     assertThat(testSpanHandler.takeLocalSpan().error())
         .hasMessageStartingWith("Unable to execute HTTP request");
   }
@@ -216,7 +221,7 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
   @Override public void addsStatusCodeWhenNotOk() {
   }
 
-  /** Not yet implemented */
+  /** usual problem where the url is wrong as it doesn't include the query */
   @Override public void readsRequestAtResponseTime() {
   }
 

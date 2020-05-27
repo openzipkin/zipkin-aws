@@ -112,15 +112,12 @@ final class TracingRequestHandler extends RequestHandler2 {
     if (clientSpan == null) {
       return;
     }
-    if (context.getException() != null
-        && context.getException() instanceof AmazonServiceException) {
+    if (context.getException() instanceof AmazonServiceException) {
       tagSpanWithRequestId(clientSpan, (AmazonServiceException) context.getException());
     } else {
       tagSpanWithRequestId(clientSpan, context.getResponse());
     }
-    HttpClientResponse response =
-        context.getResponse() != null ? new HttpClientResponse(context.getResponse()) : null;
-    handler.handleReceive(response, context.getException(), clientSpan);
+    handler.handleReceive(new HttpClientResponse(context), clientSpan);
   }
 
   @Override public final void afterResponse(Request<?> request, Response<?> response) {
