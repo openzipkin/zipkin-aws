@@ -65,7 +65,30 @@ public class UDPMessageEncoderTest {
 
     assertThat(writeJson(span))
         .isEqualTo(
-            String.format("{\"trace_id\":\"1-%s-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\",\"start_time\":%s,\"in_progress\":true}", epoch, startTime));
+            String.format("{\"trace_id\":\"1-%s-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\",\"start_time\":%s,\"in_progress\":true,\"origin\":\"ServiceMesh::Istio\"}", epoch, startTime));
+  }
+
+  @Test
+  public void writeJson_origin_default() throws Exception {
+    Span span =
+        serverSpan
+            .toBuilder()
+            .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "origin")).isEqualTo("ServiceMesh::Istio");
+  }
+
+  @Test
+  public void writeJson_origin_custom() throws Exception {
+    updateEnv("AWS_XRAY_ORIGIN", "AWS::EC2::Instance");
+    Span span =
+        serverSpan
+            .toBuilder()
+            .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "origin")).isEqualTo("AWS::EC2::Instance");
   }
 
   @Test
@@ -511,23 +534,49 @@ public class UDPMessageEncoderTest {
   }
 
   @Test
-  public void getenv_no_env_default_return() {
+  public void getenv_no_env_default_return_string() {
+    String ret = UDPMessageEncoder.getenv("RANDOM_ENV", "hello");
+    assertThat(ret).isEqualTo("hello");
+  }
+
+  @Test
+  public void getenv_valid_long_env_return_string() throws Exception {
+    updateEnv("RANDOM_ENV", "world");
+    String ret = UDPMessageEncoder.getenv("RANDOM_ENV", "hello");
+    assertThat(ret).isEqualTo("world");
+  }
+
+  @Test
+  public void getenv_no_env_default_return_long() {
     long ret = UDPMessageEncoder.getenv("RANDOM_ENV", 100);
     assertThat(ret).isEqualTo(100);
   }
 
   @Test
-  public void getenv_invalid_long_env_default_return() throws Exception {
+  public void getenv_invalid_long_env_default_return_long() throws Exception {
     updateEnv("RANDOM_ENV", "hello");
     long ret = UDPMessageEncoder.getenv("RANDOM_ENV", 100);
     assertThat(ret).isEqualTo(100);
   }
 
   @Test
-  public void getenv_valid_long_env_return() throws Exception {
+  public void getenv_valid_long_env_return_long() throws Exception {
     updateEnv("RANDOM_ENV", "250");
     long ret = UDPMessageEncoder.getenv("RANDOM_ENV", 100);
     assertThat(ret).isEqualTo(250);
+  }
+
+  @Test
+  public void getOrigin_no_env_default_return() {
+    String ret = UDPMessageEncoder.getOrigin();
+    assertThat(ret).isEqualTo("ServiceMesh::Istio");
+  }
+
+  @Test
+  public void getOrigin_env_value_return() throws Exception {
+    updateEnv("AWS_XRAY_ORIGIN", "AWS::EC2::Instance");
+    String ret = UDPMessageEncoder.getOrigin();
+    assertThat(ret).isEqualTo("AWS::EC2::Instance");
   }
 
   @Test

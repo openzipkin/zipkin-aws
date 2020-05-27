@@ -103,6 +103,8 @@ final class UDPMessageEncoder {
       }
     }
 
+    writer.name("origin").value(getOrigin());
+
     // http section
     String httpRequestMethod = null, httpRequestUrl = null;
     Integer httpResponseStatus = null;
@@ -363,6 +365,10 @@ final class UDPMessageEncoder {
     }
   }
 
+  static String getOrigin() {
+    return getenv("AWS_XRAY_ORIGIN", "ServiceMesh::Istio");
+  }
+
   static Character getReplaceAsteriskInNameWithChar() {
     String replaceChar = System.getenv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
     if (replaceChar == null) return null;
@@ -384,15 +390,21 @@ final class UDPMessageEncoder {
     return getenv("AWS_XRAY_CACHE_TTL_SECONDS", 3600L);
   }
 
+  static String getenv(String name, String defVal) {
+    String valStr = System.getenv(name);
+    return valStr == null ? defVal : valStr;
+  }
+
   static long getenv(String name, long defVal) {
     String valStr = System.getenv(name);
-    if (valStr != null) {
-      try {
+
+    if (valStr == null) return defVal;
+
+    try {
         long tmp = Long.parseLong(valStr, 10);
         if (tmp > 0) return tmp;
-      } catch (NumberFormatException e) {
-        return defVal;
-      }
+    } catch (NumberFormatException e) {
+      // Nothing else to do here. Return the default value.
     }
     return defVal;
   }

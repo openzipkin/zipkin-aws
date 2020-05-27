@@ -37,7 +37,8 @@ Use the following environment variables to customize the storage settings.
 
 | Name | Mapped Java Type | Default | Valid Values | Purpose |
 |------|-----------|---------|--------------|---------|
-| `AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR` | `char` | `null` | Any valid character as per AWS X-Ray segment name specification. | If specified replaces invalid `*` character in segment names with the specified caracter. |
+| `AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR` | `char` | `null` | Any valid character as per AWS X-Ray segment `name` specification. | If specified replaces invalid `*` character in segment names with the specified caracter. |
+| `AWS_XRAY_ORIGIN` | `String` | `ServiceMesh::Istio` | Supported origin values as per AWS X-Ray segment `origin` specification. | Value to populate the `origin` field of the X-Ray segment document. |
 | `AWS_XRAY_CACHE_SIZE` | `long` | `1000` | Positive non-zero long values. | Maximum number of entries in the in-memory cache. Set it based on allocatable process memory. |
 | `AWS_XRAY_CACHE_TTL_SECONDS` | `long` | `3600` | Positive non-zero long values. | TTL of individual mapping entry. Set it based on how far apart in time spans in a trace can be generated. |
 
