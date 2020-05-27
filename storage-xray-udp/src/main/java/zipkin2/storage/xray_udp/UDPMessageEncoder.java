@@ -36,10 +36,7 @@ final class UDPMessageEncoder {
 
   static final char ASTERISK_CHAR = '*';
 
-  static final Cache<String, String> EPOCH_CACHE = CacheBuilder.newBuilder()
-                                                    .maximumSize(1000)
-                                                    .expireAfterWrite(1, TimeUnit.HOURS)
-                                                    .build();
+  static final Cache<String, String> EPOCH_CACHE = setupEpochCache();
 
   static void writeJson(Span span, Buffer buffer) throws IOException {
     String spanName = replaceAsteriskInName(span.name());
@@ -370,5 +367,33 @@ final class UDPMessageEncoder {
     String replaceChar = System.getenv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
     if (replaceChar == null) return null;
     return replaceChar.charAt(0);
+  }
+
+  static Cache<String, String> setupEpochCache() {
+    return CacheBuilder.newBuilder()
+      .maximumSize(getMaxCacheSize())
+      .expireAfterWrite(getTtlInSeconds(), TimeUnit.SECONDS)
+      .build();
+  }
+
+  static long getMaxCacheSize() {
+    return getenv("AWS_XRAY_CACHE_SIZE", 1000L);
+  }
+
+  static long getTtlInSeconds() {
+    return getenv("AWS_XRAY_CACHE_TTL_SECONDS", 3600L);
+  }
+
+  static long getenv(String name, long defVal) {
+    String valStr = System.getenv(name);
+    if (valStr != null) {
+      try {
+        long tmp = Long.parseLong(valStr, 10);
+        if (tmp > 0) return tmp;
+      } catch (NumberFormatException e) {
+        return defVal;
+      }
+    }
+    return defVal;
   }
 }

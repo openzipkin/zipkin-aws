@@ -21,6 +21,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import okio.Buffer;
+
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import zipkin2.Endpoint;
@@ -44,6 +46,11 @@ public class UDPMessageEncoderTest {
   @Before
   public void setup() throws Exception {
     UDPMessageEncoder.EPOCH_CACHE.invalidateAll(TRACE_IDS);
+  }
+
+  @After
+  public void teardown() throws Exception {
+    removeEnvAll();
   }
 
   @Test
@@ -503,6 +510,52 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "annotations.operation")).isEqualTo("..b...d");
   }
 
+  @Test
+  public void getenv_no_env_default_return() {
+    long ret = UDPMessageEncoder.getenv("RANDOM_ENV", 100);
+    assertThat(ret).isEqualTo(100);
+  }
+
+  @Test
+  public void getenv_invalid_long_env_default_return() throws Exception {
+    updateEnv("RANDOM_ENV", "hello");
+    long ret = UDPMessageEncoder.getenv("RANDOM_ENV", 100);
+    assertThat(ret).isEqualTo(100);
+  }
+
+  @Test
+  public void getenv_valid_long_env_return() throws Exception {
+    updateEnv("RANDOM_ENV", "250");
+    long ret = UDPMessageEncoder.getenv("RANDOM_ENV", 100);
+    assertThat(ret).isEqualTo(250);
+  }
+
+  @Test
+  public void getMaxCacheSize_no_env_default_return() throws Exception {
+    long ret = UDPMessageEncoder.getMaxCacheSize();
+    assertThat(ret).isEqualTo(1000);
+  }
+
+  @Test
+  public void getMaxCacheSize_env_value_return() throws Exception {
+    updateEnv("AWS_XRAY_CACHE_SIZE", "2500");
+    long ret = UDPMessageEncoder.getMaxCacheSize();
+    assertThat(ret).isEqualTo(2500);
+  }
+
+  @Test
+  public void getTtlInSeconds_no_env_default_return() throws Exception {
+    long ret = UDPMessageEncoder.getTtlInSeconds();
+    assertThat(ret).isEqualTo(3600);
+  }
+
+  @Test
+  public void getTtlInSeconds_env_value_return() throws Exception {
+    updateEnv("AWS_XRAY_CACHE_TTL_SECONDS", "60");
+    long ret = UDPMessageEncoder.getTtlInSeconds();
+    assertThat(ret).isEqualTo(60);
+  }
+
   @SuppressWarnings({ "unchecked" })
   public static void updateEnv(String name, String val) throws ReflectiveOperationException {
     Map<String, String> env = System.getenv();
@@ -518,6 +571,15 @@ public class UDPMessageEncoderTest {
     field.setAccessible(true);
     ((Map<String, String>) field.get(env)).remove(name);
   }
+
+  @SuppressWarnings({ "unchecked" })
+  public static void removeEnvAll() throws ReflectiveOperationException {
+    Map<String, String> env = System.getenv();
+    Field field = env.getClass().getDeclaredField("m");
+    field.setAccessible(true);
+    ((Map<String, String>) field.get(env)).clear();
+  }
+
 
   String writeJson(Span span) throws IOException {
     Buffer buffer = new Buffer();

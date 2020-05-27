@@ -404,6 +404,7 @@
             <exclude>**/src/main/resources/*.yml</exclude>
             <exclude>**/spring.factories</exclude>
             <exclude>src/test/resources/**</exclude>
+            <exclude>kubernetes/**</exclude>
           </excludes>
           <strictCheck>true</strictCheck>
         </configuration>
