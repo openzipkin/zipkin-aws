@@ -18,10 +18,10 @@ import brave.propagation.CurrentTraceContext;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.ClientConfigurationFactory;
 import com.amazonaws.Request;
-import com.amazonaws.Response;
 import com.amazonaws.client.builder.AwsAsyncClientBuilder;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.client.builder.ExecutorFactory;
+import com.amazonaws.handlers.HandlerAfterAttemptContext;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -150,10 +150,21 @@ public final class AwsClientTracing {
   }
 
   static final class HttpClientResponse extends brave.http.HttpClientResponse {
-    final Response<?> delegate;
+    final HandlerAfterAttemptContext delegate;
+    final HttpClientRequest request;
 
-    HttpClientResponse(Response<?> delegate) {
+    HttpClientResponse(HandlerAfterAttemptContext delegate) {
       this.delegate = delegate;
+      this.request =
+          delegate.getRequest() != null ? new HttpClientRequest(delegate.getRequest()) : null;
+    }
+
+    @Override public HttpClientRequest request() {
+      return request;
+    }
+
+    @Override public Throwable error() {
+      return delegate.getException();
     }
 
     @Override public Object unwrap() {
@@ -161,7 +172,10 @@ public final class AwsClientTracing {
     }
 
     @Override public int statusCode() {
-      return delegate.getHttpResponse().getStatusCode();
+      if (delegate.getResponse() != null) {
+        return delegate.getResponse().getHttpResponse().getStatusCode();
+      }
+      return 0;
     }
   }
 }
