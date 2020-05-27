@@ -65,7 +65,9 @@ public class UDPMessageEncoderTest {
 
     assertThat(writeJson(span))
         .isEqualTo(
-            String.format("{\"trace_id\":\"1-%s-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\",\"start_time\":%s,\"in_progress\":true,\"origin\":\"ServiceMesh::Istio\"}", epoch, startTime));
+            String.format(
+                "{\"trace_id\":\"1-%s-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\",\"start_time\":%s,\"in_progress\":true,\"origin\":\"ServiceMesh::Istio\"}",
+                epoch, startTime));
   }
 
   @Test
@@ -358,11 +360,13 @@ public class UDPMessageEncoderTest {
   }
 
   @Test
-  public void writeJson_producer_remoteServiceNameContainsAsterisk_no_replacement() throws Exception {
+  public void writeJson_producer_remoteServiceNameContainsAsterisk_no_replacement()
+      throws Exception {
     removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
     Span span = serverSpan.toBuilder()
         .kind(Span.Kind.PRODUCER)
-        .remoteEndpoint(Endpoint.newBuilder().serviceName("http://localhost:2345/product/*").build())
+        .remoteEndpoint(
+            Endpoint.newBuilder().serviceName("http://localhost:2345/product/*").build())
         .build();
 
     String json = writeJson(span);
@@ -374,7 +378,8 @@ public class UDPMessageEncoderTest {
     updateEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR", "%");
     Span span = serverSpan.toBuilder()
         .kind(Span.Kind.PRODUCER)
-        .remoteEndpoint(Endpoint.newBuilder().serviceName("http://localhost:2345/product/*").build())
+        .remoteEndpoint(
+            Endpoint.newBuilder().serviceName("http://localhost:2345/product/*").build())
         .build();
 
     String json = writeJson(span);
@@ -504,7 +509,8 @@ public class UDPMessageEncoderTest {
   }
 
   @Test
-  public void writeJson_annotations_operation_nameContainsAsterisk_no_replacement() throws Exception {
+  public void writeJson_annotations_operation_nameContainsAsterisk_no_replacement()
+      throws Exception {
     removeEnv("AWS_XRAY_NAME_REPLACE_ASTERISK_WITH_CHAR");
     Span span = serverSpan.toBuilder()
         .kind(Span.Kind.SERVER)
@@ -605,7 +611,7 @@ public class UDPMessageEncoderTest {
     assertThat(ret).isEqualTo(60);
   }
 
-  @SuppressWarnings({ "unchecked" })
+  @SuppressWarnings({"unchecked"})
   public static void updateEnv(String name, String val) throws ReflectiveOperationException {
     Map<String, String> env = System.getenv();
     Field field = env.getClass().getDeclaredField("m");
@@ -613,7 +619,7 @@ public class UDPMessageEncoderTest {
     ((Map<String, String>) field.get(env)).put(name, val);
   }
 
-  @SuppressWarnings({ "unchecked" })
+  @SuppressWarnings({"unchecked"})
   public static void removeEnv(String name) throws ReflectiveOperationException {
     Map<String, String> env = System.getenv();
     Field field = env.getClass().getDeclaredField("m");
@@ -621,14 +627,13 @@ public class UDPMessageEncoderTest {
     ((Map<String, String>) field.get(env)).remove(name);
   }
 
-  @SuppressWarnings({ "unchecked" })
+  @SuppressWarnings({"unchecked"})
   public static void removeEnvAll() throws ReflectiveOperationException {
     Map<String, String> env = System.getenv();
     Field field = env.getClass().getDeclaredField("m");
     field.setAccessible(true);
     ((Map<String, String>) field.get(env)).clear();
   }
-
 
   String writeJson(Span span) throws IOException {
     Buffer buffer = new Buffer();

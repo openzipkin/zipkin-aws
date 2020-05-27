@@ -356,12 +356,12 @@ final class UDPMessageEncoder {
     try {
       return EPOCH_CACHE.get(span.traceId(), () -> {
         if (span.timestamp() != null) {
-          return Long.toHexString(span.timestamp()/1000_000L);
+          return Long.toHexString(span.timestamp() / 1000_000L);
         }
-        return Long.toHexString(System.currentTimeMillis()/1000);
+        return Long.toHexString(System.currentTimeMillis() / 1000);
       });
     } catch (ExecutionException e) {
-      return Long.toHexString(System.currentTimeMillis()/1000);
+      return Long.toHexString(System.currentTimeMillis() / 1000);
     }
   }
 
@@ -377,9 +377,9 @@ final class UDPMessageEncoder {
 
   static Cache<String, String> setupEpochCache() {
     return CacheBuilder.newBuilder()
-      .maximumSize(getMaxCacheSize())
-      .expireAfterWrite(getTtlInSeconds(), TimeUnit.SECONDS)
-      .build();
+        .maximumSize(getMaxCacheSize())
+        .expireAfterWrite(getTtlInSeconds(), TimeUnit.SECONDS)
+        .build();
   }
 
   static long getMaxCacheSize() {
@@ -401,8 +401,8 @@ final class UDPMessageEncoder {
     if (valStr == null) return defVal;
 
     try {
-        long tmp = Long.parseLong(valStr, 10);
-        if (tmp > 0) return tmp;
+      long tmp = Long.parseLong(valStr, 10);
+      if (tmp > 0) return tmp;
     } catch (NumberFormatException e) {
       // Nothing else to do here. Return the default value.
     }
