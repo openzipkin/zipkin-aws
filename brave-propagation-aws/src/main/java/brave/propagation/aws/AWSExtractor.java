@@ -1,3 +1,16 @@
+/*
+ * Copyright 2016-2020 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.propagation.aws;
 
 import brave.propagation.Propagation.Getter;
@@ -8,9 +21,9 @@ import brave.propagation.TraceContextOrSamplingFlags;
 import brave.propagation.TraceIdContext;
 import brave.propagation.aws.AWSPropagation.AmznTraceId;
 
-import static brave.propagation.aws.AWSPropagation.MARKER;
+import static brave.propagation.aws.AWSPropagation.EXTRA_MARKER;
 import static brave.propagation.aws.AWSPropagation.ROOT_LENGTH;
-import static brave.propagation.aws.AWSPropagation.TRACE_ID_NAME;
+import static brave.propagation.aws.AWSPropagation.AMZN_TRACE_ID_NAME;
 
 /**
  * Fields defined by Amazon:
@@ -26,7 +39,7 @@ import static brave.propagation.aws.AWSPropagation.TRACE_ID_NAME;
  */
 final class AWSExtractor<R> implements Extractor<R> {
   static final TraceContextOrSamplingFlags EMPTY =
-      TraceContextOrSamplingFlags.EMPTY.toBuilder().addExtra(MARKER).build();
+      TraceContextOrSamplingFlags.EMPTY.toBuilder().addExtra(EXTRA_MARKER).build();
 
   final AWSPropagation propagation;
   final Getter<R, String> getter;
@@ -47,7 +60,7 @@ final class AWSExtractor<R> implements Extractor<R> {
   @Override
   public TraceContextOrSamplingFlags extract(R request) {
     if (request == null) throw new NullPointerException("request == null");
-    String traceIdString = getter.get(request, TRACE_ID_NAME);
+    String traceIdString = getter.get(request, AMZN_TRACE_ID_NAME);
     if (traceIdString == null) return EMPTY;
 
     Boolean sampled = null;
@@ -154,7 +167,7 @@ final class AWSExtractor<R> implements Extractor<R> {
       op = null;
     }
 
-    AmznTraceId amznTraceId = MARKER;
+    AmznTraceId amznTraceId = EXTRA_MARKER;
     if (extraFields != null) {
       amznTraceId = new AmznTraceId();
       amznTraceId.customFields = extraFields;

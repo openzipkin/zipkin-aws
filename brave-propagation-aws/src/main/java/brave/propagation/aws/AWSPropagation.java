@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -64,11 +64,11 @@ import static brave.propagation.aws.HexCodec.writeHexLong;
  */
 public final class AWSPropagation implements Propagation<String> {
   // Using lowercase field name as http is case-insensitive, but http/2 transport downcases */
-  static final String TRACE_ID_NAME = "x-amzn-trace-id";
-  static final BaggageField TRACE_ID = BaggageField.create(TRACE_ID_NAME);
+  static final String AMZN_TRACE_ID_NAME = "x-amzn-trace-id";
+  static final BaggageField FIELD_AMZN_TRACE_ID = BaggageField.create(AMZN_TRACE_ID_NAME);
   static final Propagation<String> INSTANCE = new AWSPropagation();
   /** When present, this context was created with AWSPropagation */
-  static final AmznTraceId MARKER = new AmznTraceId();
+  static final AmznTraceId EXTRA_MARKER = new AmznTraceId();
   static final Extractor<String> STRING_EXTRACTOR =
       INSTANCE.extractor(new Getter<String, String>() {
         @Override public String get(String request, String key) {
@@ -107,7 +107,7 @@ public final class AWSPropagation implements Propagation<String> {
   final List<String> keyNames;
 
   AWSPropagation() {
-    this.keyNames = Collections.unmodifiableList(Arrays.asList(TRACE_ID_NAME));
+    this.keyNames = Collections.unmodifiableList(Arrays.asList(AMZN_TRACE_ID_NAME));
   }
 
   /** returns the name of the header field: "x-amzn-trace-id" */
@@ -149,7 +149,7 @@ public final class AWSPropagation implements Propagation<String> {
       }
     }
     // See if we have the field as a pass-through
-    String maybeHeader = TRACE_ID.getValue(context);
+    String maybeHeader = FIELD_AMZN_TRACE_ID.getValue(context);
     if (maybeHeader == null) return null;
     int i = maybeHeader.indexOf("Root=");
     if (i == -1) return null;

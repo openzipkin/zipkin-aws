@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -14,12 +14,8 @@
 package brave.instrumentation.aws;
 
 import brave.Tracing;
-import brave.context.log4j2.ThreadContextScopeDecorator;
 import brave.handler.MutableSpan;
 import brave.http.HttpTracing;
-import brave.propagation.StrictScopeDecorator;
-import brave.propagation.ThreadLocalCurrentTraceContext;
-import brave.sampler.Sampler;
 import brave.test.TestSpanHandler;
 import com.amazonaws.AmazonServiceException;
 import com.amazonaws.DefaultRequest;
@@ -27,22 +23,14 @@ import com.amazonaws.handlers.HandlerAfterAttemptContext;
 import com.amazonaws.handlers.HandlerContextKey;
 import com.amazonaws.services.dynamodbv2.model.ProvisionedThroughputExceededException;
 import org.junit.After;
-import org.junit.Before;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class TracingRequestHandlerTest {
   TestSpanHandler spans = new TestSpanHandler();
-
-  Tracing tracing;
-  TracingRequestHandler handler;
-
-  @Before
-  public void setup() {
-    tracing = tracingBuilder().build();
-    handler = new TracingRequestHandler(HttpTracing.create(tracing));
-  }
+  Tracing tracing = Tracing.newBuilder().addSpanHandler(spans).build();
+  TracingRequestHandler handler = new TracingRequestHandler(HttpTracing.create(tracing));
 
   @After
   public void cleanup() {
@@ -68,16 +56,5 @@ public class TracingRequestHandlerTest {
     assertThat(reportedSpan.traceId()).isEqualToIgnoringCase(braveSpan.context().traceIdString());
     assertThat(reportedSpan.error()).isEqualTo(exception);
     assertThat(reportedSpan.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
-  }
-
-  private Tracing.Builder tracingBuilder() {
-    return Tracing.newBuilder()
-        .addSpanHandler(spans)
-        .currentTraceContext(
-            ThreadLocalCurrentTraceContext.newBuilder()
-                .addScopeDecorator(ThreadContextScopeDecorator.create()) // connect to log4j
-                .addScopeDecorator(StrictScopeDecorator.create())
-                .build())
-        .sampler(Sampler.ALWAYS_SAMPLE);
   }
 }

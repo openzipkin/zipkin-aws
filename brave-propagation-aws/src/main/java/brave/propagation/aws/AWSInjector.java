@@ -1,3 +1,16 @@
+/*
+ * Copyright 2016-2020 The OpenZipkin Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
+ * in compliance with the License. You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software distributed under the License
+ * is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express
+ * or implied. See the License for the specific language governing permissions and limitations under
+ * the License.
+ */
 package brave.propagation.aws;
 
 import brave.propagation.Propagation.Setter;
@@ -7,7 +20,7 @@ import brave.propagation.aws.AWSPropagation.AmznTraceId;
 import static brave.propagation.aws.AWSPropagation.PARENT;
 import static brave.propagation.aws.AWSPropagation.ROOT;
 import static brave.propagation.aws.AWSPropagation.SAMPLED;
-import static brave.propagation.aws.AWSPropagation.TRACE_ID_NAME;
+import static brave.propagation.aws.AWSPropagation.AMZN_TRACE_ID_NAME;
 import static brave.propagation.aws.AWSPropagation.writeRoot;
 import static brave.propagation.aws.HexCodec.writeHexLong;
 
@@ -48,6 +61,6 @@ final class AWSInjector<R> implements TraceContext.Injector<R> {
     for (int i = 0; i < customFieldsLength; i++) {
       result[i + 74] = customFields.charAt(i);
     }
-    setter.put(request, TRACE_ID_NAME, new String(result));
+    setter.put(request, AMZN_TRACE_ID_NAME, new String(result));
   }
 }
