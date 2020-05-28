@@ -94,9 +94,8 @@ final class UDPMessageEncoder {
       }
     }
 
-    String origin = getOrigin();
-    if (origin != null) {
-      writer.name("origin").value(getOrigin());
+    if (span.tags().get("xray.origin") != null) {
+      writer.name("origin").value(span.tags().get("xray.origin"));
     }
 
     // http section
@@ -317,15 +316,6 @@ final class UDPMessageEncoder {
     }
     writer.endObject();
     writer.flush();
-  }
-
-  static String getOrigin() {
-    return getenv("AWS_XRAY_ORIGIN", null);
-  }
-
-  static String getenv(String name, String defVal) {
-    String valStr = System.getenv(name);
-    return valStr == null ? defVal : valStr;
   }
 
   static byte[] encode(Span span) {
