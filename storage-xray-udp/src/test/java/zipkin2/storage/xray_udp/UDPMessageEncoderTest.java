@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -41,6 +41,30 @@ public class UDPMessageEncoderTest {
     assertThat(writeJson(span))
         .isEqualTo(
             "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\"}");
+  }
+
+  @Test
+  public void writeJson_origin_no_default() throws Exception {
+    Span span =
+        serverSpan
+            .toBuilder()
+            .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "origin")).isNull();
+  }
+
+  @Test
+  public void writeJson_origin_custom() throws Exception {
+    Span span =
+        serverSpan
+            .toBuilder()
+            .putTag("aws.origin", "AWS::EC2::Instance")
+            .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "origin")).isEqualTo("AWS::EC2::Instance");
+    assertThat(readString(json, "annotations.aws_origin")).isNull();
   }
 
   @Test
