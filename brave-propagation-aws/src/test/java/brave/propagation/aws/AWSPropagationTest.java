@@ -22,8 +22,7 @@ import brave.propagation.SamplingFlags;
 import brave.propagation.TraceContext;
 import brave.propagation.TraceContextOrSamplingFlags;
 import brave.propagation.TraceIdContext;
-import java.util.Arrays;
-import java.util.Collections;
+import brave.propagation.aws.AWSPropagation.AmznTraceId;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.Test;
@@ -46,7 +45,7 @@ public class AWSPropagationTest {
           .traceId(lowerHexToUnsignedLong("2345678912345678"))
           .spanId(lowerHexToUnsignedLong("463ac35c9f6413ad"))
           .sampled(true)
-          .extra(AWSPropagation.DEFAULT_EXTRA)
+          .addExtra(AWSPropagation.MARKER)
           .build();
 
   @Test
@@ -100,7 +99,7 @@ public class AWSPropagationTest {
 
   @Test
   public void traceId_null_if_not_aws() {
-    TraceContext notAWS = sampledContext.toBuilder().extra(Collections.emptyList()).build();
+    TraceContext notAWS = sampledContext.toBuilder().clearExtra().build();
     assertThat(AWSPropagation.traceId(notAWS)).isNull();
   }
 
@@ -216,30 +215,31 @@ public class AWSPropagationTest {
                 .traceId(lowerHexToUnsignedLong("5d99923122bbe354"))
                 .build());
 
-    assertThat(((AWSPropagation.Extra) extracted.extra().get(0)).fields)
+    assertThat(((AmznTraceId) extracted.extra().get(0)).customFields)
         .contains(new StringBuilder(";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo"));
   }
 
   @Test
   public void toString_fields() {
-    AWSPropagation.Extra extra = new AWSPropagation.Extra();
-    extra.fields = ";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo";
+    AmznTraceId amznTraceId = new AmznTraceId();
+    amznTraceId.customFields = ";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo";
 
-    assertThat(extra).hasToString("AWSPropagation{fields=" + extra.fields + "}");
+    assertThat(amznTraceId).hasToString("AmznTraceId{customFields=" + amznTraceId.customFields + "}");
   }
 
   @Test
   public void toString_none() {
-    AWSPropagation.Extra extra = new AWSPropagation.Extra();
+    AmznTraceId amznTraceId = new AmznTraceId();
 
-    assertThat(extra).hasToString("AWSPropagation{}");
+    assertThat(amznTraceId).hasToString("AmznTraceId{}");
   }
 
   @Test
   public void injectExtraStuff() {
-    AWSPropagation.Extra extra = new AWSPropagation.Extra();
-    extra.fields = ";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo";
-    TraceContext extraContext = sampledContext.toBuilder().extra(Arrays.asList(extra)).build();
+    AmznTraceId amznTraceId = new AmznTraceId();
+    amznTraceId.customFields = ";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo";
+    TraceContext extraContext =
+        sampledContext.toBuilder().clearExtra().addExtra(amznTraceId).build();
     injector.inject(extraContext, carrier);
 
     assertThat(carrier)

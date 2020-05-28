@@ -14,16 +14,19 @@
 package brave.propagation.aws;
 
 import brave.Tracing;
+import brave.baggage.BaggageField;
 import brave.internal.Nullable;
-import brave.propagation.ExtraFieldPropagation;
+import brave.internal.propagation.StringPropagationAdapter;
 import brave.propagation.Propagation;
-import brave.propagation.SamplingFlags;
 import brave.propagation.TraceContext;
+import brave.propagation.TraceContext.Extractor;
+import brave.propagation.TraceContext.Injector;
 import brave.propagation.TraceContextOrSamplingFlags;
-import brave.propagation.TraceIdContext;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static brave.propagation.aws.AWSExtractor.EMPTY;
 import static brave.propagation.aws.HexCodec.writeHexByte;
 import static brave.propagation.aws.HexCodec.writeHexLong;
 
@@ -53,104 +56,70 @@ import static brave.propagation.aws.HexCodec.writeHexLong;
  * <ul>
  * <li>The version number, i.e. 1</li>
  * <li>The time of the original request, in Unix epoch time, in 8  hexadecimal digits. For example,
- * 10:00AM December 2nd, 2016 PST in epoch timeis 1480615200 seconds, or 58406520 in
+ * 10:00AM December 2nd, 2016 PST in epoch time is 1480615200 seconds, or 58406520 in
  * hexadecimal.</li>
  * <li>A 96-bit identifier for the trace, globally unique, in 24 hexadecimal digits.</li>
  * </ul>
  * </pre>
  */
-public final class AWSPropagation<K> implements Propagation<K> {
-
-  public static final Propagation.Factory FACTORY =
-      new Propagation.Factory() {
-        @Override
-        public <K> Propagation<K> create(KeyFactory<K> keyFactory) {
-          return new AWSPropagation<>(keyFactory);
-        }
-
-        @Override
-        public boolean requires128BitTraceId() {
-          return true;
-        }
-
-        @Override
-        public String toString() {
-          return "AWSPropagationFactory";
-        }
-      };
-
+public final class AWSPropagation implements Propagation<String> {
   // Using lowercase field name as http is case-insensitive, but http/2 transport downcases */
   static final String TRACE_ID_NAME = "x-amzn-trace-id";
+  static final BaggageField TRACE_ID = BaggageField.create(TRACE_ID_NAME);
+  static final Propagation<String> INSTANCE = new AWSPropagation();
+  /** When present, this context was created with AWSPropagation */
+  static final AmznTraceId MARKER = new AmznTraceId();
+  static final Extractor<String> STRING_EXTRACTOR =
+      INSTANCE.extractor(new Getter<String, String>() {
+        @Override public String get(String request, String key) {
+          return request;
+        }
+      });
+  public static final Propagation.Factory FACTORY = new Factory();
+
   static final char[] ROOT = "Root=".toCharArray();
   static final char[] PARENT = ";Parent=".toCharArray();
   static final char[] SAMPLED = ";Sampled=".toCharArray();
-  public static final int ROOT_LENGTH = 35;
+  static final int ROOT_LENGTH = 35;
 
-  final K traceIdKey;
-  final List<K> fields;
+  static final class Factory extends Propagation.Factory {
+    @Override public Propagation<String> get() {
+      return INSTANCE;
+    }
 
-  AWSPropagation(KeyFactory<K> keyFactory) {
-    this.traceIdKey = keyFactory.create(TRACE_ID_NAME);
-    this.fields = Collections.singletonList(traceIdKey);
+    @Deprecated public <K> Propagation<K> create(KeyFactory<K> keyFactory) {
+      return StringPropagationAdapter.create(get(), keyFactory);
+    }
+
+    @Override public boolean supportsJoin() {
+      return false;
+    }
+
+    @Override public boolean requires128BitTraceId() {
+      return true;
+    }
+
+    @Override public String toString() {
+      return "AWSPropagationFactory";
+    }
+  }
+
+  final List<String> keyNames;
+
+  AWSPropagation() {
+    this.keyNames = Collections.unmodifiableList(Arrays.asList(TRACE_ID_NAME));
   }
 
   /** returns the name of the header field: "x-amzn-trace-id" */
   @Override
-  public List<K> keys() {
-    return fields;
+  public List<String> keys() {
+    return keyNames;
   }
 
   @Override
-  public <C> TraceContext.Injector<C> injector(Setter<C, K> setter) {
+  public <R> Injector<R> injector(Setter<R, String> setter) {
     if (setter == null) throw new NullPointerException("setter == null");
     return new AWSInjector<>(this, setter);
-  }
-
-  static final class AWSInjector<C, K> implements TraceContext.Injector<C> {
-    final AWSPropagation<K> propagation;
-    final Setter<C, K> setter;
-
-    AWSInjector(AWSPropagation<K> propagation, Setter<C, K> setter) {
-      this.propagation = propagation;
-      this.setter = setter;
-    }
-
-    /**
-     * This version of propagation contains at least 74 characters corresponding to identifiers and
-     * the sampling bit. It will also include extra fields where present.
-     *
-     * <p>Ex 74 characters: {@code
-     * Root=1-67891233-abcdef012345678912345678;Parent=463ac35c9f6413ad;Sampled=1}
-     *
-     * <p>{@inheritDoc}
-     */
-    @Override
-    public void inject(TraceContext traceContext, C carrier) {
-      CharSequence extra = null;
-      for (int i = 0, length = traceContext.extra().size(); i < length; i++) {
-        Object next = traceContext.extra().get(i);
-        if (next instanceof Extra) {
-          extra = ((Extra) next).fields;
-          break;
-        }
-      }
-      int extraLength = extra == null ? 0 : extra.length();
-      // Root=1-67891233-abcdef012345678912345678;Parent=463ac35c9f6413ad;Sampled=1
-      char[] result = new char[74 + extraLength];
-      System.arraycopy(ROOT, 0, result, 0, 5);
-      writeRoot(traceContext, result, 5);
-      System.arraycopy(PARENT, 0, result, 40, 8);
-      writeHexLong(result, 48, traceContext.spanId());
-      System.arraycopy(SAMPLED, 0, result, 64, 9);
-      Boolean sampled = traceContext.sampled();
-      // Sampled status is same as B3, but ? means downstream decides (like omitting X-B3-Sampled)
-      // https://github.com/aws/aws-xray-sdk-go/blob/391885218b556c43ed05a1e736a766d70fc416f1/header/header.go#L50
-      result[73] = sampled == null ? '?' : sampled ? '1' : '0';
-      for (int i = 0; i < extraLength; i++) {
-        result[i + 74] = extra.charAt(i);
-      }
-      setter.put(carrier, propagation.traceIdKey, new String(result));
-    }
   }
 
   /** Returns the current {@link #traceId(TraceContext)} or null if not available */
@@ -173,14 +142,14 @@ public final class AWSPropagation<K> implements Propagation<K> {
   public static String traceId(TraceContext context) {
     for (int i = 0, length = context.extra().size(); i < length; i++) {
       Object next = context.extra().get(i);
-      if (next instanceof Extra) {
+      if (next instanceof AmznTraceId) {
         char[] result = new char[ROOT_LENGTH];
         writeRoot(context, result, 0);
         return new String(result);
       }
     }
     // See if we have the field as a pass-through
-    String maybeHeader = ExtraFieldPropagation.get(context, TRACE_ID_NAME);
+    String maybeHeader = TRACE_ID.getValue(context);
     if (maybeHeader == null) return null;
     int i = maybeHeader.indexOf("Root=");
     if (i == -1) return null;
@@ -207,20 +176,19 @@ public final class AWSPropagation<K> implements Propagation<K> {
   }
 
   @Override
-  public <C> TraceContext.Extractor<C> extractor(Getter<C, K> getter) {
+  public <R> Extractor<R> extractor(Getter<R, String> getter) {
     if (getter == null) throw new NullPointerException("getter == null");
     return new AWSExtractor<>(this, getter);
   }
 
-  static final AWSExtractor<String, String> STRING_EXTRACTOR =
-      new AWSExtractor<>(
-          new AWSPropagation<>(KeyFactory.STRING),
-          new Getter<String, String>() {
-            @Override
-            public String get(String carrier, String key) {
-              return carrier;
-            }
-          });
+  static final class AmznTraceId { // hidden intentionally
+    CharSequence customFields;
+
+    @Override
+    public String toString() {
+      return "AmznTraceId{" + (customFields != null ? ("customFields=" + customFields) : "") + "}";
+    }
+  }
 
   /**
    * This is used for extracting from the AWS lambda environment variable {@code _X_AMZN_TRACE_ID}.
@@ -228,192 +196,12 @@ public final class AWSPropagation<K> implements Propagation<K> {
    * @see #extract(String)
    */
   public static TraceContextOrSamplingFlags extractLambda() {
-    return STRING_EXTRACTOR.extract(System.getenv("_X_AMZN_TRACE_ID"));
+    return extract(System.getenv("_X_AMZN_TRACE_ID"));
   }
 
-  /** Like {@link TraceContext.Extractor#extract(Object)} except reading from a single field. */
+  /** Like {@link Extractor#extract(Object)} except reading from a single field. */
   public static TraceContextOrSamplingFlags extract(String amznTraceId) {
     if (amznTraceId == null) return EMPTY;
     return STRING_EXTRACTOR.extract(amznTraceId);
-  }
-
-  static final class AWSExtractor<C, K> implements TraceContext.Extractor<C> {
-    final AWSPropagation<K> propagation;
-    final Getter<C, K> getter;
-
-    AWSExtractor(AWSPropagation<K> propagation, Getter<C, K> getter) {
-      this.propagation = propagation;
-      this.getter = getter;
-    }
-
-    enum Op {
-      SKIP,
-      ROOT,
-      PARENT,
-      SAMPLED,
-      EXTRA
-    }
-
-    @Override
-    public TraceContextOrSamplingFlags extract(C carrier) {
-      if (carrier == null) throw new NullPointerException("carrier == null");
-      String traceIdString = getter.get(carrier, propagation.traceIdKey);
-      if (traceIdString == null) return EMPTY;
-
-      Boolean sampled = null;
-      long traceIdHigh = 0L, traceId = 0L;
-      Long parent = null;
-      StringBuilder currentString = new StringBuilder(7 /* Sampled.length */), extraFields = null;
-      Op op = null;
-      OUTER:
-      for (int i = 0, length = traceIdString.length(); i < length; i++) {
-        char c = traceIdString.charAt(i);
-        if (c == ' ') continue; // trim whitespace
-        if (c == '=') { // we reached a field name
-          if (++i == length) break; // skip '=' character
-          if (currentString.indexOf("Root") == 0) {
-            op = Op.ROOT;
-          } else if (currentString.indexOf("Parent") == 0) {
-            op = Op.PARENT;
-          } else if (currentString.indexOf("Sampled") == 0) {
-            op = Op.SAMPLED;
-          } else if (currentString.indexOf("Self") == 0) {
-            // ALB implements Trace ID chaining using self so that customers not using X-Ray
-            // (I.e. request logs) can do the correlation themselves. We drop these
-            op = Op.SKIP;
-          } else {
-            op = Op.EXTRA;
-            if (extraFields == null) extraFields = new StringBuilder();
-            extraFields.append(';').append(currentString);
-          }
-          currentString.setLength(0);
-        } else if (op == null) {
-          currentString.append(c);
-          continue;
-        }
-        // no longer whitespace
-        switch (op) {
-          case EXTRA:
-            extraFields.append(c);
-            while (i < length && (c = traceIdString.charAt(i)) != ';') {
-              extraFields.append(c);
-              i++;
-            }
-            break;
-          case SKIP:
-            while (++i < length && traceIdString.charAt(i) != ';') {
-              // skip until we hit a delimiter
-            }
-            break;
-          case ROOT:
-            if (i + ROOT_LENGTH > length // 35 = length of 1-67891233-abcdef012345678912345678
-                || traceIdString.charAt(i++) != '1'
-                || traceIdString.charAt(i++) != '-') {
-              break OUTER; // invalid version or format
-            }
-            // Parse the epoch seconds and high 32 of the 96 bit trace ID into traceID high
-            for (int hyphenIndex = i + 8, endIndex = hyphenIndex + 1 + 8; i < endIndex; i++) {
-              c = traceIdString.charAt(i);
-              if (c == '-' && i == hyphenIndex) continue; // skip delimiter between epoch and random
-              traceIdHigh <<= 4;
-              if (c >= '0' && c <= '9') {
-                traceIdHigh |= c - '0';
-              } else if (c >= 'a' && c <= 'f') {
-                traceIdHigh |= c - 'a' + 10;
-              } else {
-                break OUTER; // invalid format
-              }
-            }
-            // Parse the low 64 of the 96 bit trace ID into traceId
-            for (int endIndex = i + 16; i < endIndex; i++) {
-              c = traceIdString.charAt(i);
-              traceId <<= 4;
-              if (c >= '0' && c <= '9') {
-                traceId |= c - '0';
-              } else if (c >= 'a' && c <= 'f') {
-                traceId |= c - 'a' + 10;
-              } else {
-                break OUTER; // invalid format
-              }
-            }
-            break;
-          case PARENT:
-            long parentId = 0L;
-            for (int endIndex = i + 16; i < endIndex; i++) {
-              c = traceIdString.charAt(i);
-              parentId <<= 4;
-              if (c >= '0' && c <= '9') {
-                parentId |= c - '0';
-              } else if (c >= 'a' && c <= 'f') {
-                parentId |= c - 'a' + 10;
-              } else {
-                break OUTER; // invalid format
-              }
-            }
-            parent = parentId;
-            break;
-          case SAMPLED:
-            c = traceIdString.charAt(i++);
-            if (c == '1') {
-              sampled = true;
-            } else if (c == '0') {
-              sampled = false;
-            }
-            break;
-        }
-        op = null;
-      }
-
-      List<Object> extra;
-      if (extraFields == null) {
-        extra = DEFAULT_EXTRA;
-      } else {
-        Extra e = new Extra();
-        e.fields = extraFields;
-        extra = Collections.singletonList(e);
-      }
-
-      if (traceIdHigh == 0L) { // traceIdHigh cannot be null, so just return sampled
-        SamplingFlags samplingFlags = SamplingFlags.EMPTY;
-        if (sampled != null) {
-          samplingFlags = sampled ? SamplingFlags.SAMPLED : SamplingFlags.NOT_SAMPLED;
-        }
-        return TraceContextOrSamplingFlags.newBuilder().samplingFlags(samplingFlags).extra(extra).build();
-      } else if (parent == null) {
-        return TraceContextOrSamplingFlags.newBuilder()
-            .extra(extra)
-            .traceIdContext(
-                TraceIdContext.newBuilder()
-                    .traceIdHigh(traceIdHigh)
-                    .traceId(traceId)
-                    .sampled(sampled)
-                    .build())
-            .build();
-      }
-      return TraceContextOrSamplingFlags.create(
-          TraceContext.newBuilder()
-              .traceIdHigh(traceIdHigh)
-              .traceId(traceId)
-              .spanId(parent)
-              .sampled(sampled)
-              .extra(extra)
-              .build());
-    }
-  }
-
-  /** When present, this context was created with AWSPropagation */
-  static final Extra MARKER = new Extra();
-
-  static final List<Object> DEFAULT_EXTRA = Collections.singletonList(MARKER);
-  static final TraceContextOrSamplingFlags EMPTY =
-      TraceContextOrSamplingFlags.EMPTY.toBuilder().extra(DEFAULT_EXTRA).build();
-
-  static final class Extra { // hidden intentionally
-    CharSequence fields;
-
-    @Override
-    public String toString() {
-      return "AWSPropagation{" + (fields != null ? ("fields=" + fields.toString()) : "") + "}";
-    }
   }
 }
