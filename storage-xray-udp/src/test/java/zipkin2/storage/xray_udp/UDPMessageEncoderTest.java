@@ -16,8 +16,10 @@ package zipkin2.storage.xray_udp;
 import com.jayway.jsonpath.JsonPath;
 import com.jayway.jsonpath.PathNotFoundException;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.util.Map;
 import okio.Buffer;
+import org.junit.After;
 import org.junit.Test;
 import zipkin2.Endpoint;
 import zipkin2.Span;
@@ -34,6 +36,11 @@ public class UDPMessageEncoderTest {
           .name("test-cemo")
           .build();
 
+  @After
+  public void teardown() throws Exception {
+    removeEnvAll();
+  }
+
   @Test
   public void writeJson_server_isSegment() throws Exception {
     Span span = serverSpan;
@@ -41,6 +48,29 @@ public class UDPMessageEncoderTest {
     assertThat(writeJson(span))
         .isEqualTo(
             "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\"}");
+  }
+
+  @Test
+  public void writeJson_origin_no_default() throws Exception {
+    Span span =
+        serverSpan
+            .toBuilder()
+            .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "origin")).isNull();
+  }
+
+  @Test
+  public void writeJson_origin_custom() throws Exception {
+    updateEnv("AWS_XRAY_ORIGIN", "AWS::EC2::Instance");
+    Span span =
+        serverSpan
+            .toBuilder()
+            .build();
+
+    String json = writeJson(span);
+    assertThat(readString(json, "origin")).isEqualTo("AWS::EC2::Instance");
   }
 
   @Test
@@ -235,6 +265,48 @@ public class UDPMessageEncoderTest {
             .containsExactly(
                     entry("availability_zone", "us-west-2c"),
                     entry("instance_id", "i-0b5a4678fc325bg98"));
+  }
+
+  @Test
+  public void getOrigin_no_env_no_default_return() {
+    String ret = UDPMessageEncoder.getOrigin();
+    assertThat(ret).isNull();
+  }
+
+  @Test
+  public void getOrigin_env_value_return() throws Exception {
+    updateEnv("AWS_XRAY_ORIGIN", "AWS::EC2::Instance");
+    String ret = UDPMessageEncoder.getOrigin();
+    assertThat(ret).isEqualTo("AWS::EC2::Instance");
+  }
+
+  @Test
+  public void getenv_no_env_default_return_string() {
+    String ret = UDPMessageEncoder.getenv("RANDOM_ENV", "hello");
+    assertThat(ret).isEqualTo("hello");
+  }
+
+  @Test
+  public void getenv_valid_long_env_return_string() throws Exception {
+    updateEnv("RANDOM_ENV", "world");
+    String ret = UDPMessageEncoder.getenv("RANDOM_ENV", "hello");
+    assertThat(ret).isEqualTo("world");
+  }
+
+  @SuppressWarnings({ "unchecked" })
+  public static void updateEnv(String name, String val) throws ReflectiveOperationException {
+    Map<String, String> env = System.getenv();
+    Field field = env.getClass().getDeclaredField("m");
+    field.setAccessible(true);
+    ((Map<String, String>) field.get(env)).put(name, val);
+  }
+
+  @SuppressWarnings({ "unchecked" })
+  public static void removeEnvAll() throws ReflectiveOperationException {
+    Map<String, String> env = System.getenv();
+    Field field = env.getClass().getDeclaredField("m");
+    field.setAccessible(true);
+    ((Map<String, String>) field.get(env)).clear();
   }
 
   String writeJson(Span span) throws IOException {
