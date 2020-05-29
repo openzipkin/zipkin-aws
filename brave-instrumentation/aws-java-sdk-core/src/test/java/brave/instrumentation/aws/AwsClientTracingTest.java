@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -13,67 +13,40 @@
  */
 package brave.instrumentation.aws;
 
-import brave.Tracing;
-import brave.context.log4j2.ThreadContextScopeDecorator;
+import brave.handler.MutableSpan;
 import brave.http.HttpTracing;
-import brave.propagation.StrictScopeDecorator;
-import brave.propagation.ThreadLocalCurrentTraceContext;
-import brave.sampler.Sampler;
+import brave.test.ITRemote;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDB;
-import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsync;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBAsyncClientBuilder;
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import java.util.Collections;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.contrib.java.lang.system.EnvironmentVariables;
-import org.junit.rules.TestRule;
-import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
-import zipkin2.Span;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class AwsClientTracingTest {
+public class AwsClientTracingTest extends ITRemote {
 
   @Rule
   public MockWebServer mockServer = new MockWebServer();
   @Rule
   public EnvironmentVariables environmentVariables = new EnvironmentVariables();
-  private BlockingQueue<Span> spans = new LinkedBlockingQueue<>();
-  // See brave.http.ITHttp for rationale on polling after tests complete
-  @Rule public TestRule assertSpansEmpty = new TestWatcher() {
-    // only check success path to avoid masking assertion errors or exceptions
-    @Override protected void succeeded(Description description) {
-      try {
-        assertThat(spans.poll(100, TimeUnit.MILLISECONDS))
-            .withFailMessage("Span remaining in queue. Check for redundant reporting")
-            .isNull();
-      } catch (InterruptedException e) {
-        e.printStackTrace();
-      }
-    }
-  };
   private AmazonDynamoDB dbClient;
   private AmazonS3 s3Client;
 
   @Before
   public void setup() {
     String endpoint = "http://localhost:" + mockServer.getPort();
-    Tracing tracing = tracingBuilder().build();
     HttpTracing httpTracing = HttpTracing.create(tracing);
     AmazonDynamoDBClientBuilder clientBuilder = AmazonDynamoDBClientBuilder.standard()
         .withCredentials(
@@ -91,34 +64,27 @@ public class AwsClientTracingTest {
         .enableForceGlobalBucketAccess());
   }
 
-  @After
-  public void cleanup() {
-    Tracing.current().close();
-  }
-
   @Test
   public void testSpanCreatedAndTagsApplied() throws InterruptedException {
     mockServer.enqueue(createDeleteItemResponse());
 
     dbClient.deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
 
-    Span httpSpan = spans.poll(100, TimeUnit.MILLISECONDS);
-    assertThat(httpSpan.remoteServiceName()).isEqualToIgnoringCase("amazondynamodbv2");
-    assertThat(httpSpan.name()).isEqualToIgnoringCase("deleteitem");
-    assertThat(httpSpan.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
+    MutableSpan httpSpan = testSpanHandler.takeRemoteSpan(brave.Span.Kind.CLIENT);
+    assertThat(httpSpan.remoteServiceName()).isEqualTo("AmazonDynamoDBv2");
+    assertThat(httpSpan.name()).isEqualTo("DeleteItem");
+    assertThat(httpSpan.tags().get("aws.request_id")).isEqualTo("abcd");
 
-    Span sdkSpan = spans.poll(100, TimeUnit.MILLISECONDS);
-    assertThat(sdkSpan.name()).isEqualToIgnoringCase("aws-sdk");
+    MutableSpan sdkSpan = testSpanHandler.takeLocalSpan();
+    assertThat(sdkSpan.name()).isEqualTo("aws-sdk");
   }
 
   @Test
   public void buildingAsyncClientWithEmptyConfigDoesNotThrowExceptions() {
-    Tracing tracing = tracingBuilder().build();
     HttpTracing httpTracing = HttpTracing.create(tracing);
     environmentVariables.set("AWS_REGION", "us-east-1");
 
-    AmazonDynamoDBAsync asyncClient =
-        AwsClientTracing.create(httpTracing).build(AmazonDynamoDBAsyncClientBuilder.standard());
+    AwsClientTracing.create(httpTracing).build(AmazonDynamoDBAsyncClientBuilder.standard());
   }
 
   @Test
@@ -132,12 +98,12 @@ public class AwsClientTracingTest {
 
     s3Client.doesBucketExistV2("Test-Bucket");
 
-    Span httpSpan = spans.poll(100, TimeUnit.MILLISECONDS);
+    MutableSpan httpSpan = testSpanHandler.takeRemoteSpan(brave.Span.Kind.CLIENT);
     assertThat(httpSpan.remoteServiceName()).isEqualToIgnoringCase("amazon s3");
     assertThat(httpSpan.name()).isEqualToIgnoringCase("getbucketacl");
     assertThat(httpSpan.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
 
-    Span sdkSpan = spans.poll(100, TimeUnit.MILLISECONDS);
+    MutableSpan sdkSpan = testSpanHandler.takeLocalSpan();
     assertThat(sdkSpan.name()).isEqualToIgnoringCase("aws-sdk");
   }
 
@@ -146,17 +112,6 @@ public class AwsClientTracingTest {
     response.setBody("{}");
     response.addHeader("x-amzn-RequestId", "abcd");
     return response;
-  }
-
-  private Tracing.Builder tracingBuilder() {
-    return Tracing.newBuilder()
-        .spanReporter(spans::add)
-        .currentTraceContext(
-            ThreadLocalCurrentTraceContext.newBuilder()
-                .addScopeDecorator(ThreadContextScopeDecorator.create()) // connect to log4j
-                .addScopeDecorator(StrictScopeDecorator.create())
-                .build())
-        .sampler(Sampler.ALWAYS_SAMPLE);
   }
 
   private MockResponse getExistsResponse() {

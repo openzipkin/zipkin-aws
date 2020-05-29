@@ -13,7 +13,9 @@
  */
 package brave.instrumentation.awsv2;
 
+import brave.Span;
 import brave.SpanCustomizer;
+import brave.handler.MutableSpan;
 import brave.http.HttpAdapter;
 import brave.http.HttpClientParser;
 import brave.http.HttpResponseParser;
@@ -23,6 +25,7 @@ import java.io.IOException;
 import java.net.URI;
 import java.time.Duration;
 import java.util.Collections;
+import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import org.junit.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -38,8 +41,6 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.GetItemRequest;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
-import zipkin2.Annotation;
-import zipkin2.Span;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -111,7 +112,7 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
     server.enqueue(new MockResponse());
     get(client, uri);
 
-    assertThat(reporter.takeRemoteSpan(Span.Kind.CLIENT).tags())
+    assertThat(testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT).tags())
         .containsEntry("http.url", url(uri));
   }
 
@@ -136,12 +137,12 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
     server.enqueue(new MockResponse());
     get(client, uri);
 
-    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
+    MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.name())
-        .isEqualTo("getitem"); // Overwrites default span name
+        .isEqualTo("GetItem"); // Overwrites default span name
 
     assertThat(span.remoteServiceName())
-        .isEqualTo("dynamodb"); // Ignores HttpTracing.serverName()
+        .isEqualTo("DynamoDb"); // Ignores HttpTracing.serverName()
 
     assertThat(span.tags())
         .containsEntry("http.url", url(uri))
@@ -179,12 +180,12 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
     server.enqueue(new MockResponse());
     get(client, uri);
 
-    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
+    MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.name())
-        .isEqualTo("getitem"); // Overwrites default span name
+        .isEqualTo("GetItem"); // Overwrites default span name
 
     assertThat(span.remoteServiceName())
-        .isEqualTo("dynamodb"); // Ignores HttpTracing.serverName()
+        .isEqualTo("DynamoDb"); // Ignores HttpTracing.serverName()
 
     assertThat(span.tags())
         .containsEntry("http.url", url(uri))
@@ -204,11 +205,11 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
     assertThat(takeRequest().getBody().readUtf8())
         .isEqualTo(body);
 
-    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
+    MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.remoteServiceName())
-        .isEqualTo("dynamodb");
+        .isEqualTo("DynamoDb");
     assertThat(span.name())
-        .isEqualTo("putitem");
+        .isEqualTo("PutItem");
     assertThat(span.tags().get("aws.service_name"))
         .isEqualTo("DynamoDb");
     assertThat(span.tags().get("aws.operation"))
@@ -222,10 +223,10 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
 
     get(client, "/");
 
-    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
-    assertThat(span.remoteServiceName()).isEqualTo("dynamodb");
-    assertThat(span.name()).isEqualTo("getitem");
-    assertThat(span.annotations()).extracting(Annotation::value)
+    MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
+    assertThat(span.remoteServiceName()).isEqualTo("DynamoDb");
+    assertThat(span.name()).isEqualTo("GetItem");
+    assertThat(span.annotations()).extracting(Map.Entry::getValue)
         .containsExactly("ws", "wr", "ws", "wr");
 
     // Ensure all requests have the injected headers.

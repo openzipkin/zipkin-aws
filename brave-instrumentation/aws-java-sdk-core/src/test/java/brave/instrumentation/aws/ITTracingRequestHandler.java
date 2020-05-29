@@ -13,7 +13,9 @@
  */
 package brave.instrumentation.aws;
 
+import brave.Span;
 import brave.SpanCustomizer;
+import brave.handler.MutableSpan;
 import brave.http.HttpAdapter;
 import brave.http.HttpClientParser;
 import brave.http.HttpResponseParser;
@@ -29,9 +31,9 @@ import java.io.IOException;
 import java.util.Collections;
 import okhttp3.mockwebserver.MockResponse;
 import org.junit.Test;
-import zipkin2.Span;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
   @Override protected AmazonDynamoDB newClient(int i) {
@@ -87,24 +89,24 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
     server.enqueue(new MockResponse());
     get(client, uri);
 
-    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
+    MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.name())
-        .isEqualTo("getitem"); // Overwrites default span name
+        .isEqualTo("GetItem"); // Overwrites default span name
 
     assertThat(span.remoteServiceName())
-        .isEqualTo("amazondynamodbv2"); // Ignores HttpTracing.serverName()
+        .isEqualTo("AmazonDynamoDBv2"); // Ignores HttpTracing.serverName()
 
     assertThat(span.tags())
         .containsEntry("http.url", url(uri))
         .containsEntry("request_customizer.is_span", "false")
         .containsEntry("response_customizer.is_span", "false");
 
-    reporter.takeLocalSpan();
+    testSpanHandler.takeLocalSpan();
   }
 
   /** Service and span names don't conform to expectations. */
   @Override
-  @Deprecated @Test public void supportsDeprecatedPortableCustomization() throws IOException {
+  @Deprecated @Test public void supportsDeprecatedPortableCustomization() {
     String uri = "/"; // This test doesn't currently allow non-root HTTP paths
 
     closeClient(client);
@@ -132,12 +134,12 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
     server.enqueue(new MockResponse());
     get(client, uri);
 
-    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
+    MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.name())
-        .isEqualTo("getitem"); // Overwrites default span name
+        .isEqualTo("GetItem"); // Overwrites default span name
 
     assertThat(span.remoteServiceName())
-        .isEqualTo("amazondynamodbv2"); // Ignores HttpTracing.serverName()
+        .isEqualTo("AmazonDynamoDBv2"); // Ignores HttpTracing.serverName()
 
     assertThat(span.tags())
         .containsEntry("http.url", url(uri))
@@ -145,7 +147,7 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
         .containsEntry("request_customizer.is_span", "false")
         .containsEntry("response_customizer.is_span", "false");
 
-    reporter.takeLocalSpan();
+    testSpanHandler.takeLocalSpan();
   }
 
   /** Body's inherently have a structure, and we use the operation name as the span name */
@@ -159,35 +161,41 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
     assertThat(takeRequest().getBody().readUtf8())
         .isEqualTo(body);
 
-    Span span = reporter.takeRemoteSpan(Span.Kind.CLIENT);
+    MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
     assertThat(span.remoteServiceName())
-        .isEqualTo("amazondynamodbv2");
+        .isEqualTo("AmazonDynamoDBv2");
     assertThat(span.name())
-        .isEqualTo("putitem");
+        .isEqualTo("PutItem");
 
-    assertThat(reporter.takeLocalSpan().tags())
+    assertThat(testSpanHandler.takeLocalSpan().tags())
         .containsEntry("aws.service_name", "AmazonDynamoDBv2")
         .containsEntry("aws.operation", "PutItem");
   }
 
   @Override public void propagatesBaggage() throws IOException {
     super.propagatesBaggage();
-    reporter.takeLocalSpan();
+    testSpanHandler.takeLocalSpan();
   }
 
   @Override public void reportsClientKindToZipkin() throws IOException {
     super.reportsClientKindToZipkin();
-    reporter.takeLocalSpan();
+    testSpanHandler.takeLocalSpan();
   }
 
-  @Override public void finishedSpanHandlerSeesException() throws IOException {
-    super.finishedSpanHandlerSeesException();
-    reporter.takeLocalSpanWithError("Unable to execute HTTP request.*");
+  @Override public void spanHandlerSeesError() {
+    assertThatThrownBy(super::spanHandlerSeesError)
+        .isInstanceOf(AssertionError.class)
+        // spanHandler was called twice. OK because the second time was for the application span.
+        .hasMessageContaining("Expected size:<1> but was:<2>");
+
+    assertThat(testSpanHandler.takeLocalSpan().error())
+        .hasMessageStartingWith("Unable to execute HTTP request");
   }
 
-  @Override public void errorTag_onTransportException() {
-    super.errorTag_onTransportException();
-    reporter.takeLocalSpanWithError("Unable to execute HTTP request.*");
+  @Override public void setsError_onTransportException() {
+    super.setsError_onTransportException();
+    assertThat(testSpanHandler.takeLocalSpan().error())
+        .hasMessageStartingWith("Unable to execute HTTP request");
   }
 
   /*
@@ -213,7 +221,7 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
   @Override public void addsStatusCodeWhenNotOk() {
   }
 
-  /** Not yet implemented */
+  /** usual problem where the url is wrong as it doesn't include the query */
   @Override public void readsRequestAtResponseTime() {
   }
 

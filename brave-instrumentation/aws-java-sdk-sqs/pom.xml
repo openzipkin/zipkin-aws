@@ -50,5 +50,10 @@
       <artifactId>brave-context-log4j2</artifactId>
       <scope>test</scope>
     </dependency>
+    <dependency>
+      <groupId>io.zipkin.brave</groupId>
+      <artifactId>brave-tests</artifactId>
+      <scope>test</scope>
+    </dependency>
   </dependencies>
 </project>

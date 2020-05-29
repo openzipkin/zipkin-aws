@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2019 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -15,10 +15,14 @@ package brave.instrumentation.aws.sqs;
 
 import brave.Span;
 import brave.Tracer;
+import brave.Tracer.SpanInScope;
 import brave.Tracing;
 import brave.propagation.CurrentTraceContext;
-import brave.propagation.Propagation;
+import brave.propagation.Propagation.RemoteGetter;
+import brave.propagation.Propagation.RemoteSetter;
 import brave.propagation.TraceContext;
+import brave.propagation.TraceContext.Extractor;
+import brave.propagation.TraceContext.Injector;
 import brave.propagation.TraceContextOrSamplingFlags;
 import com.amazonaws.AmazonWebServiceRequest;
 import com.amazonaws.handlers.RequestHandler2;
@@ -28,18 +32,28 @@ import com.amazonaws.services.sqs.model.SendMessageBatchRequestEntry;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
 import java.util.Map;
 
+import static brave.Span.Kind.PRODUCER;
+
 final class SendMessageTracingRequestHandler extends RequestHandler2 {
 
-  static final Propagation.Setter<Map<String, MessageAttributeValue>, String> SETTER =
-      new Propagation.Setter<Map<String, MessageAttributeValue>, String>() {
+  static final RemoteSetter<Map<String, MessageAttributeValue>> SETTER =
+      new RemoteSetter<Map<String, MessageAttributeValue>>() {
+        @Override public Span.Kind spanKind() {
+          return PRODUCER;
+        }
+
         @Override public void put(Map<String, MessageAttributeValue> carrier, String key, String value) {
           carrier.put(key,
               new MessageAttributeValue().withDataType("String").withStringValue(value));
         }
       };
 
-  static final Propagation.Getter<Map<String, MessageAttributeValue>, String> GETTER =
-      new Propagation.Getter<Map<String, MessageAttributeValue>, String>() {
+  static final RemoteGetter<Map<String, MessageAttributeValue>> GETTER =
+      new RemoteGetter<Map<String, MessageAttributeValue>>() {
+        @Override public Span.Kind spanKind() {
+          return PRODUCER;
+        }
+
         @Override public String get(Map<String, MessageAttributeValue> carrier, String key) {
           return carrier.containsKey(key) ? carrier.get(key).getStringValue() : null;
         }
@@ -48,8 +62,8 @@ final class SendMessageTracingRequestHandler extends RequestHandler2 {
   final Tracing tracing;
   final Tracer tracer;
   final CurrentTraceContext currentTraceContext;
-  final TraceContext.Injector<Map<String, MessageAttributeValue>> injector;
-  final TraceContext.Extractor<Map<String, MessageAttributeValue>> extractor;
+  final Injector<Map<String, MessageAttributeValue>> injector;
+  final Extractor<Map<String, MessageAttributeValue>> extractor;
 
   SendMessageTracingRequestHandler(Tracing tracing) {
     this.tracing = tracing;
@@ -85,7 +99,7 @@ final class SendMessageTracingRequestHandler extends RequestHandler2 {
     }
 
     span.name("publish-batch").remoteServiceName("amazon-sqs").start();
-    try (Tracer.SpanInScope scope = tracer.withSpanInScope(span)) {
+    try (SpanInScope scope = tracer.withSpanInScope(span)) {
       for (SendMessageBatchRequestEntry entry : request.getEntries()) {
         injectPerMessage(request.getQueueUrl(), entry.getMessageAttributes());
       }
@@ -107,7 +121,7 @@ final class SendMessageTracingRequestHandler extends RequestHandler2 {
     }
 
     if (!span.isNoop()) {
-      span.kind(Span.Kind.PRODUCER).name("publish");
+      span.kind(PRODUCER).name("publish");
       span.remoteServiceName("amazon-sqs");
       span.tag("queue.url", queueUrl);
       // incur timestamp overhead only once

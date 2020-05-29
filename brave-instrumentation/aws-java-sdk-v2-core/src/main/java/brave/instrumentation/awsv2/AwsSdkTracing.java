@@ -96,17 +96,23 @@ public final class AwsSdkTracing {
 
   static final class HttpClientResponse extends brave.http.HttpClientResponse {
     @Nullable final SdkHttpRequest request;
-    final SdkHttpResponse response;
+    @Nullable final SdkHttpResponse response;
     @Nullable final Throwable error;
 
     HttpClientResponse(
-        @Nullable SdkHttpRequest request, SdkHttpResponse response, @Nullable Throwable error) {
+        @Nullable SdkHttpRequest request,
+        @Nullable SdkHttpResponse response,
+        @Nullable Throwable error
+    ) {
+      if (response == null && error == null) {
+        throw new NullPointerException("response == null && error == null");
+      }
       this.request = request;
       this.response = response;
       this.error = error;
     }
 
-    @Override public brave.http.HttpClientRequest request() {
+    @Override public HttpClientRequest request() {
       return request != null ? new HttpClientRequest(request) : null;
     }
 

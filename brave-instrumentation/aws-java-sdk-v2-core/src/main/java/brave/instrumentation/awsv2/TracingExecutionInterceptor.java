@@ -117,7 +117,7 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       return;
     }
     handler.handleReceive(
-        new HttpClientResponse(context.httpRequest(), context.httpResponse(), null), null, span);
+        new HttpClientResponse(context.httpRequest(), context.httpResponse(), null), span);
   }
 
   /**
@@ -132,11 +132,10 @@ final class TracingExecutionInterceptor implements ExecutionInterceptor {
       // An evil interceptor deleted our attribute.
       return;
     }
-    Throwable error = maybeError(context);
-    HttpClientResponse response = context.httpResponse().map(r ->
-        new HttpClientResponse(context.httpRequest().orElse(null), r, error)
-    ).orElse(null);
-    handler.handleReceive(response, error, span);
+    handler.handleReceive(new HttpClientResponse(
+        context.httpRequest().orElse(null),
+        context.httpResponse().orElse(null),
+        maybeError(context)), span);
   }
 
   /**

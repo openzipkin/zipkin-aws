@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2018 The OpenZipkin Authors
+ * Copyright 2016-2020 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -14,29 +14,30 @@
 package brave.propagation.aws;
 
 import brave.Tracing;
+import brave.baggage.BaggagePropagation;
+import brave.baggage.BaggagePropagationConfig;
 import brave.propagation.B3Propagation;
 import brave.propagation.CurrentTraceContext;
-import brave.propagation.ExtraFieldPropagation;
-import brave.propagation.Propagation;
 import brave.propagation.SamplingFlags;
 import brave.propagation.TraceContext;
+import brave.propagation.TraceContext.Extractor;
+import brave.propagation.TraceContext.Injector;
 import brave.propagation.TraceContextOrSamplingFlags;
 import brave.propagation.TraceIdContext;
-import java.util.Arrays;
-import java.util.Collections;
+import brave.propagation.aws.AWSPropagation.AmznTraceId;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import org.junit.Test;
 
-import static brave.internal.HexCodec.lowerHexToUnsignedLong;
+import static brave.internal.codec.HexCodec.lowerHexToUnsignedLong;
 import static org.assertj.core.api.Assertions.assertThat;
 
 public class AWSPropagationTest {
   Map<String, String> carrier = new LinkedHashMap<>();
-  TraceContext.Injector<Map<String, String>> injector =
-      AWSPropagation.FACTORY.create(Propagation.KeyFactory.STRING).injector(Map::put);
-  TraceContext.Extractor<Map<String, String>> extractor =
-      AWSPropagation.FACTORY.create(Propagation.KeyFactory.STRING).extractor(Map::get);
+  Injector<Map<String, String>> injector =
+      AWSPropagation.FACTORY.get().injector(Map::put);
+  Extractor<Map<String, String>> extractor =
+      AWSPropagation.FACTORY.get().extractor(Map::get);
 
   String sampledTraceId =
       "Root=1-67891233-abcdef012345678912345678;Parent=463ac35c9f6413ad;Sampled=1";
@@ -46,7 +47,7 @@ public class AWSPropagationTest {
           .traceId(lowerHexToUnsignedLong("2345678912345678"))
           .spanId(lowerHexToUnsignedLong("463ac35c9f6413ad"))
           .sampled(true)
-          .extra(AWSPropagation.DEFAULT_EXTRA)
+          .addExtra(AWSPropagation.EXTRA_MARKER)
           .build();
 
   @Test
@@ -78,10 +79,11 @@ public class AWSPropagationTest {
   }
 
   TraceContext contextWithPassThrough() {
-    extractor =
-        ExtraFieldPropagation.newFactory(B3Propagation.FACTORY, "x-amzn-trace-id")
-            .create(Propagation.KeyFactory.STRING)
-            .extractor(Map::get);
+    extractor = BaggagePropagation.newFactoryBuilder(B3Propagation.FACTORY)
+        .add(BaggagePropagationConfig.SingleBaggageField.remote(AWSPropagation.FIELD_AMZN_TRACE_ID))
+        .build()
+        .get()
+        .extractor(Map::get);
 
     TraceContextOrSamplingFlags extracted = extractor.extract(carrier);
 
@@ -94,13 +96,13 @@ public class AWSPropagationTest {
         .traceId(1L)
         .spanId(2L)
         .sampled(true)
-        .extra(extracted.extra())
+        .addExtra(extracted.extra().get(0))
         .build();
   }
 
   @Test
   public void traceId_null_if_not_aws() {
-    TraceContext notAWS = sampledContext.toBuilder().extra(Collections.emptyList()).build();
+    TraceContext notAWS = sampledContext.toBuilder().clearExtra().build();
     assertThat(AWSPropagation.traceId(notAWS)).isNull();
   }
 
@@ -143,14 +145,14 @@ public class AWSPropagationTest {
     carrier.put("x-amzn-trace-id", sampledTraceId);
 
     TraceContextOrSamplingFlags extracted = extractor.extract(carrier);
-    assertThat(extracted.context().extra()).containsExactly(AWSPropagation.MARKER);
+    assertThat(extracted.context().extra()).containsExactly(AWSPropagation.EXTRA_MARKER);
   }
 
   /** If invoked extract, a 128-bit trace ID will be created, compatible with AWS format */
   @Test
   public void extract_fail_containsMarker() {
     TraceContextOrSamplingFlags extracted = extractor.extract(carrier);
-    assertThat(extracted.extra()).containsExactly(AWSPropagation.MARKER);
+    assertThat(extracted.extra()).containsExactly(AWSPropagation.EXTRA_MARKER);
   }
 
   @Test
@@ -216,30 +218,31 @@ public class AWSPropagationTest {
                 .traceId(lowerHexToUnsignedLong("5d99923122bbe354"))
                 .build());
 
-    assertThat(((AWSPropagation.Extra) extracted.extra().get(0)).fields)
+    assertThat(((AmznTraceId) extracted.extra().get(0)).customFields)
         .contains(new StringBuilder(";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo"));
   }
 
   @Test
   public void toString_fields() {
-    AWSPropagation.Extra extra = new AWSPropagation.Extra();
-    extra.fields = ";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo";
+    AmznTraceId amznTraceId = new AmznTraceId();
+    amznTraceId.customFields = ";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo";
 
-    assertThat(extra).hasToString("AWSPropagation{fields=" + extra.fields + "}");
+    assertThat(amznTraceId).hasToString("AmznTraceId{customFields=" + amznTraceId.customFields + "}");
   }
 
   @Test
   public void toString_none() {
-    AWSPropagation.Extra extra = new AWSPropagation.Extra();
+    AmznTraceId amznTraceId = new AmznTraceId();
 
-    assertThat(extra).hasToString("AWSPropagation{}");
+    assertThat(amznTraceId).hasToString("AmznTraceId{}");
   }
 
   @Test
   public void injectExtraStuff() {
-    AWSPropagation.Extra extra = new AWSPropagation.Extra();
-    extra.fields = ";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo";
-    TraceContext extraContext = sampledContext.toBuilder().extra(Arrays.asList(extra)).build();
+    AmznTraceId amznTraceId = new AmznTraceId();
+    amznTraceId.customFields = ";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo";
+    TraceContext extraContext =
+        sampledContext.toBuilder().clearExtra().addExtra(amznTraceId).build();
     injector.inject(extraContext, carrier);
 
     assertThat(carrier)
