@@ -59,12 +59,12 @@ public class UDPMessageEncoderTest {
     Span span =
         serverSpan
             .toBuilder()
-            .putTag("xray.origin", "AWS::EC2::Instance")
+            .putTag("aws.origin", "AWS::EC2::Instance")
             .build();
 
     String json = writeJson(span);
     assertThat(readString(json, "origin")).isEqualTo("AWS::EC2::Instance");
-    assertThat(readString(json, "annotations.xray_origin")).isEqualTo("AWS::EC2::Instance");
+    assertThat(readString(json, "annotations.aws_origin")).isNull();
   }
 
   @Test

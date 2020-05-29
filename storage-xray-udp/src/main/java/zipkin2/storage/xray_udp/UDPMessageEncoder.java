@@ -94,10 +94,6 @@ final class UDPMessageEncoder {
       }
     }
 
-    if (span.tags().get("xray.origin") != null) {
-      writer.name("origin").value(span.tags().get("xray.origin"));
-    }
-
     // http section
     String httpRequestMethod = null, httpRequestUrl = null;
     Integer httpResponseStatus = null;
@@ -114,6 +110,8 @@ final class UDPMessageEncoder {
     // aws.ec2 section
     String ec2AvailabilityZone = null,
         ec2InstanceId = null;
+    // aws.origin section
+    String xrayOrigin = null;
     // cause section
     String causeWorkingDirectory = null, causeExceptions = null;
     boolean http = false, sql = false, aws = false, cause = false;
@@ -188,6 +186,9 @@ final class UDPMessageEncoder {
             continue;
           case "aws.ec2.instance_id":
             ec2InstanceId = entry.getValue();
+            continue;
+          case "aws.origin":
+            xrayOrigin = entry.getValue();
             continue;
         }
       }
@@ -277,6 +278,7 @@ final class UDPMessageEncoder {
         writer.endObject();
       }
       writer.endObject();
+      if (xrayOrigin != null) writer.name("origin").value(xrayOrigin);
     }
 
     if (cause) {
