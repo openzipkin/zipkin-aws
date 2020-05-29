@@ -12,3 +12,9 @@ This storage module performs three activites:
  3. Forwards the encoded X-Ray segments to a X-Ray daemon endpoint
 
 The encoder is implemented by `zipkin2.storage.xray_udp.UDPMessageEncoder` class.
+
+### Field Mappings
+
+| Name | Source | Destination | Mandatory | Transformation | Reference |
+|------|--------|-------------|-----------|----------------|-----------|
+| Origin | `span.tags['aws.origin']` | `segment.origin` | No | Simple value mapped | [**Segment fields**](https://docs.aws.amazon.com/xray/latest/devguide/xray-api-segmentdocuments.html#api-segmentdocuments-fields) > **Optional Segment Fields** > `origin` |
