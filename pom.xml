@@ -58,7 +58,7 @@
     <!-- Generally best to match this with armeria's dependency -->
     <netty.version>4.1.50.Final</netty.version>
 
-    <zipkin.version>2.21.2</zipkin.version>
+    <zipkin.version>2.21.3</zipkin.version>
     <zipkin-reporter.version>2.15.0</zipkin-reporter.version>
     <brave.version>5.12.3</brave.version>
 
