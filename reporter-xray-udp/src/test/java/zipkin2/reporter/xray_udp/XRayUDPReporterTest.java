@@ -30,6 +30,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 import org.junit.Test;
+import zipkin2.Span;
 import zipkin2.TestObjects;
 import zipkin2.storage.xray_udp.InternalStorageAccess;
 
@@ -84,8 +85,11 @@ public class XRayUDPReporterTest {
   @Test
   public void sendSingleSpan() throws Exception {
     reporter.report(TestObjects.CLIENT_SPAN);
+    Span spanWithSdk = TestObjects.CLIENT_SPAN.toBuilder()
+                                              .putTag("aws.xray.sdk", "Zipkin Brave")
+                                              .build();
     assertThat(receivedPayloads.take())
-        .containsExactly(InternalStorageAccess.encode(TestObjects.CLIENT_SPAN));
+        .containsExactly(InternalStorageAccess.encode(spanWithSdk));
     assertThat(receivedPayloads).isEmpty();
   }
 }

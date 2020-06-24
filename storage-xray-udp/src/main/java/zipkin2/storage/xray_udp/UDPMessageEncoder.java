@@ -112,9 +112,11 @@ final class UDPMessageEncoder {
         ec2InstanceId = null;
     // aws.origin section
     String xrayOrigin = null;
+    // aws.xray.sdk section
+    String xraySdk = null;
     // cause section
     String causeWorkingDirectory = null, causeExceptions = null;
-    boolean http = false, sql = false, aws = false, cause = false;
+    boolean http = false, sql = false, cause = false;
 
     Map<String, String> annotations = new LinkedHashMap<>();
     Map<String, String> metadata = new LinkedHashMap<>();
@@ -161,7 +163,6 @@ final class UDPMessageEncoder {
       }
 
       if (entry.getKey().startsWith("aws.")) {
-        aws = true;
         switch (entry.getKey()) {
           case "aws.operation":
             awsOperation = entry.getValue();
@@ -189,6 +190,9 @@ final class UDPMessageEncoder {
             continue;
           case "aws.origin":
             xrayOrigin = entry.getValue();
+            continue;
+          case "aws.xray.sdk":
+            xraySdk = entry.getValue();
             continue;
         }
       }
@@ -261,25 +265,30 @@ final class UDPMessageEncoder {
       writer.endObject();
     }
 
-    if (aws) {
-      writer.name("aws");
+    writer.name("aws");
+    writer.beginObject();
+
+    writer.name("xray");
+    writer.beginObject();
+    writer.name("sdk");
+    writer.value(xraySdk != null ? xraySdk : "Zipkin");
+    writer.endObject();
+
+    if (awsOperation != null) writer.name("operation").value(awsOperation);
+    if (awsAccountId != null) writer.name("account_id").value(awsAccountId);
+    if (awsRegion != null) writer.name("region").value(awsRegion);
+    if (awsRequestId != null) writer.name("request_id").value(awsRequestId);
+    if (awsQueueUrl != null) writer.name("queue_url").value(awsQueueUrl);
+    if (awsTableName != null) writer.name("table_name").value(awsTableName);
+    if (ec2AvailabilityZone != null || ec2InstanceId != null) {
+      writer.name("ec2");
       writer.beginObject();
-      if (awsOperation != null) writer.name("operation").value(awsOperation);
-      if (awsAccountId != null) writer.name("account_id").value(awsAccountId);
-      if (awsRegion != null) writer.name("region").value(awsRegion);
-      if (awsRequestId != null) writer.name("request_id").value(awsRequestId);
-      if (awsQueueUrl != null) writer.name("queue_url").value(awsQueueUrl);
-      if (awsTableName != null) writer.name("table_name").value(awsTableName);
-      if (ec2AvailabilityZone != null || ec2InstanceId != null) {
-        writer.name("ec2");
-        writer.beginObject();
-        if (ec2AvailabilityZone != null) writer.name("availability_zone").value(ec2AvailabilityZone);
-        if (ec2InstanceId != null) writer.name("instance_id").value(ec2InstanceId);
-        writer.endObject();
-      }
+      if (ec2AvailabilityZone != null) writer.name("availability_zone").value(ec2AvailabilityZone);
+      if (ec2InstanceId != null) writer.name("instance_id").value(ec2InstanceId);
       writer.endObject();
-      if (xrayOrigin != null) writer.name("origin").value(xrayOrigin);
     }
+    writer.endObject();
+    if (xrayOrigin != null) writer.name("origin").value(xrayOrigin);
 
     if (cause) {
       writer.name("cause");

@@ -57,6 +57,9 @@ public class XRayUDPReporter implements Reporter<Span>, Closeable {
 
   @Override
   public void report(Span span) {
+    if (!span.tags().containsKey("aws.xray.sdk")) {
+      span = span.toBuilder().putTag("aws.xray.sdk", "Zipkin Brave").build();
+    }
     Call<Void> call;
     try {
       call = delegate.accept(Collections.singletonList(span));
