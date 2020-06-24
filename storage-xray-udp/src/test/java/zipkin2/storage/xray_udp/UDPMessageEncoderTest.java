@@ -40,7 +40,7 @@ public class UDPMessageEncoderTest {
 
     assertThat(writeJson(span))
         .isEqualTo(
-            "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\"}");
+            "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\",\"aws\":{\"xray\":{\"sdk\":\"Zipkin\"}}}");
   }
 
   @Test
@@ -241,8 +241,27 @@ public class UDPMessageEncoderTest {
             .build();
 
     String json = writeJson(span);
-    assertThat(readMap(json, "aws"))
-        .containsExactly(entry("region", "reg1"), entry("table_name", "table1"));
+    Map<String, Object> map = readMap(json, "aws");
+    assertThat(map).hasSize(3);
+    assertThat(map).containsEntry("region", "reg1");
+    assertThat(map).containsEntry("table_name", "table1");
+    assertThat(map.get("xray")).isInstanceOfSatisfying(Map.class, xray -> {
+      assertThat(xray).containsExactly(entry("sdk", "Zipkin"));
+    });
+  }
+
+  @Test
+  public void writeJson_sdkProvided() throws Exception {
+    Span span =
+        serverSpan
+            .toBuilder()
+            .putTag("aws.xray.sdk", "Zipkin Brave")
+            .build();
+
+    String json = writeJson(span);
+    assertThat(readMap(json, "aws").get("xray")).isInstanceOfSatisfying(Map.class, xray -> {
+      assertThat(xray).containsExactly(entry("sdk", "Zipkin Brave"));
+    });
   }
 
   @Test
