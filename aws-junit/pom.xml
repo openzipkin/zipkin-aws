@@ -54,7 +54,7 @@
 
     <dependency>
       <groupId>org.elasticmq</groupId>
-      <artifactId>elasticmq-server_2.12</artifactId>
+      <artifactId>elasticmq-server_2.13</artifactId>
       <version>0.15.6</version>
     </dependency>
   </dependencies>

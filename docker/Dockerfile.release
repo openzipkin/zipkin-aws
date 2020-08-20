@@ -43,7 +43,7 @@ RUN export version=$(echo "${source_branch}" | cut -d '-' -f 2) && \
   (mkdir xray && cd xray && cp ~/.m2/repository/io/zipkin/aws/zipkin-module-storage-xray/${version}/*.jar . && jar xf *.jar && rm *.jar) && \
   echo > .xray_profile
 
-FROM openzipkin/zipkin:2.21.1
+FROM openzipkin/zipkin:2.21.7
 MAINTAINER Zipkin "https://zipkin.io/"
 
 COPY --from=built /zipkin-aws/ /zipkin/
