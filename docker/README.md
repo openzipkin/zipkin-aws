@@ -5,7 +5,7 @@ This build produces the "openzipkin/zipkin-aws" image that integrates all
 
 Here's an example of using Amazon's Elasticsearch Service
 ```bash
-$ docker run -d -p 9411:9411 --name zipkin-aws \
+$ docker run -d -p 9411:9411 --rm --name zipkin-aws \
     -e STORAGE_TYPE=elasticsearch \
     -e ES_AWS_DOMAIN=YOUR_DOMAIN -e ES_AWS_REGION=YOUR_REGION \
     -v $HOME/.aws:/zipkin/.aws:ro \
