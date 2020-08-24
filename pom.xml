@@ -341,6 +341,7 @@
             <artifactId>${main.signature.artifact}</artifactId>
             <version>1.0</version>
           </signature>
+          <checkTestClasses>false</checkTestClasses>
         </configuration>
         <executions>
           <execution>
