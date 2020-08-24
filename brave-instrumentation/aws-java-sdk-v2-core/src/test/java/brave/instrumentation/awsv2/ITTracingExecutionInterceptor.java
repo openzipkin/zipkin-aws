@@ -27,6 +27,7 @@ import java.time.Duration;
 import java.util.Collections;
 import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
+import org.junit.AssumptionViolatedException;
 import org.junit.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -86,6 +87,11 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
 
   @Override protected void get(DynamoDbClient client, String s) {
     client.getItem(GetItemRequest.builder().tableName(s).key(Collections.emptyMap()).build());
+  }
+
+  @Override protected void options(DynamoDbClient client, String s) {
+    throw new AssumptionViolatedException(
+        "HTTP OPTIONS method isn't implemented at this abstraction");
   }
 
   @Override protected void post(DynamoDbClient client, String s, String s1) {
