@@ -46,7 +46,7 @@ RUN cp /code/module/storage-xray/target/zipkin-module-storage-xray-*-module.jar 
   (mkdir xray && cd xray && jar -xf ../xray.jar) && \
   rm xray.jar
 
-FROM openzipkin/zipkin:master
+FROM openzipkin/zipkin:2.21.7
 MAINTAINER Zipkin "https://zipkin.io/"
 
 COPY --from=built /zipkin-aws/ /zipkin/

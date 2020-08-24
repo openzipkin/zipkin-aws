@@ -30,6 +30,7 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import okhttp3.mockwebserver.MockResponse;
+import org.junit.AssumptionViolatedException;
 import org.junit.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -58,6 +59,11 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
     dynamoDB.getItem(s, Collections.emptyMap());
   }
 
+  @Override protected void options(AmazonDynamoDB dynamoDB, String s) {
+    throw new AssumptionViolatedException(
+        "HTTP OPTIONS method isn't implemented at this abstraction");
+  }
+
   @Override protected void post(AmazonDynamoDB dynamoDB, String s, String s1) {
     dynamoDB.putItem(s, Collections.emptyMap());
   }
@@ -67,6 +73,11 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
    *  * Modeling choices that overwrite user configuration, such as overwriting names
    *  * This test assumes AWS requests have "/" path with no parameters (not universally true ex S3)
    */
+
+  @Override public void emptyPath() throws IOException {
+    super.emptyPath();
+    testSpanHandler.takeLocalSpan();
+  }
 
   /** Service and span names don't conform to expectations. */
   @Override @Test public void supportsPortableCustomization() {

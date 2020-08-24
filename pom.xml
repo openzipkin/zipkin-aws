@@ -46,33 +46,36 @@
 
     <main.basedir>${project.basedir}</main.basedir>
 
-    <license-maven-plugin.version>3.0</license-maven-plugin.version>
+    <!-- TODO: cleanup any redundant ignores now also in the 4.0 release (once final) -->
+    <license-maven-plugin.version>4.0.rc2</license-maven-plugin.version>
 
     <!-- matching armeria/zipkin -->
-    <spring-boot.version>2.3.0.RELEASE</spring-boot.version>
+    <spring-boot.version>2.3.3.RELEASE</spring-boot.version>
     <jackson.version>2.10.3</jackson.version>
     <!-- This allows you to test feature branches with jitpack -->
     <armeria.groupId>com.linecorp.armeria</armeria.groupId>
-    <armeria.version>0.99.6</armeria.version>
+    <armeria.version>0.99.9</armeria.version>
+    <!-- Match Armeria version to avoid conflicts including running tests in the IDE -->
+    <netty.version>4.1.51.Final</netty.version>
 
-    <!-- Generally best to match this with armeria's dependency -->
-    <netty.version>4.1.50.Final</netty.version>
+    <!-- It's easy for Jackson dependencies to get misaligned, so we manage it ourselves. -->
+    <jackson.version>2.11.2</jackson.version>
 
-    <zipkin.version>2.21.3</zipkin.version>
-    <zipkin-reporter.version>2.15.0</zipkin-reporter.version>
-    <brave.version>5.12.3</brave.version>
+    <zipkin.version>2.21.7</zipkin.version>
+    <zipkin-reporter.version>2.15.1</zipkin-reporter.version>
+    <brave.version>5.12.5</brave.version>
 
     <slf4j.version>1.7.30</slf4j.version>
     <log4j.version>2.13.3</log4j.version>
 
-    <aws-java-sdk.version>1.11.790</aws-java-sdk.version>
-    <sdk-core.version>2.13.24</sdk-core.version>
+    <aws-java-sdk.version>1.11.846</aws-java-sdk.version>
+    <sdk-core.version>2.14.2</sdk-core.version>
 
-    <mockito.version>2.28.2</mockito.version>
+    <mockito.version>3.4.6</mockito.version>
 
     <!-- override to set exclusions per-project -->
     <errorprone.args />
-    <errorprone.version>2.3.4</errorprone.version>
+    <errorprone.version>2.4.0</errorprone.version>
 
     <maven-failsafe-plugin.version>3.0.0-M4</maven-failsafe-plugin.version>
   </properties>
@@ -177,12 +180,12 @@
       <dependency>
         <groupId>org.awaitility</groupId>
         <artifactId>awaitility</artifactId>
-        <version>4.0.2</version>
+        <version>4.0.3</version>
       </dependency>
       <dependency>
         <groupId>com.squareup.okhttp3</groupId>
         <artifactId>mockwebserver</artifactId>
-        <version>4.5.0</version>
+        <version>4.8.1</version>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>
@@ -208,7 +211,7 @@
     <dependency>
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
-      <version>3.15.0</version>
+      <version>3.16.1</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -273,7 +276,7 @@
         <plugin>
           <groupId>org.codehaus.mojo</groupId>
           <artifactId>animal-sniffer-maven-plugin</artifactId>
-          <version>1.18</version>
+          <version>1.19</version>
         </plugin>
       </plugins>
     </pluginManagement>
@@ -338,6 +341,7 @@
             <artifactId>${main.signature.artifact}</artifactId>
             <version>1.0</version>
           </signature>
+          <checkTestClasses>false</checkTestClasses>
         </configuration>
         <executions>
           <execution>
@@ -429,7 +433,7 @@
             <configuration>
               <rules>
                 <requireJavaVersion>
-                  <version>[11,14)</version>
+                  <version>[11,15)</version>
                 </requireJavaVersion>
               </rules>
             </configuration>

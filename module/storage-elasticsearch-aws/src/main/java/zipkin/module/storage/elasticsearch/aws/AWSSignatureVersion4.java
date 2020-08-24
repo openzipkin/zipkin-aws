@@ -89,7 +89,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingHttpClient {
             .thenApply(aggReg -> {
               try {
                 AggregatedHttpRequest signed = sign(ctx, aggReg);
-                return delegate().execute(ctx, signed.toHttpRequest());
+                return unwrap().execute(ctx, signed.toHttpRequest());
               } catch (Exception e) {
                 return HttpResponse.ofFailure(e);
               }
