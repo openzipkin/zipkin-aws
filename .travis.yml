@@ -13,7 +13,7 @@ cache:
 
 before_install:
   # Use OS package to update JDK
-  - export JAVA_VERSION=14
+  - export JAVA_VERSION=15
   - sudo apt-get -y install openjdk-$JAVA_VERSION-jdk
   - export JAVA_HOME=/usr/lib/jvm/java-$JAVA_VERSION-openjdk-amd64/
   - ./mvnw -version

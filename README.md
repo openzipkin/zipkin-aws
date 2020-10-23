@@ -4,7 +4,7 @@
 
 # zipkin-aws
 Shared libraries that provide Zipkin integration with AWS Kinesis, SQS, 
-and X-Ray. Requires JRE 6 or later.
+and X-Ray. Requires JRE 8 or later.
 
 # Usage
 These components provide Zipkin 

@@ -36,6 +36,7 @@
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-core</artifactId>
+      <scope>provided</scope>
     </dependency>
 
     <dependency>

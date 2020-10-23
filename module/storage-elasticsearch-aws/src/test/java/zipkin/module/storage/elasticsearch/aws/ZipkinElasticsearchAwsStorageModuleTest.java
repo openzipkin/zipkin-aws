@@ -15,7 +15,6 @@ package zipkin.module.storage.elasticsearch.aws;
 
 import com.linecorp.armeria.client.ClientOptions;
 import com.linecorp.armeria.client.ClientOptionsBuilder;
-import com.linecorp.armeria.client.Endpoint;
 import com.linecorp.armeria.client.WebClient;
 import com.linecorp.armeria.client.endpoint.EndpointGroup;
 import com.linecorp.armeria.common.SessionProtocol;
@@ -149,7 +148,7 @@ public class ZipkinElasticsearchAwsStorageModuleTest {
 
     @Bean @Qualifier(QUALIFIER) @ConditionalOnMissingBean
     Supplier<EndpointGroup> esInitialEndpoints() {
-      return EndpointGroup::empty;
+      return EndpointGroup::of;
     }
   }
 }

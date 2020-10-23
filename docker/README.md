@@ -14,9 +14,14 @@ $ docker run -d -p 9411:9411 --rm --name zipkin-aws \
 
 ### Building for tests:
 
-To build a zipkin-aws Docker image, in the top level of the repository, run something
-like
+To build a zipkin-aws Docker image from source, in the top level of the repository, run:
 
 ```bash
 $ docker build -t openzipkin/zipkin-aws:test -f docker/Dockerfile .
+```
+
+To build from a published version, run this instead:
+
+```bash
+$ docker build --build-arg RELEASE_VERSION=0.21.4 -t openzipkin/zipkin-aws:test -f docker/Dockerfile .
 ```

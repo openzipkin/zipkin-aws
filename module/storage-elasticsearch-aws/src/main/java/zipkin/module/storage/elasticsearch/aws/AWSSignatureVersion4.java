@@ -85,15 +85,14 @@ final class AWSSignatureVersion4 extends SimpleDecoratingHttpClient {
     // We aggregate the request body with pooled objects because signing implies reading it before
     // sending it to Elasticsearch.
     return HttpResponse.from(
-        req.aggregateWithPooledObjects(ctx.contextAwareEventLoop(), ctx.alloc())
-            .thenApply(aggReg -> {
-              try {
-                AggregatedHttpRequest signed = sign(ctx, aggReg);
-                return unwrap().execute(ctx, signed.toHttpRequest());
-              } catch (Exception e) {
-                return HttpResponse.ofFailure(e);
-              }
-            }));
+        req.aggregateWithPooledObjects(ctx.eventLoop(), ctx.alloc()).thenApply(aggReg -> {
+          try {
+            AggregatedHttpRequest signed = sign(ctx, aggReg);
+            return unwrap().execute(ctx, signed.toHttpRequest());
+          } catch (Exception e) {
+            return HttpResponse.ofFailure(e);
+          }
+        }));
   }
 
   static void writeCanonicalString(
@@ -110,9 +109,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingHttpClient {
 
     // CanonicalQueryString + '\n' +
     String query = ctx.query();
-    if (query != null) {
-      ByteBufUtil.writeUtf8(result, query);
-    }
+    if (query != null) ByteBufUtil.writeUtf8(result, query);
     result.writeByte('\n');
 
     // CanonicalHeaders + '\n' +
@@ -144,7 +141,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingHttpClient {
     }
   }
 
-  private static void writeCanonicalHeaderValue(AsciiString canonicalHeader, String value,
+  static void writeCanonicalHeaderValue(AsciiString canonicalHeader, String value,
       ByteBuf signedHeaders, ByteBuf result) {
     ByteBufUtil.writeUtf8(result, canonicalHeader);
     result.writeByte(':');
@@ -300,16 +297,11 @@ final class AWSSignatureVersion4 extends SimpleDecoratingHttpClient {
   //   variability when generating signature.
   static String host(RequestHeaders headers, ClientRequestContext ctx) {
     String host = headers.get(AUTHORITY);
-    if (host == null) {
-      host = ctx.additionalRequestHeaders().get(HttpHeaderNames.AUTHORITY);
-    }
-    if (host == null) {
-      host = ctx.endpoint().host();
-    }
+    if (host == null) host = ctx.additionalRequestHeaders().get(HttpHeaderNames.AUTHORITY);
+    if (host == null) host = ctx.endpoint().host();
+
     int colonIndex = host.indexOf(':');
-    if (colonIndex >= 0) {
-      host = host.substring(0, colonIndex);
-    }
+    if (colonIndex >= 0) host = host.substring(0, colonIndex);
 
     return host;
   }

@@ -12,6 +12,8 @@
 # the License.
 #
 
+ARG zipkin_version=2.22.0
+
 # We copy files from the context into a scratch container first to avoid a problem where docker and
 # docker-compose don't share layer hashes https://github.com/docker/compose/issues/883 normally.
 # COPY --from= works around the issue.
@@ -19,36 +21,21 @@ FROM scratch as scratch
 
 COPY . /code/
 
-FROM openzipkin/zipkin-builder as built
+FROM openzipkin/zipkin-builder as install
 
+WORKDIR /install
+
+# Conditions aren't supported in Dockerfile instructions, so we copy source even if it isn't used.
 COPY --from=scratch /code /code
 
-WORKDIR /code
+# This will either be "master" or a real version ex. "2.4.5"
+ARG release_version=master
+ENV RELEASE_VERSION=${release_version}
+COPY docker/install.sh /tmp/
+RUN /tmp/install.sh && rm /tmp/install.sh
 
-RUN mvn -B --no-transfer-progress package -DskipTests=true -pl module/collector-sqs,module/collector-kinesis,module/storage-elasticsearch-aws,module/storage-xray -am
+FROM openzipkin/zipkin:$zipkin_version
 
-WORKDIR /zipkin-aws
-
-RUN cp /code/module/collector-sqs/target/zipkin-module-collector-sqs-*-module.jar sqs.jar && \
-  (mkdir sqs && cd sqs && jar -xf ../sqs.jar) && \
-  rm sqs.jar
-
-RUN cp /code/module/collector-kinesis/target/zipkin-module-collector-kinesis-*-module.jar kinesis.jar && \
-  (mkdir kinesis && cd kinesis && jar -xf ../kinesis.jar) && \
-  rm kinesis.jar
-
-RUN cp /code/module/storage-elasticsearch-aws/target/zipkin-module-storage-elasticsearch-aws-*-module.jar elasticsearch-aws.jar && \
-  (mkdir elasticsearch-aws && cd elasticsearch-aws && jar -xf ../elasticsearch-aws.jar) && \
-  rm elasticsearch-aws.jar
-
-RUN cp /code/module/storage-xray/target/zipkin-module-storage-xray-*-module.jar xray.jar && \
-  echo > .xray_profile && \
-  (mkdir xray && cd xray && jar -xf ../xray.jar) && \
-  rm xray.jar
-
-FROM openzipkin/zipkin:2.21.7
-MAINTAINER Zipkin "https://zipkin.io/"
-
-COPY --from=built /zipkin-aws/ /zipkin/
+COPY --from=install /install/ /zipkin/
 
 ENV MODULE_OPTS="-Dloader.path=sqs,kinesis,elasticsearch-aws,xray -Dspring.profiles.active=sqs,kinesis,elasticsearch-aws,xray"

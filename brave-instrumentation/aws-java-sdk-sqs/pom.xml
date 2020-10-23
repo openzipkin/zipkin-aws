@@ -37,6 +37,7 @@
     <dependency>
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-sqs</artifactId>
+      <scope>provided</scope>
     </dependency>
 
     <dependency>

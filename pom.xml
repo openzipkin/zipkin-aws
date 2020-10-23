@@ -14,7 +14,9 @@
     the License.
 
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>io.zipkin.aws</groupId>
@@ -41,8 +43,8 @@
     <project.build.resourceEncoding>UTF-8</project.build.resourceEncoding>
 
     <!-- default bytecode version for src/main -->
-    <main.java.version>1.6</main.java.version>
-    <main.signature.artifact>java16</main.signature.artifact>
+    <main.java.version>1.8</main.java.version>
+    <main.signature.artifact>java18</main.signature.artifact>
 
     <main.basedir>${project.basedir}</main.basedir>
 
@@ -50,34 +52,37 @@
     <license-maven-plugin.version>4.0.rc2</license-maven-plugin.version>
 
     <!-- matching armeria/zipkin -->
-    <spring-boot.version>2.3.3.RELEASE</spring-boot.version>
+    <spring-boot.version>2.3.4.RELEASE</spring-boot.version>
     <jackson.version>2.10.3</jackson.version>
     <!-- This allows you to test feature branches with jitpack -->
     <armeria.groupId>com.linecorp.armeria</armeria.groupId>
-    <armeria.version>0.99.9</armeria.version>
+    <armeria.version>1.2.0</armeria.version>
     <!-- Match Armeria version to avoid conflicts including running tests in the IDE -->
-    <netty.version>4.1.51.Final</netty.version>
+    <netty.version>4.1.53.Final</netty.version>
 
     <!-- It's easy for Jackson dependencies to get misaligned, so we manage it ourselves. -->
     <jackson.version>2.11.2</jackson.version>
 
-    <zipkin.version>2.21.7</zipkin.version>
-    <zipkin-reporter.version>2.15.1</zipkin-reporter.version>
-    <brave.version>5.12.5</brave.version>
+    <zipkin.version>2.22.0</zipkin.version>
+    <zipkin-reporter.version>2.15.2</zipkin-reporter.version>
+    <brave.version>5.12.7</brave.version>
 
     <slf4j.version>1.7.30</slf4j.version>
     <log4j.version>2.13.3</log4j.version>
 
-    <aws-java-sdk.version>1.11.846</aws-java-sdk.version>
-    <sdk-core.version>2.14.2</sdk-core.version>
+    <aws-java-sdk.version>1.11.885</aws-java-sdk.version>
+    <sdk-core.version>2.15.13</sdk-core.version>
 
-    <mockito.version>3.4.6</mockito.version>
+    <!-- Test only dependencies -->
+    <junit.version>4.13.1</junit.version>
+    <junit-jupiter.version>5.7.0</junit-jupiter.version>
+    <mockito.version>3.5.15</mockito.version>
 
     <!-- override to set exclusions per-project -->
-    <errorprone.args />
+    <errorprone.args/>
     <errorprone.version>2.4.0</errorprone.version>
 
-    <maven-failsafe-plugin.version>3.0.0-M4</maven-failsafe-plugin.version>
+    <maven-failsafe-plugin.version>3.0.0-M5</maven-failsafe-plugin.version>
   </properties>
 
   <name>Zipkin AWS (Parent)</name>
@@ -173,11 +178,6 @@
         <version>${project.version}</version>
       </dependency>
       <dependency>
-        <groupId>junit</groupId>
-        <artifactId>junit</artifactId>
-        <version>4.13</version>
-      </dependency>
-      <dependency>
         <groupId>org.awaitility</groupId>
         <artifactId>awaitility</artifactId>
         <version>4.0.3</version>
@@ -185,7 +185,7 @@
       <dependency>
         <groupId>com.squareup.okhttp3</groupId>
         <artifactId>mockwebserver</artifactId>
-        <version>4.8.1</version>
+        <version>4.9.0</version>
       </dependency>
       <dependency>
         <groupId>com.amazonaws</groupId>
@@ -206,12 +206,47 @@
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
+      <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit-jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.vintage</groupId>
+      <artifactId>junit-vintage-engine</artifactId>
+      <version>${junit-jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!--
+    Current versions of JUnit5 provide the above junit-jupiter artifact for convenience but we may
+    still have transitive dependencies on these older artifacts and have to make sure they're all
+    using the same version.
+    -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-api</artifactId>
+      <version>${junit-jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter-engine</artifactId>
+      <version>${junit-jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
     <dependency>
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
-      <version>3.16.1</version>
+      <version>3.17.2</version>
       <scope>test</scope>
     </dependency>
     <dependency>
@@ -240,9 +275,8 @@
           <version>3.8.1</version>
           <inherited>true</inherited>
           <configuration>
-            <!-- Retrolambda will rewrite lambdas as Java 6 bytecode -->
-            <source>1.8</source>
-            <target>1.8</target>
+            <source>${main.java.version}</source>
+            <target>${main.java.version}</target>
             <!-- or die! com.sun.tools.javac.api.JavacTool -->
             <fork>true</fork>
             <showWarnings>true</showWarnings>
@@ -283,24 +317,6 @@
 
     <plugins>
       <plugin>
-        <groupId>net.orfjackal.retrolambda</groupId>
-        <artifactId>retrolambda-maven-plugin</artifactId>
-        <version>2.5.7</version>
-        <executions>
-          <execution>
-            <goals>
-              <goal>process-main</goal>
-            </goals>
-            <configuration>
-              <target>${main.java.version}</target>
-              <fork>true</fork>
-              <quiet>true</quiet>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <plugin>
         <artifactId>maven-jar-plugin</artifactId>
         <version>3.2.0</version>
       </plugin>
@@ -308,24 +324,29 @@
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <version>${maven-failsafe-plugin.version}</version>
+        <configuration>
+          <!-- Ensure scope leak cause ends up in the console -->
+          <trimStackTrace>false</trimStackTrace>
+        </configuration>
       </plugin>
+
       <plugin>
         <artifactId>maven-failsafe-plugin</artifactId>
         <version>${maven-failsafe-plugin.version}</version>
-        <!-- Try to prevent flakes in circleci -->
         <configuration>
+          <!-- Try to prevent flakes in CI -->
           <reuseForks>false</reuseForks>
+          <!-- workaround to SUREFIRE-1831 -->
+          <useModulePath>false</useModulePath>
+          <!-- Ensure scope leak cause ends up in the console -->
+          <trimStackTrace>false</trimStackTrace>
         </configuration>
         <executions>
           <execution>
             <id>integration-test</id>
+            <phase>verify</phase>
             <goals>
               <goal>integration-test</goal>
-            </goals>
-          </execution>
-          <execution>
-            <id>verify</id>
-            <goals>
               <goal>verify</goal>
             </goals>
           </execution>
@@ -433,7 +454,7 @@
             <configuration>
               <rules>
                 <requireJavaVersion>
-                  <version>[11,15)</version>
+                  <version>[11,16)</version>
                 </requireJavaVersion>
               </rules>
             </configuration>

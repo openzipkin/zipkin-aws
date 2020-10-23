@@ -28,9 +28,6 @@
 
   <properties>
     <main.basedir>${project.basedir}/..</main.basedir>
-    <!-- this is using the V2 AWS SDK which is only compatible with Java8 -->
-    <main.java.version>1.8</main.java.version>
-    <main.signature.artifact>java18</main.signature.artifact>
   </properties>
 
   <dependencies>
@@ -64,19 +61,4 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
-
-  <build>
-    <plugins>
-      <plugin>
-        <groupId>net.orfjackal.retrolambda</groupId>
-        <artifactId>retrolambda-maven-plugin</artifactId>
-        <executions>
-          <execution>
-            <phase>none</phase>
-          </execution>
-        </executions>
-      </plugin>
-    </plugins>
-  </build>
-
 </project>
