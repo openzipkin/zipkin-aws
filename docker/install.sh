@@ -32,7 +32,7 @@ else
     # This prefers Maven central, but uses our release repository if it isn't yet synced.
     mvn --batch-mode org.apache.maven.plugins:maven-dependency-plugin:get \
         -DremoteRepositories=bintray::::https://dl.bintray.com/openzipkin/maven -Dtransitive=false \
-        -Dartifact=io.zipkin.aws:zipkin-module-storage-${artifact}:${RELEASE_VERSION}:jar:module
+        -Dartifact=io.zipkin.aws:zipkin-module-${artifact}:${RELEASE_VERSION}:jar:module
 
     # Copy the module jar from the local Maven repository
     find ~/.m2/repository -name zipkin-module-${artifact}-${RELEASE_VERSION}-module.jar -exec cp {} ${artifact}.jar \;
