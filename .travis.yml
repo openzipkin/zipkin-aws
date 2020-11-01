@@ -16,7 +16,7 @@ cache:
     - $HOME/.m2
 
 before_install:
-  - export DOCKER_TARGET=zipkin-gcp
+  - export DOCKER_TARGET=zipkin-aws
   - |
     # Use OS package to update JDK (TODO 15 wasn't available)
     OPENJDK_VERSION=14
