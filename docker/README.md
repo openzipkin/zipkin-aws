@@ -3,8 +3,15 @@
 This build produces the "openzipkin/zipkin-aws" image that integrates all
 [zipkin-aws modules](../module)
 
-Here's an example of using Amazon's Elasticsearch Service
+## Running
+
+By default, this image will search for credentials in the $HOME/.aws directory.
+
+If you want to try Zipkin against AWS Elasticsearch, the easiest start is to share
+your credentials with Zipkin's docker image.
+
 ```bash
+# Note: this is mirrored as ghcr.io/openzipkin/zipkin-aws
 $ docker run -d -p 9411:9411 --rm --name zipkin-aws \
     -e STORAGE_TYPE=elasticsearch \
     -e ES_AWS_DOMAIN=YOUR_DOMAIN -e ES_AWS_REGION=YOUR_REGION \
@@ -12,16 +19,24 @@ $ docker run -d -p 9411:9411 --rm --name zipkin-aws \
     openzipkin/zipkin-aws
 ```
 
-### Building for tests:
+## Configuration
+
+In Docker, the following can also be set:
+
+    * `JAVA_OPTS`: Use to set java arguments, such as heap size or trust store location.
+
+## Building
 
 To build a zipkin-aws Docker image from source, in the top level of the repository, run:
 
+
 ```bash
-$ docker build -t openzipkin/zipkin-aws:test -f docker/Dockerfile .
+$ docker/build_image openzipkin/zipkin-aws:test
 ```
 
 To build from a published version, run this instead:
 
 ```bash
-$ docker build --build-arg RELEASE_VERSION=0.21.4 -t openzipkin/zipkin-aws:test -f docker/Dockerfile .
+$ docker/build_image openzipkin/zipkin-aws:test 0.18.1
 ```
+
