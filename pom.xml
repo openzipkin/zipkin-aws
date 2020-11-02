@@ -81,6 +81,7 @@
     <errorprone.version>2.4.0</errorprone.version>
 
     <maven-failsafe-plugin.version>3.0.0-M5</maven-failsafe-plugin.version>
+    <nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>
   </properties>
 
   <name>Zipkin AWS (Parent)</name>
@@ -317,6 +318,12 @@
           <artifactId>animal-sniffer-maven-plugin</artifactId>
           <version>1.19</version>
         </plugin>
+
+        <plugin>
+          <groupId>org.sonatype.plugins</groupId>
+          <artifactId>nexus-staging-maven-plugin</artifactId>
+          <version>${nexus-staging-maven-plugin.version}</version>
+        </plugin>
       </plugins>
     </pluginManagement>
 
@@ -528,7 +535,6 @@
           <plugin>
             <groupId>org.sonatype.plugins</groupId>
             <artifactId>nexus-staging-maven-plugin</artifactId>
-            <version>1.6.8</version>
             <extensions>true</extensions>
             <configuration>
               <serverId>ossrh</serverId>

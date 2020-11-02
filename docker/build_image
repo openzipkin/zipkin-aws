@@ -105,6 +105,6 @@ case ${ARCH} in
     exit 1
 esac
 
-echo "Pushing image ${TAG} with platforms ${PLATFORMS} and Java version ${ZIPKIN_VERSION}"
+echo "Pushing image ${TAG} with platforms ${PLATFORMS} and Zipkin version ${ZIPKIN_VERSION}"
 docker buildx build --progress plain --platform=${PLATFORMS} --build-arg artifacts="${ARTIFACTS}" \
 ${DOCKER_ARGS} --push
