@@ -5,8 +5,12 @@ This is a Maven+Docker project, which uses standard conventions for test and dep
 The Docker image for zipkin-aws is a layer over zipkin, including only the [../module] and
 configuration settings.
 
-[docker-compose-zipkin-aws.xml] ensures AWS authentication works. It is not run on pull request, as
-the required secure variable is only available on master push.
+[docker-compose-zipkin-aws-unauthenticated.xml] ensures the server starts, but it doesn't test
+authentication. This is nice because it can run regardless of secure environment, helping ensure
+pull requests don't break the Docker build.
+
+Another compose file should be added later, and ensured only run when secure variables are
+available (master push).
 
 [//]: # (Below here should be standard for all projects)
 
