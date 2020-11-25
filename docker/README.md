@@ -1,11 +1,11 @@
 ## zipkin-aws Docker image
 
-This build produces the "openzipkin/zipkin-aws" image that integrates all
-[zipkin-aws modules](../module)
+This repository contains the Docker build definition for `zipkin-aws`. This layers Amazon Web
+Services support on the base Zipkin Docker image.
 
 ## Running
 
-By default, this image will search for credentials in the $HOME/.aws directory.
+By default, this image will search for credentials in the `$HOME/.aws` directory.
 
 If you want to try Zipkin against AWS Elasticsearch, the easiest start is to share
 your credentials with Zipkin's docker image.
@@ -21,6 +21,8 @@ $ docker run -d -p 9411:9411 --rm --name zipkin-aws \
 
 ## Configuration
 
+Configuration is via environment variables, defined [here](../module/README.md).
+
 In Docker, the following can also be set:
 
     * `JAVA_OPTS`: Use to set java arguments, such as heap size or trust store location.
@@ -31,12 +33,12 @@ To build a zipkin-aws Docker image from source, in the top level of the reposito
 
 
 ```bash
-$ docker/build_image openzipkin/zipkin-aws:test
+$ build-bin/docker/docker_build openzipkin/zipkin-aws:test
 ```
 
 To build from a published version, run this instead:
 
 ```bash
-$ docker/build_image openzipkin/zipkin-aws:test 0.18.1
+$ build-bin/docker/docker_build openzipkin/zipkin-aws:test 0.18.1
 ```
 

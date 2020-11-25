@@ -14,62 +14,148 @@
     the License.
 
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-
   <parent>
     <groupId>io.zipkin.aws</groupId>
     <artifactId>zipkin-aws-parent</artifactId>
     <version>0.22.2-SNAPSHOT</version>
   </parent>
 
-  <artifactId>zipkin-module</artifactId>
-  <name>Zipkin Server Module</name>
-  <packaging>pom</packaging>
+  <artifactId>zipkin-module-aws</artifactId>
+  <name>Zipkin Server Module: AWS</name>
 
   <properties>
     <main.basedir>${project.basedir}/..</main.basedir>
   </properties>
 
-  <modules>
-    <module>collector-sqs</module>
-    <module>collector-kinesis</module>
-    <module>storage-xray</module>
-    <module>storage-elasticsearch-aws</module>
-  </modules>
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>com.fasterxml.jackson.dataformat</groupId>
+        <artifactId>jackson-dataformat-cbor</artifactId>
+        <version>${jackson.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
+    <dependency>
+      <groupId>com.amazonaws</groupId>
+      <artifactId>aws-java-sdk-sts</artifactId>
+      <version>${aws-java-sdk.version}</version>
+    </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-autoconfigure</artifactId>
       <version>${spring-boot.version}</version>
       <scope>provided</scope>
     </dependency>
+
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-test</artifactId>
       <version>${spring-boot.version}</version>
       <scope>test</scope>
     </dependency>
+
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>zipkin-aws-junit</artifactId>
+      <version>${project.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Kinesis -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>zipkin-collector-kinesis</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!-- SQS -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>zipkin-collector-sqs</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+
+    <!-- Elasticsearch AWS -->
+    <dependency>
+      <groupId>${armeria.groupId}</groupId>
+      <artifactId>armeria</artifactId>
+      <version>${armeria.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <artifactId>aws-java-sdk-core</artifactId>
+      <groupId>com.amazonaws</groupId>
+      <version>${aws-java-sdk.version}</version>
+    </dependency>
+
+    <dependency>
+      <groupId>${armeria.groupId}</groupId>
+      <artifactId>armeria-junit4</artifactId>
+      <version>${armeria.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- X-Ray -->
+    <dependency>
+      <groupId>${project.groupId}</groupId>
+      <artifactId>zipkin-storage-xray-udp</artifactId>
+      <version>${project.version}</version>
+    </dependency>
   </dependencies>
+
   <build>
     <plugins>
       <plugin>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-maven-plugin</artifactId>
+        <version>${spring-boot.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>repackage</goal>
+            </goals>
+          </execution>
+        </executions>
         <configuration>
+          <layoutFactory implementation="zipkin.layout.ZipkinLayoutFactory">
+            <name>zipkin</name>
+          </layoutFactory>
+          <classifier>module</classifier>
           <!-- https://github.com/spring-projects/spring-boot/issues/3426 transitive exclude doesn't work -->
           <excludeGroupIds>
-            io.zipkin.zipkin2,org.springframework.boot,org.springframework,com.fasterxml.jackson.core,com.google.auto.value,com.google.code.gson,org.reactivestreams,com.google.code.findbugs,javax.annotation,org.slf4j,io.netty,io.micrometer,org.hdrhistogram,org.latencyutils
+            ${zipkin.groupId},org.springframework.boot,org.springframework,com.fasterxml.jackson.core,com.google.auto.value,com.google.code.gson,org.reactivestreams,com.google.code.findbugs,javax.annotation,org.slf4j,io.netty,io.micrometer,org.hdrhistogram,org.latencyutils,${armeria.groupId},javax.inject,com.fasterxml.jackson.datatype
           </excludeGroupIds>
           <excludes>
-            <!-- zipkin-server depends on armeria-->
+            <!-- zipkin-server depends on armeria and its grpc protocol-->
             <exclude>
               <groupId>${armeria.groupId}</groupId>
               <artifactId>armeria</artifactId>
             </exclude>
+            <exclude>
+              <groupId>${armeria.groupId}</groupId>
+              <artifactId>armeria-grpc-protocol</artifactId>
+            </exclude>
+            <!-- See https://github.com/line/armeria/issues/1679 -->
+            <exclude>
+              <groupId>net.bytebuddy</groupId>
+              <artifactId>byte-buddy</artifactId>
+            </exclude>
           </excludes>
         </configuration>
+        <dependencies>
+          <dependency>
+            <groupId>io.zipkin.layout</groupId>
+            <artifactId>zipkin-layout-factory</artifactId>
+            <version>1.0.0</version>
+          </dependency>
+        </dependencies>
       </plugin>
     </plugins>
   </build>

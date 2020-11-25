@@ -1,0 +1,56 @@
+# When enabled, this allows shorter env properties (ex -Dspring.profiles.active=aws)
+spring:
+  main:
+    # ZipkinElasticsearchAwsStorageModule overrides the bean named 'storage'
+    allow-bean-definition-overriding: true
+zipkin:
+  internal:
+    module:
+      elasticsearch-aws: zipkin.module.storage.aws.elasticsearchZipkinElasticsearchAwsStorageModule
+      kinesis: zipkin.module.aws.kinesis.ZipkinKinesisCollectorModule
+      sqs: zipkin.module.aws.sqs.ZipkinSQSCollectorModule
+      xray: zipkin.module.aws.xray.ZipkinXRayStorageModule
+  collector:
+    kinesis:
+      # The name of the Kinesis stream to read from
+      stream-name: ${KINESIS_STREAM_NAME:}
+      # The name for this app to use for sharing a stream
+      app-name: ${KINESIS_APP_NAME:zipkin}
+      # Optional AWS Access Key
+      aws-access-key-id: ${KINESIS_AWS_ACCESS_KEY_ID:}
+      # Optional AWS Secret Access Key
+      aws-secret-access-key: ${KINESIS_AWS_SECRET_ACCESS_KEY:}
+      # Optional IAM role ARN for cross account role delegation
+      aws-sts-role-arn: ${KINESIS_AWS_STS_ROLE_ARN:}
+      # Optional AWS Region, implicitly sets STS and Kinesis regions if not provided, defaults to us-east-1
+      aws-region: ${AWS_REGION:us-east-1}
+      # Optional AWS Kinesis Region, defaults to AWS_REGION
+      aws-kinesis-region: ${KINESIS_AWS_REGION:${zipkin.collector.kinesis.aws-region}}
+      # Optional AWS region ID when using STS, defaults to KINESIS_AWS_REGION
+      aws-sts-region: ${KINESIS_AWS_STS_REGION:${zipkin.collector.kinesis.aws-kinesis-region}}
+    sqs:
+      # The AWS SQS queue URL as provided in the AWS Console
+      queue-url: ${SQS_QUEUE_URL:}
+      # The count of collectors that poll SQS in parallel
+      parallelism: ${SQS_PARALLELISM:1}
+      # How long to wait for messages from SQS before making a new API call
+      wait-time-seconds: ${SQS_WAIT_TIME_SECONDS:20}
+      # Max number of messages to accept for each SQS API call
+      max-number-of-messages: ${SQS_MAX_NUMBER_OF_MESSAGES:10}
+      # Optional AWS Access Key
+      aws-access-key-id: ${SQS_AWS_ACCESS_KEY_ID:}
+      # Optional AWS Secret Access Key
+      aws-secret-access-key: ${SQS_AWS_SECRET_ACCESS_KEY:}
+      # Optional IAM role ARN for cross account role delegation
+      aws-sts-role-arn: ${SQS_AWS_STS_ROLE_ARN:}
+      # Optional AWS region ID when using STS, defaults to AWS_REGION
+      aws-sts-region: ${SQS_AWS_STS_REGION:${AWS_REGION:us-east-1}}
+  storage:
+    elasticsearch:
+      aws:
+        # The name of the AWS-hosted elasticsearch domain to use. Supercedes any `ES_HOSTS`.
+        domain: ${ES_AWS_DOMAIN:}
+        region: ${ES_AWS_REGION:${AWS_REGION:}}
+    xray:
+      # Amazon X-Ray Daemon UDP daemon address; defaults to localhost:2000
+      daemon-address: ${AWS_XRAY_DAEMON_ADDRESS:}
