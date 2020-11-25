@@ -21,6 +21,7 @@
     <groupId>io.zipkin.aws</groupId>
     <artifactId>zipkin-aws-parent</artifactId>
     <version>0.22.2-SNAPSHOT</version>
+    <relativePath>../..</relativePath>
   </parent>
 
   <artifactId>zipkin-awssdk-sqs</artifactId>
