@@ -23,69 +23,106 @@
   <packaging>pom</packaging>
 
   <modules>
-    <module>sender-sqs</module>
-    <module>sender-awssdk-sqs</module>
-    <module>collector-sqs</module>
     <module>aws-junit</module>
+    <module>collector/kinesis</module>
+    <module>collector/sqs</module>
+    <module>brave/instrumentation-aws-java-sdk-core</module>
+    <module>brave/instrumentation-aws-java-sdk-v2-core</module>
+    <module>brave/instrumentation-aws-java-sdk-sqs</module>
+    <module>brave/propagation-aws</module>
     <module>module</module>
-    <module>collector-kinesis</module>
-    <module>sender-kinesis</module>
-    <module>storage-xray-udp</module>
-    <module>reporter-xray-udp</module>
-    <module>brave-instrumentation</module>
-    <module>brave-propagation-aws</module>
+    <module>reporter/reporter-xray-udp</module>
+    <module>reporter/sender-awssdk-sqs</module>
+    <module>reporter/sender-kinesis</module>
+    <module>reporter/sender-sqs</module>
+    <module>storage/xray-udp</module>
   </modules>
+
+  <distributionManagement>
+    <snapshotRepository>
+      <id>ossrh</id>
+      <url>https://oss.sonatype.org/content/repositories/snapshots</url>
+    </snapshotRepository>
+    <repository>
+      <id>ossrh</id>
+      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+    </repository>
+  </distributionManagement>
+
+  <issueManagement>
+    <system>Github</system>
+    <url>https://github.com/openzipkin/zipkin-aws/issues</url>
+  </issueManagement>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     <project.build.resourceEncoding>UTF-8</project.build.resourceEncoding>
+    <project.build.outputEncoding>UTF-8</project.build.outputEncoding>
+    <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
 
-    <!-- default bytecode version for src/main -->
+    <main.basedir>${project.basedir}</main.basedir>
     <main.java.version>1.8</main.java.version>
     <main.signature.artifact>java18</main.signature.artifact>
 
-    <main.basedir>${project.basedir}</main.basedir>
-
-    <!-- TODO: cleanup any redundant ignores now also in the 4.0 release (once final) -->
-    <license-maven-plugin.version>4.0.rc2</license-maven-plugin.version>
-
-    <!-- matching armeria/zipkin -->
-    <spring-boot.version>2.3.4.RELEASE</spring-boot.version>
-    <jackson.version>2.10.3</jackson.version>
-    <!-- This allows you to test feature branches with jitpack -->
+    <!-- groupId overrinds allow testing feature branches with jitpack -->
+    <!-- matching armeria/grpc/zipkin -->
+    <zipkin.groupId>io.zipkin.zipkin2</zipkin.groupId>
+    <!-- when updating, update docker/Dockerfile and storage/src/test/java/zipkin2/storage/kafka/IT* -->
+    <zipkin.version>2.23.0</zipkin.version>
+    <zipkin-reporter.version>2.16.1</zipkin-reporter.version>
+    <spring-boot.version>2.4.0</spring-boot.version>
+    <jackson.version>2.11.3</jackson.version>
+    <!-- armeria.groupId allows you to test feature branches with jitpack -->
     <armeria.groupId>com.linecorp.armeria</armeria.groupId>
     <armeria.version>1.2.0</armeria.version>
     <!-- Match Armeria version to avoid conflicts including running tests in the IDE -->
     <netty.version>4.1.53.Final</netty.version>
 
-    <!-- It's easy for Jackson dependencies to get misaligned, so we manage it ourselves. -->
-    <jackson.version>2.11.2</jackson.version>
+    <!-- This allows you to test feature branches with jitpack -->
+    <!--    <brave.groupId>com.github.openzipkin.brave</brave.groupId>-->
+    <!--    <brave.version>master-SNAPSHOT</brave.version>-->
+    <brave.groupId>io.zipkin.brave</brave.groupId>
+    <brave.version>5.13.2</brave.version>
 
-    <zipkin.version>2.22.1</zipkin.version>
-    <zipkin-reporter.version>2.15.2</zipkin-reporter.version>
-    <brave.version>5.12.7</brave.version>
+    <aws-java-sdk.version>1.11.907</aws-java-sdk.version>
+    <sdk-core.version>2.15.34</sdk-core.version>
 
-    <slf4j.version>1.7.30</slf4j.version>
-    <log4j.version>2.13.3</log4j.version>
+    <log4j.version>2.14.0</log4j.version>
+    <okhttp.version>4.9.0</okhttp.version>
 
-    <aws-java-sdk.version>1.11.885</aws-java-sdk.version>
-    <sdk-core.version>2.15.13</sdk-core.version>
-
-    <!-- Test only dependencies -->
+    <assertj.version>3.18.1</assertj.version>
+    <awaitility.version>4.0.3</awaitility.version>
     <junit.version>4.13.1</junit.version>
     <junit-jupiter.version>5.7.0</junit-jupiter.version>
-    <mockito.version>3.5.15</mockito.version>
+    <mockito.version>3.6.0</mockito.version>
 
     <!-- override to set exclusions per-project -->
     <errorprone.args />
     <errorprone.version>2.4.0</errorprone.version>
 
-    <maven-failsafe-plugin.version>3.0.0-M5</maven-failsafe-plugin.version>
+    <license.skip>${skipTests}</license.skip>
+
+    <animal-sniffer-maven-plugin.version>1.19</animal-sniffer-maven-plugin.version>
+    <go-offline-maven-plugin.version>1.2.7</go-offline-maven-plugin.version>
+    <!-- TODO: cleanup any redundant ignores now also in the 4.0 release (once final) -->
+    <license-maven-plugin.version>4.0.rc2</license-maven-plugin.version>
+    <maven-compiler-plugin.version>3.8.1</maven-compiler-plugin.version>
+    <maven-install-plugin.version>3.0.0-M1</maven-install-plugin.version>
+    <!-- Use same version as https://github.com/openzipkin/docker-java -->
+    <maven-dependency-plugin.version>3.1.2</maven-dependency-plugin.version>
+    <maven-deploy-plugin.version>3.0.0-M1</maven-deploy-plugin.version>
+    <maven-release-plugin.version>3.0.0-M1</maven-release-plugin.version>
+    <maven-shade-plugin.version>3.2.4</maven-shade-plugin.version>
+    <maven-source-plugin.version>3.2.1</maven-source-plugin.version>
+    <maven-javadoc-plugin.version>3.2.0</maven-javadoc-plugin.version>
+    <maven-jar-plugin.version>3.2.0</maven-jar-plugin.version>
+    <maven-surefire-plugin.version>3.0.0-M5</maven-surefire-plugin.version>
+    <maven-enforcer-plugin.version>3.0.0-M3</maven-enforcer-plugin.version>
     <nexus-staging-maven-plugin.version>1.6.8</nexus-staging-maven-plugin.version>
   </properties>
 
-  <name>Zipkin AWS (Parent)</name>
-  <description>Zipkin AWS (Parent)</description>
+  <name>Zipkin Amazon Web Services (Parent)</name>
+  <description>Zipkin Amazon Web Services (Parent)</description>
   <url>https://github.com/openzipkin/zipkin-aws</url>
   <inceptionYear>2016</inceptionYear>
 
@@ -118,140 +155,69 @@
     </developer>
   </developers>
 
-  <distributionManagement>
-    <snapshotRepository>
-      <id>ossrh</id>
-      <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-    </snapshotRepository>
-    <repository>
-      <id>ossrh</id>
-      <url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-    </repository>
-  </distributionManagement>
-
-  <issueManagement>
-    <system>Github</system>
-    <url>https://github.com/openzipkin/zipkin-aws/issues</url>
-  </issueManagement>
-
   <dependencyManagement>
-    <dependencies>
-      <dependency>
-        <groupId>com.fasterxml.jackson</groupId>
-        <artifactId>jackson-bom</artifactId>
-        <version>${jackson.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
-        <groupId>io.netty</groupId>
-        <artifactId>netty-bom</artifactId>
-        <version>${netty.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
-        <groupId>io.zipkin.zipkin2</groupId>
-        <artifactId>zipkin</artifactId>
-        <version>${zipkin.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.zipkin.zipkin2</groupId>
-        <artifactId>zipkin-collector</artifactId>
-        <version>${zipkin.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>io.zipkin.zipkin2</groupId>
-        <artifactId>zipkin-tests</artifactId>
-        <version>${zipkin.version}</version>
-        <scope>test</scope>
-      </dependency>
-      <dependency>
-        <groupId>io.zipkin.reporter2</groupId>
-        <artifactId>zipkin-reporter</artifactId>
-        <version>${zipkin-reporter.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>${project.groupId}</groupId>
-        <artifactId>zipkin-storage-xray-udp</artifactId>
-        <version>${project.version}</version>
-      </dependency>
-      <dependency>
-        <groupId>org.awaitility</groupId>
-        <artifactId>awaitility</artifactId>
-        <version>4.0.3</version>
-      </dependency>
-      <dependency>
-        <groupId>com.squareup.okhttp3</groupId>
-        <artifactId>mockwebserver</artifactId>
-        <version>4.9.0</version>
-      </dependency>
-      <dependency>
-        <groupId>com.amazonaws</groupId>
-        <artifactId>aws-java-sdk-bom</artifactId>
-        <version>${aws-java-sdk.version}</version>
-        <type>pom</type>
-        <scope>import</scope>
-      </dependency>
-      <dependency>
-        <groupId>software.amazon.awssdk</groupId>
-        <artifactId>sqs</artifactId>
-        <version>${sdk-core.version}</version>
-      </dependency>
-    </dependencies>
+    <!-- Be careful here, especially to not import BOMs as it causes version confusion.
+
+         For example, if you imported Netty's BOM here, end users would also download that BOM. As
+         Brave is indirectly used, this can be extremely confusing when people are troubleshooting
+         library version assignments. -->
   </dependencyManagement>
 
   <dependencies>
+    <!-- Only add absolutely required dependencies as compile scope. Adding more can pin versions,
+         causing problems for end users difficult to unravel. -->
+
+    <dependency>
+      <groupId>${zipkin.groupId}</groupId>
+      <artifactId>zipkin-tests</artifactId>
+      <version>${zipkin.version}</version>
+      <scope>test</scope>
+    </dependency>
+
     <dependency>
       <groupId>junit</groupId>
       <artifactId>junit</artifactId>
       <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
-
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter</artifactId>
-      <version>${junit-jupiter.version}</version>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>org.junit.vintage</groupId>
-      <artifactId>junit-vintage-engine</artifactId>
-      <version>${junit-jupiter.version}</version>
-      <scope>test</scope>
-    </dependency>
-
-    <!--
-    Current versions of JUnit5 provide the above junit-jupiter artifact for convenience but we may
-    still have transitive dependencies on these older artifacts and have to make sure they're all
-    using the same version.
-    -->
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-api</artifactId>
-      <version>${junit-jupiter.version}</version>
-      <scope>test</scope>
-    </dependency>
-
-    <dependency>
-      <groupId>org.junit.jupiter</groupId>
-      <artifactId>junit-jupiter-engine</artifactId>
-      <version>${junit-jupiter.version}</version>
-      <scope>test</scope>
-    </dependency>
-
     <dependency>
       <groupId>org.assertj</groupId>
       <artifactId>assertj-core</artifactId>
-      <version>3.17.2</version>
+      <version>${assertj.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Main code uses jul and tests log with log4j -->
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-core</artifactId>
+      <version>${log4j.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- route jul over log4j2 during integration tests -->
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-jul</artifactId>
+      <version>${log4j.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- route log4j over log4j2 during integration tests -->
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-1.2-api</artifactId>
+      <version>${log4j.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- route slf4j over log4j2 during integration tests -->
+    <dependency>
+      <groupId>org.apache.logging.log4j</groupId>
+      <artifactId>log4j-slf4j-impl</artifactId>
+      <version>${log4j.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
-      <groupId>ch.qos.logback</groupId>
-      <artifactId>logback-classic</artifactId>
-      <version>1.2.3</version>
+      <groupId>org.mockito</groupId>
+      <artifactId>mockito-core</artifactId>
+      <version>${mockito.version}</version>
       <scope>test</scope>
     </dependency>
   </dependencies>
@@ -259,13 +225,6 @@
   <build>
     <pluginManagement>
       <plugins>
-        <!-- mvn de.qaware.maven:go-offline-maven-plugin:resolve-dependencies -->
-        <plugin>
-          <groupId>de.qaware.maven</groupId>
-          <artifactId>go-offline-maven-plugin</artifactId>
-          <version>1.2.7</version>
-        </plugin>
-
         <!-- mvn -N io.takari:maven:wrapper generates the ./mvnw script -->
         <plugin>
           <groupId>io.takari</groupId>
@@ -276,47 +235,87 @@
           </configuration>
         </plugin>
 
+        <!-- mvn de.qaware.maven:go-offline-maven-plugin:resolve-dependencies -->
         <plugin>
-          <artifactId>maven-compiler-plugin</artifactId>
-          <version>3.8.1</version>
-          <inherited>true</inherited>
+          <groupId>de.qaware.maven</groupId>
+          <artifactId>go-offline-maven-plugin</artifactId>
+          <version>${go-offline-maven-plugin.version}</version>
           <configuration>
-            <source>${main.java.version}</source>
-            <target>${main.java.version}</target>
-            <!-- or die! com.sun.tools.javac.api.JavacTool -->
-            <fork>true</fork>
-            <showWarnings>true</showWarnings>
+            <!-- Add dependencies indirectly referenced by build plugins -->
+            <dynamicDependencies>
+              <!-- animal sniffer implicitly uses this -->
+              <DynamicDependency>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>${maven-dependency-plugin.version}</version>
+                <repositoryType>PLUGIN</repositoryType>
+              </DynamicDependency>
+              <DynamicDependency>
+                <groupId>org.codehaus.mojo.signature</groupId>
+                <artifactId>${main.signature.artifact}</artifactId>
+                <version>1.0</version>
+                <type>signature</type>
+                <repositoryType>MAIN</repositoryType>
+              </DynamicDependency>
+              <DynamicDependency>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin-git</artifactId>
+                <version>${license-maven-plugin.version}</version>
+                <repositoryType>MAIN</repositoryType>
+              </DynamicDependency>
+              <DynamicDependency>
+                <groupId>com.google.errorprone</groupId>
+                <artifactId>error_prone_core</artifactId>
+                <version>${errorprone.version}</version>
+                <repositoryType>MAIN</repositoryType>
+              </DynamicDependency>
+              <DynamicDependency>
+                <groupId>org.apache.maven.surefire</groupId>
+                <artifactId>surefire-junit-platform</artifactId>
+                <version>${maven-surefire-plugin.version}</version>
+                <repositoryType>PLUGIN</repositoryType>
+              </DynamicDependency>
+            </dynamicDependencies>
           </configuration>
         </plugin>
+
+        <!-- maven-dependency-plugin:get should use a recent version. -->
         <plugin>
-          <groupId>org.springframework.boot</groupId>
-          <artifactId>spring-boot-maven-plugin</artifactId>
-          <version>${spring-boot.version}</version>
-          <executions>
-            <execution>
-              <goals>
-                <goal>repackage</goal>
-              </goals>
-            </execution>
-          </executions>
-          <configuration>
-            <layoutFactory implementation="zipkin.layout.ZipkinLayoutFactory">
-              <name>zipkin</name>
-            </layoutFactory>
-            <classifier>module</classifier>
-          </configuration>
-          <dependencies>
-            <dependency>
-              <groupId>io.zipkin.layout</groupId>
-              <artifactId>zipkin-layout-factory</artifactId>
-              <version>0.0.5</version>
-            </dependency>
-          </dependencies>
+          <artifactId>maven-dependency-plugin</artifactId>
+          <version>${maven-dependency-plugin.version}</version>
         </plugin>
+
+        <!-- Uploads occur as a last step (which also adds checksums) -->
         <plugin>
-          <groupId>org.codehaus.mojo</groupId>
-          <artifactId>animal-sniffer-maven-plugin</artifactId>
-          <version>1.19</version>
+          <artifactId>maven-deploy-plugin</artifactId>
+          <version>${maven-deploy-plugin.version}</version>
+        </plugin>
+
+        <plugin>
+          <artifactId>maven-install-plugin</artifactId>
+          <version>${maven-install-plugin.version}</version>
+        </plugin>
+
+        <plugin>
+          <artifactId>maven-jar-plugin</artifactId>
+          <version>${maven-jar-plugin.version}</version>
+          <configuration>
+            <archive>
+              <!-- prevents huge pom file from also being added to the jar under META-INF/maven -->
+              <addMavenDescriptor>false</addMavenDescriptor>
+            </archive>
+          </configuration>
+        </plugin>
+
+        <plugin>
+          <artifactId>maven-release-plugin</artifactId>
+          <version>${maven-release-plugin.version}</version>
+          <configuration>
+            <useReleaseProfile>false</useReleaseProfile>
+            <releaseProfiles>release</releaseProfiles>
+            <autoVersionSubmodules>true</autoVersionSubmodules>
+            <tagNameFormat>@{project.version}</tagNameFormat>
+          </configuration>
         </plugin>
 
         <plugin>
@@ -329,30 +328,35 @@
 
     <plugins>
       <plugin>
-        <artifactId>maven-jar-plugin</artifactId>
-        <version>3.2.0</version>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>${maven-compiler-plugin.version}</version>
+        <inherited>true</inherited>
+        <configuration>
+          <source>1.8</source>
+          <target>1.8</target>
+          <fork>true</fork>
+          <showWarnings>true</showWarnings>
+        </configuration>
       </plugin>
+
 
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>${maven-failsafe-plugin.version}</version>
+        <version>${maven-surefire-plugin.version}</version>
         <configuration>
           <!-- Ensure scope leak cause ends up in the console -->
           <trimStackTrace>false</trimStackTrace>
+          <!-- Don't add org.apache.logging.log4j.jul.LogManager here as it conflicts with
+               classloading, causing brave.test.propagation.PropagationTest to flake. -->
+          <classpathDependencyExcludes>
+            <classpathDependencyExclude>org.apache.logging.log4j:log4j-jul</classpathDependencyExclude>
+          </classpathDependencyExcludes>
         </configuration>
       </plugin>
 
       <plugin>
         <artifactId>maven-failsafe-plugin</artifactId>
-        <version>${maven-failsafe-plugin.version}</version>
-        <configuration>
-          <!-- Try to prevent flakes in CI -->
-          <reuseForks>false</reuseForks>
-          <!-- workaround to SUREFIRE-1831 -->
-          <useModulePath>false</useModulePath>
-          <!-- Ensure scope leak cause ends up in the console -->
-          <trimStackTrace>false</trimStackTrace>
-        </configuration>
+        <version>${maven-surefire-plugin.version}</version>
         <executions>
           <execution>
             <id>integration-test</id>
@@ -363,18 +367,34 @@
             </goals>
           </execution>
         </executions>
+        <configuration>
+          <!-- Try to prevent flakes in CI -->
+          <reuseForks>false</reuseForks>
+          <!-- workaround to SUREFIRE-1831 -->
+          <useModulePath>false</useModulePath>
+          <!-- Brave and OkHttp MockWebServer log with java.util.logging. Adding the bridge allows
+               allows us to change scope and format via log4j2.properties -->
+          <systemPropertyVariables>
+            <java.util.logging.manager>org.apache.logging.log4j.jul.LogManager</java.util.logging.manager>
+          </systemPropertyVariables>
+          <!-- Ensure scope leak cause ends up in the console -->
+          <trimStackTrace>false</trimStackTrace>
+        </configuration>
       </plugin>
 
+      <!-- Ensure no Java 9+ api usage -->
       <plugin>
         <groupId>org.codehaus.mojo</groupId>
         <artifactId>animal-sniffer-maven-plugin</artifactId>
+        <version>${animal-sniffer-maven-plugin.version}</version>
         <configuration>
+          <checkTestClasses>false</checkTestClasses>
+          <skip>${skipTests}</skip>
           <signature>
             <groupId>org.codehaus.mojo.signature</groupId>
             <artifactId>${main.signature.artifact}</artifactId>
             <version>1.0</version>
           </signature>
-          <checkTestClasses>false</checkTestClasses>
         </configuration>
         <executions>
           <execution>
@@ -386,14 +406,23 @@
       </plugin>
 
       <plugin>
-        <artifactId>maven-install-plugin</artifactId>
-        <version>3.0.0-M1</version>
-      </plugin>
-
-      <!-- Uploads occur as a last step (which also adds checksums) -->
-      <plugin>
-        <artifactId>maven-deploy-plugin</artifactId>
-        <version>3.0.0-M1</version>
+        <artifactId>maven-enforcer-plugin</artifactId>
+        <version>${maven-enforcer-plugin.version}</version>
+        <executions>
+          <execution>
+            <id>enforce-java</id>
+            <goals>
+              <goal>enforce</goal>
+            </goals>
+            <configuration>
+              <rules>
+                <requireJavaVersion>
+                  <version>[11,16)</version>
+                </requireJavaVersion>
+              </rules>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
 
       <plugin>
@@ -401,41 +430,48 @@
         <artifactId>license-maven-plugin</artifactId>
         <version>${license-maven-plugin.version}</version>
         <configuration>
+          <skip>${license.skip}</skip>
           <header>${main.basedir}/src/etc/header.txt</header>
           <mapping>
             <!-- Don't use javadoc style as this makes code formatters break it by adding tags! -->
             <java>SLASHSTAR_STYLE</java>
-            <kt>SLASHSTAR_STYLE</kt>
-            <bnd>SCRIPT_STYLE</bnd>
-            <install_zipkin_modules>SCRIPT_STYLE</install_zipkin_modules>
-            <push_all_images>SCRIPT_STYLE</push_all_images>
-            <setup_multiarch_docker>SCRIPT_STYLE</setup_multiarch_docker>
-            <build_image>SCRIPT_STYLE</build_image>
-            <block_on_health>SCRIPT_STYLE</block_on_health>
+            <!-- build-bin/docker -->
+            <configure_docker>SCRIPT_STYLE</configure_docker>
+            <configure_docker_push>SCRIPT_STYLE</configure_docker_push>
+            <docker_arch>SCRIPT_STYLE</docker_arch>
+            <docker_args>SCRIPT_STYLE</docker_args>
+            <docker_block_on_health>SCRIPT_STYLE</docker_block_on_health>
+            <docker_build>SCRIPT_STYLE</docker_build>
+            <docker_push>SCRIPT_STYLE</docker_push>
+            <docker_test_image>SCRIPT_STYLE</docker_test_image>
+            <!-- build-bin/git -->
+            <login_git>SCRIPT_STYLE</login_git>
+            <version_from_trigger_tag>SCRIPT_STYLE</version_from_trigger_tag>
+            <!-- build-bin/gpg -->
+            <configure_gpg>SCRIPT_STYLE</configure_gpg>
+            <!-- build-bin/maven -->
+            <maven_build>SCRIPT_STYLE</maven_build>
+            <maven_build_or_unjar>SCRIPT_STYLE</maven_build_or_unjar>
+            <maven_deploy>SCRIPT_STYLE</maven_deploy>
+            <maven_go_offline>SCRIPT_STYLE</maven_go_offline>
+            <maven_release>SCRIPT_STYLE</maven_release>
+            <maven_opts>SCRIPT_STYLE</maven_opts>
+            <maven_unjar>SCRIPT_STYLE</maven_unjar>
           </mapping>
           <excludes>
-            <exclude>**/log4j2.properties</exclude>
-            <exclude>.travis.yml</exclude>
-            <exclude>**/*.dockerignore</exclude>
-            <exclude>.editorconfig</exclude>
-            <exclude>.gitattributes</exclude>
+            <exclude>.docker.env</exclude>
             <exclude>.gitignore</exclude>
-            <exclude>.github/**</exclude>
+            <exclude>.editorconfig</exclude>
             <exclude>.mvn/**</exclude>
             <exclude>mvnw*</exclude>
             <exclude>etc/header.txt</exclude>
-            <exclude>docker/**/*_profile</exclude>
-            <exclude>hooks/**</exclude>
-            <exclude>**/nginx.conf</exclude>
             <exclude>**/.idea/**</exclude>
-            <exclude>**/.editorconfig</exclude>
-            <exclude>LICENSE</exclude>&gt;
+            <exclude>LICENSE</exclude>
             <exclude>**/*.md</exclude>
-            <exclude>**/*.bnd</exclude>
-            <exclude>**/src/main/resources/zipkin.txt</exclude>
-            <exclude>**/src/main/resources/*.yml</exclude>
-            <exclude>**/spring.factories</exclude>
             <exclude>src/test/resources/**</exclude>
+            <exclude>src/main/resources/**</exclude>
+            <exclude>.dockerignore</exclude>
+            <exclude>build-bin/*</exclude>
           </excludes>
           <strictCheck>true</strictCheck>
         </configuration>
@@ -455,46 +491,35 @@
           </execution>
         </executions>
       </plugin>
-
-      <plugin>
-        <artifactId>maven-enforcer-plugin</artifactId>
-        <version>3.0.0-M3</version>
-        <executions>
-          <execution>
-            <id>enforce-java</id>
-            <goals>
-              <goal>enforce</goal>
-            </goals>
-            <configuration>
-              <rules>
-                <requireJavaVersion>
-                  <version>[11,16)</version>
-                </requireJavaVersion>
-              </rules>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
-
-      <plugin>
-        <artifactId>maven-release-plugin</artifactId>
-        <version>3.0.0-M1</version>
-        <configuration>
-          <useReleaseProfile>false</useReleaseProfile>
-          <releaseProfiles>release</releaseProfiles>
-          <autoVersionSubmodules>true</autoVersionSubmodules>
-          <tagNameFormat>@{project.version}</tagNameFormat>
-        </configuration>
-      </plugin>
     </plugins>
+
+    <resources>
+      <!-- This adds the LICENSE and NOTICE file to the jar and -sources jar of each module -->
+      <resource>
+        <filtering>false</filtering>
+        <directory>${main.basedir}</directory>
+        <targetPath>META-INF/</targetPath>
+        <includes>
+          <include>LICENSE</include>
+          <include>NOTICE</include>
+        </includes>
+      </resource>
+      <!-- This ensures any Spring Boot YAML are included in the jar -->
+      <resource>
+        <filtering>false</filtering>
+        <directory>src/main/resources</directory>
+        <includes>
+          <include>*.yml</include>
+        </includes>
+      </resource>
+    </resources>
   </build>
 
   <profiles>
     <profile>
-      <id>error-prone-9+</id>
+      <id>error-prone</id>
       <activation>
-        <jdk>[9,)</jdk>
-        <activeByDefault>false</activeByDefault>
+        <activeByDefault>true</activeByDefault>
       </activation>
       <build>
         <plugins>
@@ -528,6 +553,7 @@
         </plugins>
       </build>
     </profile>
+
     <profile>
       <id>release</id>
       <build>
@@ -539,6 +565,9 @@
             <configuration>
               <serverId>ossrh</serverId>
               <nexusUrl>https://oss.sonatype.org/</nexusUrl>
+              <!-- Double the normal timeout even though we haven't had a problem in this project.
+                   The only outcome of timing out client side is trying again. -->
+              <stagingProgressTimeoutMinutes>10</stagingProgressTimeoutMinutes>
               <autoReleaseAfterClose>true</autoReleaseAfterClose>
             </configuration>
           </plugin>
@@ -567,7 +596,7 @@
           <!-- Creates source jar -->
           <plugin>
             <artifactId>maven-source-plugin</artifactId>
-            <version>3.2.1</version>
+            <version>${maven-source-plugin.version}</version>
             <executions>
               <execution>
                 <id>attach-sources</id>
@@ -578,10 +607,16 @@
             </executions>
           </plugin>
 
+          <!-- Creates javadoc jar, skipping internal classes -->
           <plugin>
             <artifactId>maven-javadoc-plugin</artifactId>
-            <version>3.2.0</version>
+            <version>${maven-javadoc-plugin.version}</version>
             <configuration>
+              <sourceFileExcludes>
+                <exclude>**/internal/*.java</exclude>
+                <exclude>**/Internal*.java</exclude>
+              </sourceFileExcludes>
+              <excludePackageNames>*.internal.*</excludePackageNames>
               <failOnError>false</failOnError>
               <!-- hush pedantic warnings: we don't put param and return on everything! -->
               <doclint>none</doclint>
