@@ -39,6 +39,7 @@ import org.junit.Test;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static zipkin.module.aws.elasticsearch.AWSSignatureVersion4.writeCanonicalString;
 
 public class AWSSignatureVersion4Test {
 
@@ -121,7 +122,7 @@ public class AWSSignatureVersion4Test {
 
     ByteBuf result = Unpooled.buffer();
 
-    AWSSignatureVersion4.writeCanonicalString(ctx, request.headers(), request.content(), result);
+    writeCanonicalString(ctx, request.headers(), request.content(), result);
     // Ensure that the canonical string encodes commas with %2C
     assertThat(result.toString(UTF_8)).isEqualTo(""
         + "POST\n"
@@ -148,7 +149,7 @@ public class AWSSignatureVersion4Test {
 
     ByteBuf result = Unpooled.buffer();
 
-    AWSSignatureVersion4.writeCanonicalString(ctx, request.headers(), request.content(), result);
+    writeCanonicalString(ctx, request.headers(), request.content(), result);
 
     // Ensure that the canonical string encodes commas with %2C
     assertThat(result.toString(UTF_8)).isEqualTo(""
@@ -176,7 +177,8 @@ public class AWSSignatureVersion4Test {
 
     ByteBuf canonicalString = Unpooled.buffer();
 
-    AWSSignatureVersion4.writeCanonicalString(ctx, request.headers(), request.content(), canonicalString);
+    writeCanonicalString(ctx, request.headers(), request.content(),
+        canonicalString);
     assertThat(canonicalString.toString(UTF_8)).isEqualTo(""
         + "GET\n"
         + "/2015-01-01/es/domain/zipkin\n"

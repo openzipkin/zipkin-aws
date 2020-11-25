@@ -1,14 +1,11 @@
 ## zipkin-aws Docker image
 
-This repository contains the Docker build definition for `zipkin-aws`.
-
-This layers Amazon Web Services support on the base zipkin docker image.
-
-Currently, this adds Xray Trace storage
+This repository contains the Docker build definition for `zipkin-aws`. This layers Amazon Web
+Services support on the base Zipkin Docker image.
 
 ## Running
 
-By default, this image will search for credentials in the $HOME/.aws directory.
+By default, this image will search for credentials in the `$HOME/.aws` directory.
 
 If you want to try Zipkin against AWS Elasticsearch, the easiest start is to share
 your credentials with Zipkin's docker image.
