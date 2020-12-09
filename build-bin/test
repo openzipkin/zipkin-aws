@@ -11,4 +11,4 @@ export RELEASE_FROM_MAVEN_BUILD=true
 build-bin/docker/docker_build openzipkin/zipkin-aws:test
 
 echo "Verifying Docker image..."
-build-bin/docker/docker_test_image openzipkin/zipkin-aws build-bin/docker-compose-zipkin-aws-unauthenticated.yml
+build-bin/docker/docker_test_image openzipkin/zipkin-aws:test build-bin/docker-compose-zipkin-aws-unauthenticated.yml
