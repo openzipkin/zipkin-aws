@@ -21,9 +21,9 @@ import brave.propagation.TraceContextOrSamplingFlags;
 import brave.propagation.TraceIdContext;
 import brave.propagation.aws.AWSPropagation.AmznTraceId;
 
-import static brave.propagation.aws.AWSPropagation.EXTRA_MARKER;
-import static brave.propagation.aws.AWSPropagation.ROOT_LENGTH;
 import static brave.propagation.aws.AWSPropagation.AMZN_TRACE_ID_NAME;
+import static brave.propagation.aws.AWSPropagation.NO_CUSTOM_FIELDS;
+import static brave.propagation.aws.AWSPropagation.ROOT_LENGTH;
 
 /**
  * Fields defined by Amazon:
@@ -39,7 +39,7 @@ import static brave.propagation.aws.AWSPropagation.AMZN_TRACE_ID_NAME;
  */
 final class AWSExtractor<R> implements Extractor<R> {
   static final TraceContextOrSamplingFlags EMPTY =
-      TraceContextOrSamplingFlags.EMPTY.toBuilder().addExtra(EXTRA_MARKER).build();
+      TraceContextOrSamplingFlags.EMPTY.toBuilder().addExtra(NO_CUSTOM_FIELDS).build();
 
   final AWSPropagation propagation;
   final Getter<R, String> getter;
@@ -66,7 +66,7 @@ final class AWSExtractor<R> implements Extractor<R> {
     Boolean sampled = null;
     long traceIdHigh = 0L, traceId = 0L;
     Long parent = null;
-    StringBuilder currentString = new StringBuilder(7 /* Sampled.length */), extraFields = null;
+    StringBuilder currentString = new StringBuilder(7 /* Sampled.length */), customFields = null;
     Op op = null;
     OUTER:
     for (int i = 0, length = traceIdString.length(); i < length; i++) {
@@ -86,8 +86,8 @@ final class AWSExtractor<R> implements Extractor<R> {
           op = Op.SKIP;
         } else {
           op = Op.EXTRA;
-          if (extraFields == null) extraFields = new StringBuilder();
-          extraFields.append(';').append(currentString);
+          if (customFields == null) customFields = new StringBuilder();
+          customFields.append(';').append(currentString);
         }
         currentString.setLength(0);
       } else if (op == null) {
@@ -97,9 +97,9 @@ final class AWSExtractor<R> implements Extractor<R> {
       // no longer whitespace
       switch (op) {
         case EXTRA:
-          extraFields.append(c);
+          customFields.append(c);
           while (i < length && (c = traceIdString.charAt(i)) != ';') {
-            extraFields.append(c);
+            customFields.append(c);
             i++;
           }
           break;
@@ -167,10 +167,11 @@ final class AWSExtractor<R> implements Extractor<R> {
       op = null;
     }
 
-    AmznTraceId amznTraceId = EXTRA_MARKER;
-    if (extraFields != null) {
-      amznTraceId = new AmznTraceId();
-      amznTraceId.customFields = extraFields;
+    AmznTraceId amznTraceId;
+    if (customFields == null || customFields.length() == 0) { // CharSequence.isEmpty() is Java 15+
+      amznTraceId = NO_CUSTOM_FIELDS;
+    } else {
+      amznTraceId = new AmznTraceId(customFields);
     }
 
     if (traceIdHigh == 0L) { // traceIdHigh cannot be null, so just return sampled
@@ -178,9 +179,7 @@ final class AWSExtractor<R> implements Extractor<R> {
       if (sampled != null) {
         samplingFlags = sampled ? SamplingFlags.SAMPLED : SamplingFlags.NOT_SAMPLED;
       }
-      return TraceContextOrSamplingFlags.newBuilder(samplingFlags)
-          .addExtra(amznTraceId)
-          .build();
+      return TraceContextOrSamplingFlags.newBuilder(samplingFlags).addExtra(amznTraceId).build();
     } else if (parent == null) {
       return TraceContextOrSamplingFlags.newBuilder(TraceIdContext.newBuilder()
           .traceIdHigh(traceIdHigh)

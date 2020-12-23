@@ -42,7 +42,7 @@ import static brave.propagation.aws.HexCodec.writeHexLong;
  * }</pre>
  *
  * <h3>Details</h3>
- *
+ * <p>
  * {@code x-amzn-trace-id} (and the lambda equivalent {@code _X_AMZN_TRACE_ID}) follows RFC 6265
  * style syntax (https://tools.ietf.org/html/rfc6265#section-2.2): fields are split on semicolon and
  * optional whitespace.
@@ -68,7 +68,7 @@ public final class AWSPropagation implements Propagation<String> {
   static final BaggageField FIELD_AMZN_TRACE_ID = BaggageField.create(AMZN_TRACE_ID_NAME);
   static final Propagation<String> INSTANCE = new AWSPropagation();
   /** When present, this context was created with AWSPropagation */
-  static final AmznTraceId EXTRA_MARKER = new AmznTraceId();
+  static final AmznTraceId NO_CUSTOM_FIELDS = new AmznTraceId("");
   static final Extractor<String> STRING_EXTRACTOR =
       INSTANCE.extractor(new Getter<String, String>() {
         @Override public String get(String request, String key) {
@@ -136,7 +136,7 @@ public final class AWSPropagation implements Propagation<String> {
    * Used for log correlation or {@link brave.Span#tag(String, String) tag values}
    *
    * @return a formatted Root field like "1-58406520-a006649127e371903a2de979" or null if the
-   *     context was not created from an instance of {@link AWSPropagation}.
+   * context was not created from an instance of {@link AWSPropagation}.
    */
   @Nullable
   public static String traceId(TraceContext context) {
@@ -182,11 +182,15 @@ public final class AWSPropagation implements Propagation<String> {
   }
 
   static final class AmznTraceId { // hidden intentionally
-    CharSequence customFields;
+    final CharSequence customFields;
 
-    @Override
-    public String toString() {
-      return "AmznTraceId{" + (customFields != null ? ("customFields=" + customFields) : "") + "}";
+    AmznTraceId(CharSequence customFields) {
+      this.customFields = customFields;
+    }
+
+    @Override public String toString() {
+      if (customFields.length() == 0) return "AmznTraceId{}";
+      return "AmznTraceId{customFields=" + customFields + "}";
     }
   }
 

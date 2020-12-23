@@ -34,21 +34,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 public class AWSPropagationTest {
   Map<String, String> carrier = new LinkedHashMap<>();
-  Injector<Map<String, String>> injector =
-      AWSPropagation.FACTORY.get().injector(Map::put);
-  Extractor<Map<String, String>> extractor =
-      AWSPropagation.FACTORY.get().extractor(Map::get);
+  Injector<Map<String, String>> injector = AWSPropagation.FACTORY.get().injector(Map::put);
+  Extractor<Map<String, String>> extractor = AWSPropagation.FACTORY.get().extractor(Map::get);
 
   String sampledTraceId =
       "Root=1-67891233-abcdef012345678912345678;Parent=463ac35c9f6413ad;Sampled=1";
-  TraceContext sampledContext =
-      TraceContext.newBuilder()
-          .traceIdHigh(lowerHexToUnsignedLong("67891233abcdef01"))
-          .traceId(lowerHexToUnsignedLong("2345678912345678"))
-          .spanId(lowerHexToUnsignedLong("463ac35c9f6413ad"))
-          .sampled(true)
-          .addExtra(AWSPropagation.EXTRA_MARKER)
-          .build();
+  TraceContext sampledContext = TraceContext.newBuilder()
+      .traceIdHigh(lowerHexToUnsignedLong("67891233abcdef01"))
+      .traceId(lowerHexToUnsignedLong("2345678912345678"))
+      .spanId(lowerHexToUnsignedLong("463ac35c9f6413ad"))
+      .sampled(true)
+      .addExtra(AWSPropagation.NO_CUSTOM_FIELDS)
+      .build();
 
   @Test
   public void traceId() {
@@ -109,7 +106,7 @@ public class AWSPropagationTest {
   @Test
   public void currentTraceId() {
     try (Tracing t = Tracing.newBuilder().propagationFactory(AWSPropagation.FACTORY).build();
-        CurrentTraceContext.Scope scope = t.currentTraceContext().newScope(sampledContext)) {
+         CurrentTraceContext.Scope scope = t.currentTraceContext().newScope(sampledContext)) {
       assertThat(AWSPropagation.currentTraceId()).isEqualTo("1-67891233-abcdef012345678912345678");
     }
   }
@@ -145,14 +142,14 @@ public class AWSPropagationTest {
     carrier.put("x-amzn-trace-id", sampledTraceId);
 
     TraceContextOrSamplingFlags extracted = extractor.extract(carrier);
-    assertThat(extracted.context().extra()).containsExactly(AWSPropagation.EXTRA_MARKER);
+    assertThat(extracted.context().extra()).containsExactly(AWSPropagation.NO_CUSTOM_FIELDS);
   }
 
   /** If invoked extract, a 128-bit trace ID will be created, compatible with AWS format */
   @Test
   public void extract_fail_containsMarker() {
     TraceContextOrSamplingFlags extracted = extractor.extract(carrier);
-    assertThat(extracted.extra()).containsExactly(AWSPropagation.EXTRA_MARKER);
+    assertThat(extracted.extra()).containsExactly(AWSPropagation.NO_CUSTOM_FIELDS);
   }
 
   @Test
@@ -224,23 +221,22 @@ public class AWSPropagationTest {
 
   @Test
   public void toString_fields() {
-    AmznTraceId amznTraceId = new AmznTraceId();
-    amznTraceId.customFields = ";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo";
+    AmznTraceId amznTraceId = new AmznTraceId(";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo");
 
-    assertThat(amznTraceId).hasToString("AmznTraceId{customFields=" + amznTraceId.customFields + "}");
+    assertThat(amznTraceId).hasToString(
+        "AmznTraceId{customFields=" + amznTraceId.customFields + "}");
   }
 
   @Test
   public void toString_none() {
-    AmznTraceId amznTraceId = new AmznTraceId();
+    AmznTraceId amznTraceId = new AmznTraceId("");
 
     assertThat(amznTraceId).hasToString("AmznTraceId{}");
   }
 
   @Test
   public void injectExtraStuff() {
-    AmznTraceId amznTraceId = new AmznTraceId();
-    amznTraceId.customFields = ";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo";
+    AmznTraceId amznTraceId = new AmznTraceId(";Robot=Hello;TotalTimeSoFar=112ms;CalledFrom=Foo");
     TraceContext extraContext =
         sampledContext.toBuilder().clearExtra().addExtra(amznTraceId).build();
     injector.inject(extraContext, carrier);
