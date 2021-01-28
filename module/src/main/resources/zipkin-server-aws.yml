@@ -6,7 +6,7 @@ spring:
 zipkin:
   internal:
     module:
-      elasticsearch-aws: zipkin.module.storage.aws.elasticsearchZipkinElasticsearchAwsStorageModule
+      elasticsearch-aws: zipkin.module.aws.elasticsearch.ZipkinElasticsearchAwsStorageModule
       kinesis: zipkin.module.aws.kinesis.ZipkinKinesisCollectorModule
       sqs: zipkin.module.aws.sqs.ZipkinSQSCollectorModule
       xray: zipkin.module.aws.xray.ZipkinXRayStorageModule
