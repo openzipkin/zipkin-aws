@@ -45,7 +45,8 @@ final class AWSInjector<R> implements TraceContext.Injector<R> {
   @Override
   public void inject(TraceContext traceContext, R request) {
     AmznTraceId amznTraceId = traceContext.findExtra(AmznTraceId.class);
-    int customFieldsLength = amznTraceId.customFields.length();
+    int customFieldsLength = amznTraceId != null ? amznTraceId.customFields.length() : 0;
+
     // Root=1-67891233-abcdef012345678912345678;Parent=463ac35c9f6413ad;Sampled=1
     char[] result = new char[74 + customFieldsLength];
     System.arraycopy(ROOT, 0, result, 0, 5);
@@ -54,12 +55,14 @@ final class AWSInjector<R> implements TraceContext.Injector<R> {
     writeHexLong(result, 48, traceContext.spanId());
     System.arraycopy(SAMPLED, 0, result, 64, 9);
     Boolean sampled = traceContext.sampled();
+
     // Sampled status is same as B3, but ? means downstream decides (like omitting X-B3-Sampled)
     // https://github.com/aws/aws-xray-sdk-go/blob/391885218b556c43ed05a1e736a766d70fc416f1/header/header.go#L50
     result[73] = sampled == null ? '?' : sampled ? '1' : '0';
     for (int i = 0; i < customFieldsLength; i++) {
       result[i + 74] = amznTraceId.customFields.charAt(i);
     }
+
     setter.put(request, AMZN_TRACE_ID_NAME, new String(result));
   }
 }
