@@ -124,6 +124,7 @@ final class AWSExtractor<R> implements Extractor<R> {
             } else if (c >= 'a' && c <= 'f') {
               traceIdHigh |= c - 'a' + 10;
             } else {
+              traceIdHigh = 0L;
               break OUTER; // invalid format
             }
           }
@@ -136,6 +137,8 @@ final class AWSExtractor<R> implements Extractor<R> {
             } else if (c >= 'a' && c <= 'f') {
               traceId |= c - 'a' + 10;
             } else {
+              traceIdHigh = 0L;
+              traceId = 0L;
               break OUTER; // invalid format
             }
           }
