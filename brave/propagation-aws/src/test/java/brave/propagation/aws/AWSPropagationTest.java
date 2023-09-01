@@ -296,4 +296,15 @@ public class AWSPropagationTest {
 
     assertThat(extractor.extract(carrier).samplingFlags()).isEqualTo(SamplingFlags.EMPTY);
   }
+
+  @Test
+  public void extract_malformed_throws_exception() {
+    carrier.put("x-amzn-trace-id", "Root=1-1373cbb-77f4b48ed7ff3eebbd62b5e01;Parent=1a4e96536a3ff131;Sampled=0");
+    /*
+    This malformed trace id (timestamp with 7 characters) breaks this test:
+    Expected behaviour -> empty string
+    Actual behaviour -> throws java.lang.IllegalStateException: Missing: traceId
+     */
+    assertThat(extractor.extract(carrier).samplingFlags()).isEqualTo(SamplingFlags.EMPTY);
+  }
 }
