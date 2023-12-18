@@ -296,4 +296,18 @@ public class AWSPropagationTest {
 
     assertThat(extractor.extract(carrier).samplingFlags()).isEqualTo(SamplingFlags.EMPTY);
   }
+
+  @Test
+  public void extract_malformed_check_not_throws_exception_different_length() {
+    carrier.put("x-amzn-trace-id", "Root=1-1373cbb-77f4b48ed7ff3eebbd62b5e01;Parent=1a4e96536a3ff131;Sampled=0");
+
+    assertThat(extractor.extract(carrier).samplingFlags()).isEqualTo(SamplingFlags.EMPTY);
+  }
+
+  @Test
+  public void extract_malformed_throws_exception_not_hexadecimal_value() {
+    carrier.put("x-amzn-trace-id", "Root=1-1z373cbb-77f4b48ed7ff3eebbd62b5e01;Parent=1a4e96536a3ff131;Sampled=0");
+
+    assertThat(extractor.extract(carrier).samplingFlags()).isEqualTo(SamplingFlags.EMPTY);
+  }
 }
