@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2023 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -30,9 +30,9 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.SocketPolicy;
 import okio.Buffer;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import zipkin2.Call;
 import zipkin2.Callback;
 import zipkin2.CheckResult;
@@ -45,15 +45,14 @@ import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static zipkin2.TestObjects.CLIENT_SPAN;
 
-public class KinesisSenderTest {
-  @Rule public MockWebServer server = new MockWebServer();
+class KinesisSenderTest {
+  public MockWebServer server = new MockWebServer();
 
   // Kinesis sends data in CBOR format
   ObjectMapper mapper = new ObjectMapper(new CBORFactory());
   KinesisSender sender;
 
-  @Before
-  public void setup() {
+  @BeforeEach void setup() {
     sender =
         KinesisSender.newBuilder()
             .streamName("test")
@@ -63,8 +62,7 @@ public class KinesisSenderTest {
             .build();
   }
 
-  @Test
-  public void sendsSpans() throws Exception {
+  @Test void sendsSpans() throws Exception {
     server.enqueue(new MockResponse());
 
     send(CLIENT_SPAN, CLIENT_SPAN).execute();
@@ -73,8 +71,7 @@ public class KinesisSenderTest {
         .containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test
-  public void sendsSpans_PROTO3() throws Exception {
+  @Test void sendsSpans_PROTO3() throws Exception {
     server.enqueue(new MockResponse());
 
     sender.close();
@@ -86,8 +83,7 @@ public class KinesisSenderTest {
         .containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test
-  public void outOfBandCancel() throws Exception {
+  @Test void outOfBandCancel() throws Exception {
     server.enqueue(new MockResponse());
 
     KinesisSender.KinesisCall call = (KinesisSender.KinesisCall) send(CLIENT_SPAN, CLIENT_SPAN);
@@ -112,8 +108,7 @@ public class KinesisSenderTest {
     assertThat(call.isCanceled()).isTrue();
   }
 
-  @Test
-  public void sendsSpans_json_unicode() throws Exception {
+  @Test void sendsSpans_json_unicode() throws Exception {
     server.enqueue(new MockResponse());
 
     Span unicode = CLIENT_SPAN.toBuilder().putTag("error", "\uD83D\uDCA9").build();
@@ -122,8 +117,7 @@ public class KinesisSenderTest {
     assertThat(extractSpans(server.takeRequest().getBody())).containsExactly(unicode);
   }
 
-  @Test
-  public void checkPasses() throws Exception {
+  @Test void checkPasses() throws Exception {
     enqueueCborResponse(
         mapper
             .createObjectNode()
@@ -133,8 +127,7 @@ public class KinesisSenderTest {
     assertThat(result.ok()).isTrue();
   }
 
-  @Test
-  public void checkFailsWithStreamNotActive() throws Exception {
+  @Test void checkFailsWithStreamNotActive() throws Exception {
     enqueueCborResponse(
         mapper
             .createObjectNode()
@@ -145,8 +138,7 @@ public class KinesisSenderTest {
     assertThat(result.error()).isInstanceOf(IllegalStateException.class);
   }
 
-  @Test
-  public void checkFailsWithException() {
+  @Test void checkFailsWithException() {
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
     // 3 retries after initial failure
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
@@ -177,5 +169,9 @@ public class KinesisSenderTest {
     SpanBytesEncoder bytesEncoder =
         sender.encoding() == Encoding.JSON ? SpanBytesEncoder.JSON_V2 : SpanBytesEncoder.PROTO3;
     return sender.sendSpans(Stream.of(spans).map(bytesEncoder::encode).collect(toList()));
+  }
+
+  @AfterEach void afterEachTest() throws IOException {
+    server.close();
   }
 }

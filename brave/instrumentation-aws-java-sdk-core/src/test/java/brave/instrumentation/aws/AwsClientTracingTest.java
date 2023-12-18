@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2023 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -25,27 +25,28 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder;
 import com.amazonaws.services.dynamodbv2.model.AttributeValue;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
+import java.io.IOException;
 import java.util.Collections;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
-import org.junit.Before;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.contrib.java.lang.system.EnvironmentVariables;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class AwsClientTracingTest extends ITRemote {
-
-  @Rule
+class AwsClientTracingTest extends ITRemote {
   public MockWebServer mockServer = new MockWebServer();
+
+  // TODO: replace this with jupiter
   @Rule
   public EnvironmentVariables environmentVariables = new EnvironmentVariables();
   private AmazonDynamoDB dbClient;
   private AmazonS3 s3Client;
 
-  @Before
-  public void setup() {
+  @BeforeEach void setup() {
     String endpoint = "http://localhost:" + mockServer.getPort();
     HttpTracing httpTracing = HttpTracing.create(tracing);
     AmazonDynamoDBClientBuilder clientBuilder = AmazonDynamoDBClientBuilder.standard()
@@ -64,8 +65,7 @@ public class AwsClientTracingTest extends ITRemote {
         .enableForceGlobalBucketAccess());
   }
 
-  @Test
-  public void testSpanCreatedAndTagsApplied() throws InterruptedException {
+  @Test void testSpanCreatedAndTagsApplied() throws InterruptedException {
     mockServer.enqueue(createDeleteItemResponse());
 
     dbClient.deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
@@ -79,16 +79,14 @@ public class AwsClientTracingTest extends ITRemote {
     assertThat(sdkSpan.name()).isEqualTo("aws-sdk");
   }
 
-  @Test
-  public void buildingAsyncClientWithEmptyConfigDoesNotThrowExceptions() {
+  @Test void buildingAsyncClientWithEmptyConfigDoesNotThrowExceptions() {
     HttpTracing httpTracing = HttpTracing.create(tracing);
     environmentVariables.set("AWS_REGION", "us-east-1");
 
     AwsClientTracing.create(httpTracing).build(AmazonDynamoDBAsyncClientBuilder.standard());
   }
 
-  @Test
-  public void testInternalAwsRequestsDoNotThrowNPE() throws InterruptedException {
+  @Test void testInternalAwsRequestsDoNotThrowNPE() throws InterruptedException {
     // Responds to the internal HEAD request
     mockServer.enqueue(new MockResponse()
         .setResponseCode(400)
@@ -133,5 +131,9 @@ public class AwsClientTracingTest extends ITRemote {
         + "</AccessControlPolicy> ")
         .setResponseCode(200)
         .addHeader("x-amz-request-id", "abcd");
+  }
+
+  @AfterEach void afterEachTest() throws IOException {
+    mockServer.close();
   }
 }

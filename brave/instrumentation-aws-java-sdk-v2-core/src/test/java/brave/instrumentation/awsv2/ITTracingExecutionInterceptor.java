@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2023 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -28,7 +28,7 @@ import java.util.Collections;
 import java.util.Map;
 import okhttp3.mockwebserver.MockResponse;
 import org.junit.AssumptionViolatedException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
@@ -223,7 +223,7 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
   }
 
   /** Make sure retry attempts are all annotated in the span. */
-  @Test public void retriesAnnotated() throws Exception {
+  @Test void retriesAnnotated() throws Exception {
     server.enqueue(new MockResponse().setResponseCode(500));
     server.enqueue(new MockResponse());
 

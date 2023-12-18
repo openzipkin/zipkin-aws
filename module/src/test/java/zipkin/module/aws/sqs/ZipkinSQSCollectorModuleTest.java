@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2023 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -16,9 +16,10 @@ package zipkin.module.aws.sqs;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
-import org.junit.After;
 import org.junit.Rule;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.test.util.TestPropertyValues;
@@ -28,15 +29,18 @@ import org.springframework.context.annotation.Configuration;
 import zipkin2.collector.CollectorMetrics;
 import zipkin2.collector.CollectorSampler;
 import zipkin2.collector.sqs.SQSCollector;
-import zipkin2.junit.aws.AmazonSQSRule;
+import zipkin2.junit.aws.AmazonSQSExtension;
 import zipkin2.storage.InMemoryStorage;
 import zipkin2.storage.StorageComponent;
 
 import static com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
-public class ZipkinSQSCollectorModuleTest {
+class ZipkinSQSCollectorModuleTest {
+  @RegisterExtension static AmazonSQSExtension sqs = new AmazonSQSExtension();
+
   /** Don't crash if CI box doesn't have .aws directory defined */
   @Configuration
   static class Region {
@@ -45,35 +49,31 @@ public class ZipkinSQSCollectorModuleTest {
       return new EndpointConfiguration("sqs.us-east-1.amazonaws.com", "us-east-1");
     }
   }
-
-  @Rule public AmazonSQSRule sqsRule = new AmazonSQSRule().start();
-
   AnnotationConfigApplicationContext context;
 
-  @After
-  public void close() {
+  @AfterEach void close() {
     if (context != null) context.close();
   }
 
-  @Test(expected = NoSuchBeanDefinitionException.class)
-  public void doesntProvideCollectorComponent_whenSqsQueueUrlUnset() {
-    context = new AnnotationConfigApplicationContext();
-    context.register(
-        PropertyPlaceholderAutoConfiguration.class,
-        Region.class,
-        ZipkinSQSCollectorModule.class,
-        ZipkinSQSCredentialsConfiguration.class,
-        InMemoryConfiguration.class);
-    context.refresh();
+  @Test void doesntProvideCollectorComponent_whenSqsQueueUrlUnset() {
+    assertThrows(NoSuchBeanDefinitionException.class, () -> {
+      context = new AnnotationConfigApplicationContext();
+      context.register(
+          PropertyPlaceholderAutoConfiguration.class,
+          Region.class,
+          ZipkinSQSCollectorModule.class,
+          ZipkinSQSCredentialsConfiguration.class,
+          InMemoryConfiguration.class);
+      context.refresh();
 
-    context.getBean(SQSCollector.class);
+      context.getBean(SQSCollector.class);
+    });
   }
 
-  @Test
-  public void provideCollectorComponent_whenSqsQueueUrlIsSet() {
+  @Test void provideCollectorComponent_whenSqsQueueUrlIsSet() {
     context = new AnnotationConfigApplicationContext();
     TestPropertyValues.of(
-        "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl(),
+        "zipkin.collector.sqs.queue-url:" + sqs.queueUrl(),
         "zipkin.collector.sqs.wait-time-seconds:1",
         "zipkin.collector.sqs.aws-access-key-id: x",
         "zipkin.collector.sqs.aws-secret-access-key: x")
@@ -92,11 +92,10 @@ public class ZipkinSQSCollectorModuleTest {
         .isThrownBy(() -> context.getBean(AWSSecurityTokenService.class));
   }
 
-  @Test
-  public void provideCollectorComponent_setsZipkinSqsCollectorProperties() {
+  @Test void provideCollectorComponent_setsZipkinSqsCollectorProperties() {
     context = new AnnotationConfigApplicationContext();
     TestPropertyValues.of(
-        "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl(),
+        "zipkin.collector.sqs.queue-url:" + sqs.queueUrl(),
         "zipkin.collector.sqs.wait-time-seconds:1",
         "zipkin.collector.sqs.parallelism:3",
         "zipkin.collector.sqs.aws-access-key-id: x",
@@ -112,16 +111,15 @@ public class ZipkinSQSCollectorModuleTest {
 
     ZipkinSQSCollectorProperties properties = context.getBean(ZipkinSQSCollectorProperties.class);
 
-    assertThat(properties.getQueueUrl()).isEqualTo(sqsRule.queueUrl());
+    assertThat(properties.getQueueUrl()).isEqualTo(sqs.queueUrl());
     assertThat(properties.getWaitTimeSeconds()).isEqualTo(1);
     assertThat(properties.getParallelism()).isEqualTo(3);
   }
 
-  @Test
-  public void provideSecurityTokenService_whenAwsStsRoleArnIsSet() {
+  @Test void provideSecurityTokenService_whenAwsStsRoleArnIsSet() {
     context = new AnnotationConfigApplicationContext();
     TestPropertyValues.of(
-        "zipkin.collector.sqs.queue-url:" + sqsRule.queueUrl(),
+        "zipkin.collector.sqs.queue-url:" + sqs.queueUrl(),
         "zipkin.collector.sqs.wait-time-seconds:1",
         "zipkin.collector.sqs.aws-access-key-id: x",
         "zipkin.collector.sqs.aws-secret-access-key: x",

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2023 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -27,17 +27,17 @@ import java.net.InetSocketAddress;
 import java.util.Collections;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import zipkin2.Span;
 import zipkin2.TestObjects;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-public class XRayUDPStorageTest {
+class XRayUDPStorageTest {
 
   private static EventLoopGroup workerGroup;
   private static Channel serverChannel;
@@ -45,7 +45,7 @@ public class XRayUDPStorageTest {
 
   private static XRayUDPStorage storage;
 
-  @BeforeClass
+  @BeforeAll
   public static void startServer() {
     workerGroup = new NioEventLoopGroup();
     receivedPayloads = new LinkedBlockingQueue<>();
@@ -70,20 +70,18 @@ public class XRayUDPStorageTest {
         .build();
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopServer() {
     storage.close();
     serverChannel.close().syncUninterruptibly();
     workerGroup.shutdownGracefully();
   }
 
-  @Before
-  public void setUp() {
+  @BeforeEach void setUp() {
     receivedPayloads.clear();
   }
 
-  @Test
-  public void sendTrace() throws Exception {
+  @Test void sendTrace() throws Exception {
     storage.accept(TestObjects.TRACE).execute();
     for (Span span : TestObjects.TRACE) {
       byte[] received = receivedPayloads.take();
@@ -92,24 +90,21 @@ public class XRayUDPStorageTest {
     assertThat(receivedPayloads).isEmpty();
   }
 
-  @Test
-  public void sendSingleSpan() throws Exception {
+  @Test void sendSingleSpan() throws Exception {
     storage.accept(Collections.singletonList(TestObjects.CLIENT_SPAN)).execute();
     assertThat(receivedPayloads.take())
         .containsExactly(UDPMessageEncoder.encode(TestObjects.CLIENT_SPAN));
     assertThat(receivedPayloads).isEmpty();
   }
 
-  @Test
-  public void sendNoSpans() throws Exception {
+  @Test void sendNoSpans() throws Exception {
     storage.accept(Collections.emptyList()).execute();
     // Give some time for any potential bugs to get sent to the server.
     Thread.sleep(100);
     assertThat(receivedPayloads).isEmpty();
   }
 
-  @Test
-  public void sendAfterClose() throws Exception {
+  @Test void sendAfterClose() throws Exception {
     XRayUDPStorage storage = XRayUDPStorage.newBuilder()
         .address("localhost:" + ((InetSocketAddress)serverChannel.localAddress()).getPort())
         .build();

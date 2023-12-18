@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2023 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -26,17 +26,17 @@ import io.netty.channel.socket.nio.NioDatagramChannel;
 import java.net.InetSocketAddress;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
-import org.junit.AfterClass;
-import org.junit.Before;
-import org.junit.BeforeClass;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import zipkin2.Span;
 import zipkin2.TestObjects;
 import zipkin2.storage.xray_udp.InternalStorageAccess;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class XRayUDPReporterTest {
+class XRayUDPReporterTest {
 
   private static EventLoopGroup workerGroup;
   private static Channel serverChannel;
@@ -44,7 +44,7 @@ public class XRayUDPReporterTest {
 
   private static XRayUDPReporter reporter;
 
-  @BeforeClass
+  @BeforeAll
   public static void startServer() {
     workerGroup = new NioEventLoopGroup();
     receivedPayloads = new LinkedBlockingQueue<>();
@@ -70,20 +70,18 @@ public class XRayUDPReporterTest {
         .create("localhost:" + ((InetSocketAddress) serverChannel.localAddress()).getPort());
   }
 
-  @AfterClass
+  @AfterAll
   public static void stopServer() {
     reporter.close();
     serverChannel.close().syncUninterruptibly();
     workerGroup.shutdownGracefully();
   }
 
-  @Before
-  public void setUp() {
+  @BeforeEach void setUp() {
     receivedPayloads.clear();
   }
 
-  @Test
-  public void sendSingleSpan() throws Exception {
+  @Test void sendSingleSpan() throws Exception {
     reporter.report(TestObjects.CLIENT_SPAN);
     Span spanWithSdk = TestObjects.CLIENT_SPAN.toBuilder()
                                               .putTag("aws.xray.sdk", "Zipkin Brave")
