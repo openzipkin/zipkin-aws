@@ -99,6 +99,15 @@ class AwsClientTracingTest extends ITRemote {
 
     s3Client.doesBucketExistV2("Test-Bucket");
 
+    // The HEAD request is also recorded
+    MutableSpan errorSpan = testSpanHandler.takeRemoteSpanWithError(brave.Span.Kind.CLIENT);
+    assertThat(errorSpan.remoteServiceName()).isEqualToIgnoringCase("amazon s3");
+    assertThat(errorSpan.name()).isEqualToIgnoringCase("HeadBucket");
+    assertThat(errorSpan.tags().get("aws.request_id")).isEqualToIgnoringCase("abcd");
+
+    MutableSpan errorSdkSpan = testSpanHandler.takeLocalSpan();
+    assertThat(errorSdkSpan.name()).isEqualToIgnoringCase("aws-sdk");
+
     MutableSpan httpSpan = testSpanHandler.takeRemoteSpan(brave.Span.Kind.CLIENT);
     assertThat(httpSpan.remoteServiceName()).isEqualToIgnoringCase("amazon s3");
     assertThat(httpSpan.name()).isEqualToIgnoringCase("getbucketacl");
