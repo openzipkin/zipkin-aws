@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -17,6 +17,7 @@ import com.linecorp.armeria.client.ClientRequestContext;
 import com.linecorp.armeria.client.HttpClient;
 import com.linecorp.armeria.client.SimpleDecoratingHttpClient;
 import com.linecorp.armeria.common.AggregatedHttpRequest;
+import com.linecorp.armeria.common.AggregationOptions;
 import com.linecorp.armeria.common.HttpData;
 import com.linecorp.armeria.common.HttpHeaderNames;
 import com.linecorp.armeria.common.HttpRequest;
@@ -84,11 +85,13 @@ final class AWSSignatureVersion4 extends SimpleDecoratingHttpClient {
   @Override public HttpResponse execute(ClientRequestContext ctx, HttpRequest req) {
     // We aggregate the request body with pooled objects because signing implies reading it before
     // sending it to Elasticsearch.
-    return HttpResponse.from(
-        req.aggregateWithPooledObjects(ctx.eventLoop(), ctx.alloc()).thenApply(aggReg -> {
+    return HttpResponse.of(
+        req.aggregate(AggregationOptions.usePooledObjects(ctx.alloc())).thenApply(aggReg -> {
           try {
             AggregatedHttpRequest signed = sign(ctx, aggReg);
-            return unwrap().execute(ctx, signed.toHttpRequest());
+            final HttpRequest httpRequest = signed.toHttpRequest();
+            ctx.updateRequest(httpRequest);
+            return unwrap().execute(ctx, httpRequest);
           } catch (Exception e) {
             return HttpResponse.ofFailure(e);
           }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2023 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -27,14 +27,15 @@ import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.RequestHeaders;
 import com.linecorp.armeria.common.SessionProtocol;
 import com.linecorp.armeria.server.ServerBuilder;
-import com.linecorp.armeria.testing.junit4.server.ServerRule;
+import com.linecorp.armeria.testing.junit5.server.ServerExtension;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.ClassRule;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -48,9 +49,9 @@ class AWSSignatureVersion4Test {
   static final AtomicReference<AggregatedHttpResponse> MOCK_RESPONSE =
       new AtomicReference<>();
 
-  @ClassRule public static ServerRule server = new ServerRule() {
+  @RegisterExtension static ServerExtension server = new ServerExtension() {
     @Override protected void configure(ServerBuilder sb) {
-      sb.serviceUnder("/", (ctx, req) -> HttpResponse.from(
+      sb.serviceUnder("/", (ctx, req) -> HttpResponse.of(
           req.aggregate().thenApply(agg -> {
             CAPTURED_REQUEST.set(agg);
             return MOCK_RESPONSE.get().toHttpResponse();
