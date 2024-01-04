@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2023 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -30,8 +30,7 @@ import java.util.stream.Stream;
 import org.elasticmq.StrictSQSLimits$;
 import org.elasticmq.rest.sqs.SQSRestServer;
 import org.elasticmq.rest.sqs.SQSRestServerBuilder;
-import org.junit.jupiter.api.extension.AfterAllCallback;
-import org.junit.jupiter.api.extension.BeforeAllCallback;
+import org.junit.jupiter.api.extension.AfterEachCallback;
 import org.junit.jupiter.api.extension.BeforeEachCallback;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import zipkin2.Span;
@@ -40,7 +39,7 @@ import zipkin2.codec.SpanBytesDecoder;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Collections.singletonList;
 
-public class AmazonSQSExtension implements BeforeEachCallback, BeforeAllCallback, AfterAllCallback {
+public class AmazonSQSExtension implements BeforeEachCallback, AfterEachCallback {
   SQSRestServer server;
   int serverPort;
   AmazonSQS client;
@@ -49,7 +48,7 @@ public class AmazonSQSExtension implements BeforeEachCallback, BeforeAllCallback
   public AmazonSQSExtension() {
   }
 
-  @Override public void beforeAll(ExtensionContext extensionContext) {
+  @Override public void beforeEach(ExtensionContext extensionContext) {
     if (server == null) {
       server =
           SQSRestServerBuilder.withDynamicPort().withSQSLimits(StrictSQSLimits$.MODULE$).start();
@@ -64,26 +63,26 @@ public class AmazonSQSExtension implements BeforeEachCallback, BeforeAllCallback
           .build();
       queueUrl = client.createQueue("zipkin").getQueueUrl();
     }
+    
+    if (client != null && queueUrl != null) {
+      client.purgeQueue(new PurgeQueueRequest(queueUrl));
+    }
   }
 
-  @Override public void afterAll(ExtensionContext extensionContext) {
+  @Override public void afterEach(ExtensionContext extensionContext) {
     if (client != null) {
       client.shutdown();
+      client = null;
     }
 
     if (server == null) {
       server.stopAndWait();
+      server = null;
     }
   }
 
   public String queueUrl() {
     return queueUrl;
-  }
-
-  @Override public void beforeEach(ExtensionContext extensionContext) {
-    if (client != null && queueUrl != null) {
-      client.purgeQueue(new PurgeQueueRequest(queueUrl));
-    }
   }
 
   public int queueCount() {

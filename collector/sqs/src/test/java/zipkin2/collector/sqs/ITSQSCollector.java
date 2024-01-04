@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2023 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -16,6 +16,7 @@ package zipkin2.collector.sqs;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -24,7 +25,6 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import zipkin2.Span;
 import zipkin2.TestObjects;
@@ -40,9 +40,8 @@ import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ITSQSCollector {
-  @RegisterExtension static AmazonSQSExtension sqs = new AmazonSQSExtension();
+  @RegisterExtension AmazonSQSExtension sqs = new AmazonSQSExtension();
 
   List<Span> spans =
       asList( // No unicode or data that doesn't translate between json formats

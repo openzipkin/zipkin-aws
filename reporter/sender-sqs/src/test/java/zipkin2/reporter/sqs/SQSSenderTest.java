@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2023 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
+
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import zipkin2.Call;
@@ -35,14 +37,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static zipkin2.TestObjects.CLIENT_SPAN;
 
 class SQSSenderTest {
-  @RegisterExtension static AmazonSQSExtension sqs = new AmazonSQSExtension();
+  @RegisterExtension AmazonSQSExtension sqs = new AmazonSQSExtension();
 
-  SQSSender sender =
+  private SQSSender sender;
+
+  @BeforeEach public void setup() {
+    sender =
       SQSSender.newBuilder()
           .queueUrl(sqs.queueUrl())
           .endpointConfiguration(new EndpointConfiguration(sqs.queueUrl(), "us-east-1"))
           .credentialsProvider(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
           .build();
+  }
 
   @Test void sendsSpans() throws Exception {
     send(CLIENT_SPAN, CLIENT_SPAN).execute();
