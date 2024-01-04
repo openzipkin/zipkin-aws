@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2023 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -20,9 +20,9 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import zipkin2.Span;
 import zipkin2.TestObjects;
 import zipkin2.codec.SpanBytesEncoder;
@@ -34,7 +34,7 @@ import static java.util.Arrays.asList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** We can't integration test the KinesisCollector without a local version of the service */
-public class KinesisSpanProcessorTest {
+class KinesisSpanProcessorTest {
   List<Span> spans =
       asList( // No unicode or data that doesn't translate between json formats
           TestObjects.LOTS_OF_SPANS[0], TestObjects.LOTS_OF_SPANS[1], TestObjects.LOTS_OF_SPANS[2]);
@@ -45,8 +45,7 @@ public class KinesisSpanProcessorTest {
   private Collector collector;
   private KinesisSpanProcessor kinesisSpanProcessor;
 
-  @Before
-  public void setup() {
+  @BeforeEach void setup() {
     storage = InMemoryStorage.newBuilder().build();
     collector = Collector.newBuilder(KinesisSpanProcessorTest.class)
         .storage(storage)
@@ -56,29 +55,25 @@ public class KinesisSpanProcessorTest {
     kinesisSpanProcessor = new KinesisSpanProcessor(collector, metrics);
   }
 
-  @After
-  public void teardown() {
+  @AfterEach void teardown() {
     kinesisSpanProcessor = null;
     collector = null;
     storage = null;
   }
 
-  @Test
-  public void oneRecordCollected() {
+  @Test void oneRecordCollected() {
     kinesisSpanProcessor.processRecords(createTestData(1));
 
     assertThat(storage.spanStore().getTraces().size()).isEqualTo(1);
   }
 
   /** Ensures list encoding works: a version 2 json list of spans */
-  @Test
-  public void messageWithMultipleSpans_json2() {
+  @Test void messageWithMultipleSpans_json2() {
     messageWithMultipleSpans(SpanBytesEncoder.JSON_V2);
   }
 
   /** Ensures list encoding works: proto3 ListOfSpans */
-  @Test
-  public void messageWithMultipleSpans_proto3() {
+  @Test void messageWithMultipleSpans_proto3() {
     messageWithMultipleSpans(SpanBytesEncoder.PROTO3);
   }
 
@@ -91,15 +86,13 @@ public class KinesisSpanProcessorTest {
     assertThat(storage.spanStore().getTraces().size()).isEqualTo(spans.size());
   }
 
-  @Test
-  public void lotsOfRecordsCollected() {
+  @Test void lotsOfRecordsCollected() {
     kinesisSpanProcessor.processRecords(createTestData(10000));
 
     assertThat(storage.spanStore().getTraces().size()).isEqualTo(10000);
   }
 
-  @Test
-  public void collectorFailsWhenRecordEncodedAsSingleSpan() {
+  @Test void collectorFailsWhenRecordEncodedAsSingleSpan() {
     Span span = TestObjects.LOTS_OF_SPANS[0];
     byte[] encodedSpan = SpanBytesEncoder.THRIFT.encode(span);
     Record kinesisRecord = new Record().withData(ByteBuffer.wrap(encodedSpan));

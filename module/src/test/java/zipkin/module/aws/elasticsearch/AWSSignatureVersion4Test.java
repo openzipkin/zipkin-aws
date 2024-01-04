@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -27,30 +27,31 @@ import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.common.RequestHeaders;
 import com.linecorp.armeria.common.SessionProtocol;
 import com.linecorp.armeria.server.ServerBuilder;
-import com.linecorp.armeria.testing.junit4.server.ServerRule;
+import com.linecorp.armeria.testing.junit5.server.ServerExtension;
+
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static zipkin.module.aws.elasticsearch.AWSSignatureVersion4.writeCanonicalString;
 
-public class AWSSignatureVersion4Test {
+class AWSSignatureVersion4Test {
 
   static final AtomicReference<AggregatedHttpRequest> CAPTURED_REQUEST =
       new AtomicReference<>();
   static final AtomicReference<AggregatedHttpResponse> MOCK_RESPONSE =
       new AtomicReference<>();
 
-  @ClassRule public static ServerRule server = new ServerRule() {
+  @RegisterExtension static ServerExtension server = new ServerExtension() {
     @Override protected void configure(ServerBuilder sb) {
-      sb.serviceUnder("/", (ctx, req) -> HttpResponse.from(
+      sb.serviceUnder("/", (ctx, req) -> HttpResponse.of(
           req.aggregate().thenApply(agg -> {
             CAPTURED_REQUEST.set(agg);
             return MOCK_RESPONSE.get().toHttpResponse();
@@ -63,7 +64,7 @@ public class AWSSignatureVersion4Test {
 
   WebClient client;
 
-  @Before public void setUp() {
+  @BeforeEach public void setUp() {
     // Make a manual endpoint so that we can get a hostname
     Endpoint endpoint = Endpoint.of(
         "search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com",
@@ -75,7 +76,7 @@ public class AWSSignatureVersion4Test {
         .build();
   }
 
-  @Test public void propagatesExceptionGettingCredentials() {
+  @Test void propagatesExceptionGettingCredentials() {
     credentials = () -> {
       throw new RuntimeException(
           "Unable to load AWS credentials from any provider in the chain");
@@ -87,7 +88,7 @@ public class AWSSignatureVersion4Test {
         .hasMessageContaining("Unable to load AWS credentials from any provider in the chain");
   }
 
-  @Test public void signsRequestsForRegionAndEsService() {
+  @Test void signsRequestsForRegionAndEsService() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.OK));
 
     client.get("/_template/zipkin_template").aggregate().join();
@@ -98,7 +99,7 @@ public class AWSSignatureVersion4Test {
         .contains(region + "/es/aws4_request"); // for the region and service
   }
 
-  @Test public void addsAwsDateHeader() {
+  @Test void addsAwsDateHeader() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.OK));
 
     client.get("/_template/zipkin_template").aggregate().join();
@@ -106,7 +107,7 @@ public class AWSSignatureVersion4Test {
     assertThat(CAPTURED_REQUEST.get().headers().get("x-amz-date")).isNotNull();
   }
 
-  @Test public void canonicalString_commasInPath() {
+  @Test void canonicalString_commasInPath() {
     AggregatedHttpRequest request = AggregatedHttpRequest.of(
         RequestHeaders.builder(HttpMethod.POST,
             "/zipkin-2016-10-05,zipkin-2016-10-06/dependencylink/_search?allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true")
@@ -136,7 +137,7 @@ public class AWSSignatureVersion4Test {
   }
 
   /** Starting with Zipkin 1.31 colons are used to delimit index types in ES */
-  @Test public void canonicalString_colonsInPath() {
+  @Test void canonicalString_colonsInPath() {
     AggregatedHttpRequest request = AggregatedHttpRequest.of(RequestHeaders.builder(HttpMethod.GET,
         "/_cluster/health/zipkin:span-*")
         .set(AWSSignatureVersion4.X_AMZ_DATE, "20170830T143137Z")
@@ -163,7 +164,7 @@ public class AWSSignatureVersion4Test {
         + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
   }
 
-  @Test public void canonicalString_getDomain() {
+  @Test void canonicalString_getDomain() {
     String timestamp = "20190730T134617Z";
     String yyyyMMdd = timestamp.substring(0, 8);
     AggregatedHttpRequest request = AggregatedHttpRequest.of(

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -18,8 +18,10 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
-import org.junit.Rule;
-import org.junit.Test;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
@@ -31,45 +33,47 @@ import zipkin2.CheckResult;
 import zipkin2.Span;
 import zipkin2.codec.Encoding;
 import zipkin2.codec.SpanBytesEncoder;
-import zipkin2.junit.aws.AmazonSQSRule;
+import zipkin2.junit.aws.AmazonSQSExtension;
 
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
 import static zipkin2.TestObjects.CLIENT_SPAN;
 
-public class SQSSenderTest {
-  @Rule public AmazonSQSRule sqsRule = new AmazonSQSRule().start();
+class SQSSenderTest {
+  @RegisterExtension AmazonSQSExtension sqs = new AmazonSQSExtension();
 
-  SqsClient sqsClient = SqsClient.builder()
+  private SqsClient sqsClient;
+  private SQSSender sender;
+
+  @BeforeEach public void setup() {
+    sqsClient = SqsClient.builder()
       .httpClient(UrlConnectionHttpClient.create())
       .region(Region.US_EAST_1)
-      .endpointOverride(URI.create(sqsRule.queueUrl()))
+      .endpointOverride(URI.create(sqs.queueUrl()))
       .credentialsProvider(
           StaticCredentialsProvider.create(AwsBasicCredentials.create("x", "x")))
       .build();
 
-  SQSSender sender = SQSSender.newBuilder()
-      .queueUrl(sqsRule.queueUrl())
+    sender = SQSSender.newBuilder()
+      .queueUrl(sqs.queueUrl())
       .sqsClient(sqsClient)
       .build();
+  }
 
-  @Test
-  public void sendsSpans() throws Exception {
+  @Test void sendsSpans() throws Exception {
     send(CLIENT_SPAN, CLIENT_SPAN).execute();
 
     assertThat(readSpans()).containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test
-  public void sendsSpans_json_unicode() throws Exception {
+  @Test void sendsSpans_json_unicode() throws Exception {
     Span unicode = CLIENT_SPAN.toBuilder().putTag("error", "\uD83D\uDCA9").build();
     send(unicode).execute();
 
     assertThat(readSpans()).containsExactly(unicode);
   }
 
-  @Test
-  public void sendsSpans_PROTO3() throws Exception {
+  @Test void sendsSpans_PROTO3() throws Exception {
     sender.close();
     sender = sender.toBuilder().encoding(Encoding.PROTO3).build();
 
@@ -78,8 +82,7 @@ public class SQSSenderTest {
     assertThat(readSpans()).containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test
-  public void outOfBandCancel() throws Exception {
+  @Test void outOfBandCancel() throws Exception {
     SQSSender.SQSCall call = (SQSSender.SQSCall) send(CLIENT_SPAN, CLIENT_SPAN);
     assertThat(call.isCanceled()).isFalse(); // sanity check
 
@@ -102,8 +105,7 @@ public class SQSSenderTest {
     assertThat(call.isCanceled()).isTrue();
   }
 
-  @Test
-  public void checkOk() {
+  @Test void checkOk() {
     assertThat(sender.check()).isEqualTo(CheckResult.OK);
   }
 
@@ -114,7 +116,7 @@ public class SQSSenderTest {
   }
 
   List<Span> readSpans() {
-    assertThat(sqsRule.queueCount()).isEqualTo(1);
-    return sqsRule.getSpans();
+    assertThat(sqs.queueCount()).isEqualTo(1);
+    return sqs.getSpans();
   }
 }

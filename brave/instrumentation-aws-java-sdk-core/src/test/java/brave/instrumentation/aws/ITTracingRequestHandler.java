@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -31,7 +31,7 @@ import java.io.IOException;
 import java.util.Collections;
 import okhttp3.mockwebserver.MockResponse;
 import org.junit.AssumptionViolatedException;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -197,7 +197,7 @@ public class ITTracingRequestHandler extends ITHttpClient<AmazonDynamoDB> {
     assertThatThrownBy(super::spanHandlerSeesError)
         .isInstanceOf(AssertionError.class)
         // spanHandler was called twice. OK because the second time was for the application span.
-        .hasMessageContaining("Expected size:<1> but was:<2>");
+        .hasMessageContaining("Expected size: 1 but was: 2");
 
     assertThat(testSpanHandler.takeLocalSpan().error())
         .hasMessageStartingWith("Unable to execute HTTP request");

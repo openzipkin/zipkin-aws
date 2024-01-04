@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -21,26 +21,27 @@ import com.linecorp.armeria.common.HttpResponse;
 import com.linecorp.armeria.common.HttpStatus;
 import com.linecorp.armeria.common.MediaType;
 import com.linecorp.armeria.server.ServerBuilder;
-import com.linecorp.armeria.testing.junit4.server.ServerRule;
+import com.linecorp.armeria.testing.junit5.server.ServerExtension;
+
 import java.util.concurrent.atomic.AtomicReference;
-import org.junit.Before;
-import org.junit.ClassRule;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 import static com.linecorp.armeria.common.SessionProtocol.HTTP;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-public class ElasticsearchDomainEndpointTest {
+class ElasticsearchDomainEndpointTest {
 
   static final AtomicReference<AggregatedHttpRequest> CAPTURED_REQUEST =
       new AtomicReference<>();
   static final AtomicReference<AggregatedHttpResponse> MOCK_RESPONSE =
       new AtomicReference<>();
 
-  @ClassRule public static ServerRule server = new ServerRule() {
+  @RegisterExtension static ServerExtension server = new ServerExtension() {
     @Override protected void configure(ServerBuilder sb) {
-      sb.serviceUnder("/", (ctx, req) -> HttpResponse.from(
+      sb.serviceUnder("/", (ctx, req) -> HttpResponse.of(
           req.aggregate().thenApply(agg -> {
             CAPTURED_REQUEST.set(agg);
             return MOCK_RESPONSE.get().toHttpResponse();
@@ -50,16 +51,16 @@ public class ElasticsearchDomainEndpointTest {
 
   ElasticsearchDomainEndpoint client;
 
-  @Before public void setUp() {
+  @BeforeEach public void setUp() {
     client = new ElasticsearchDomainEndpoint((endpoint) -> WebClient.of(HTTP, endpoint),
         Endpoint.of("localhost", server.httpPort()), "ap-southeast-1", "zipkin53");
   }
 
-  @Test public void niceToString() {
+  @Test void niceToString() {
     assertThat(client).hasToString("aws://ap-southeast-1/zipkin53");
   }
 
-  @Test public void publicUrl() {
+  @Test void publicUrl() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
@@ -75,7 +76,7 @@ public class ElasticsearchDomainEndpointTest {
             "search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
-  @Test public void vpcUrl() {
+  @Test void vpcUrl() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
@@ -93,7 +94,7 @@ public class ElasticsearchDomainEndpointTest {
             "search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com");
   }
 
-  @Test public void vpcPreferred() {
+  @Test void vpcPreferred() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
@@ -110,7 +111,7 @@ public class ElasticsearchDomainEndpointTest {
         .isEqualTo("isvpc");
   }
 
-  @Test public void vpcMissing() {
+  @Test void vpcMissing() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
@@ -126,7 +127,7 @@ public class ElasticsearchDomainEndpointTest {
   }
 
   /** Not quite sure why, but some have reported receiving no URLs at all */
-  @Test public void noUrl() {
+  @Test void noUrl() {
     // simplified.. URL is usually the only thing actually missing
     String body = "{\"DomainStatus\": {}}";
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
@@ -142,7 +143,7 @@ public class ElasticsearchDomainEndpointTest {
   }
 
   /** Not quite sure why, but some have reported receiving no URLs at all */
-  @Test public void unauthorizedNoMessage() {
+  @Test void unauthorizedNoMessage() {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(HttpStatus.FORBIDDEN));
 
     assertThatThrownBy(client::get)

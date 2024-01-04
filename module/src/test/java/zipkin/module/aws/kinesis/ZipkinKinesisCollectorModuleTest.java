@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2023 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -16,9 +16,9 @@ package zipkin.module.aws.kinesis;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.boot.autoconfigure.context.PropertyPlaceholderAutoConfiguration;
 import org.springframework.boot.test.util.TestPropertyValues;
@@ -34,22 +34,19 @@ import zipkin2.storage.StorageComponent;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
-public class ZipkinKinesisCollectorModuleTest {
+class ZipkinKinesisCollectorModuleTest {
 
   AnnotationConfigApplicationContext context;
 
-  @Before
-  public void init() {
+  @BeforeEach void init() {
     context = new AnnotationConfigApplicationContext();
   }
 
-  @After
-  public void close() {
+  @AfterEach void close() {
     if (context != null) context.close();
   }
 
-  @Test
-  public void kinesisCollectorNotCreatedWhenMissingRequiredConfigValue() {
+  @Test void kinesisCollectorNotCreatedWhenMissingRequiredConfigValue() {
     context.register(
         PropertyPlaceholderAutoConfiguration.class, ZipkinKinesisCollectorModule.class);
     context.refresh();
@@ -58,8 +55,7 @@ public class ZipkinKinesisCollectorModuleTest {
         .isThrownBy(() -> context.getBean(KinesisCollector.class));
   }
 
-  @Test
-  public void kinesisCollectorCreatedWhenAllRequiredValuesAreProvided() {
+  @Test void kinesisCollectorCreatedWhenAllRequiredValuesAreProvided() {
     TestPropertyValues.of(
         "zipkin.collector.kinesis.stream-name: zipkin-test",
         // The yaml file has a default for this
@@ -76,8 +72,7 @@ public class ZipkinKinesisCollectorModuleTest {
     assertThat(context.getBean(ZipkinKinesisCollectorProperties.class)).isNotNull();
   }
 
-  @Test
-  public void kinesisCollectorConfiguredForAWSWithGivenCredentials() {
+  @Test void kinesisCollectorConfiguredForAWSWithGivenCredentials() {
     TestPropertyValues.of(
         "zipkin.collector.kinesis.stream-name: zipkin-test",
         "zipkin.collector.kinesis.app-name: zipkin",
@@ -99,8 +94,7 @@ public class ZipkinKinesisCollectorModuleTest {
         .isInstanceOf(STSAssumeRoleSessionCredentialsProvider.class);
   }
 
-  @Test
-  public void kinesisCollectorConfiguredWithCorrectRegion() {
+  @Test void kinesisCollectorConfiguredWithCorrectRegion() {
     TestPropertyValues.of(
         "zipkin.collector.kinesis.stream-name: zipkin-test",
         "zipkin.collector.kinesis.app-name: zipkin",

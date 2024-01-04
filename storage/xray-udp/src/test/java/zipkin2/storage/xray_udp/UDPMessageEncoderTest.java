@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2023 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -18,14 +18,14 @@ import com.jayway.jsonpath.PathNotFoundException;
 import java.io.IOException;
 import java.util.Map;
 import okio.Buffer;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 import zipkin2.Endpoint;
 import zipkin2.Span;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.data.MapEntry.entry;
 
-public class UDPMessageEncoderTest {
+class UDPMessageEncoderTest {
   Span serverSpan =
       Span.newBuilder()
           .traceId("1234567890abcdef1234567890abcdef")
@@ -34,8 +34,7 @@ public class UDPMessageEncoderTest {
           .name("test-cemo")
           .build();
 
-  @Test
-  public void writeJson_server_isSegment() throws Exception {
+  @Test void writeJson_server_isSegment() throws Exception {
     Span span = serverSpan;
 
     assertThat(writeJson(span))
@@ -43,8 +42,7 @@ public class UDPMessageEncoderTest {
             "{\"trace_id\":\"1-12345678-90abcdef1234567890abcdef\",\"id\":\"1234567890abcdef\",\"aws\":{\"xray\":{\"sdk\":\"Zipkin\"}}}");
   }
 
-  @Test
-  public void writeJson_origin_no_default() throws Exception {
+  @Test void writeJson_origin_no_default() throws Exception {
     Span span =
         serverSpan
             .toBuilder()
@@ -54,8 +52,7 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "origin")).isNull();
   }
 
-  @Test
-  public void writeJson_origin_custom() throws Exception {
+  @Test void writeJson_origin_custom() throws Exception {
     Span span =
         serverSpan
             .toBuilder()
@@ -67,8 +64,7 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "annotations.aws_origin")).isNull();
   }
 
-  @Test
-  public void writeJson_server_localEndpointIsName() throws Exception {
+  @Test void writeJson_server_localEndpointIsName() throws Exception {
     Span span =
         serverSpan
             .toBuilder()
@@ -79,16 +75,14 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "name")).isEqualTo("master");
   }
 
-  @Test
-  public void writeJson_client_isRemote() throws Exception {
+  @Test void writeJson_client_isRemote() throws Exception {
     Span span = serverSpan.toBuilder().kind(Span.Kind.CLIENT).build();
 
     String json = writeJson(span);
     assertThat(readString(json, "namespace")).isEqualTo("remote");
   }
 
-  @Test
-  public void writeJson_client_child_isRemoteSubsegment() throws Exception {
+  @Test void writeJson_client_child_isRemoteSubsegment() throws Exception {
     Span span = serverSpan.toBuilder().parentId('1').kind(Span.Kind.CLIENT).build();
 
     String json = writeJson(span);
@@ -96,8 +90,7 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "namespace")).isEqualTo("remote");
   }
 
-  @Test
-  public void writeJson_custom_nameIsUnknown() throws Exception {
+  @Test void writeJson_custom_nameIsUnknown() throws Exception {
     Span span = serverSpan.toBuilder()
         .kind(null)
         .name(null)
@@ -107,8 +100,7 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "name")).isEqualTo("unknown");
   }
 
-  @Test
-  public void writeJson_custom_nameIsName() throws Exception {
+  @Test void writeJson_custom_nameIsName() throws Exception {
     Span span = serverSpan.toBuilder()
         .kind(null)
         .name("hystrix")
@@ -118,8 +110,7 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "name")).isEqualTo("hystrix");
   }
 
-  @Test
-  public void writeJson_client_nameIsUnknown() throws Exception {
+  @Test void writeJson_client_nameIsUnknown() throws Exception {
     Span span = Span.newBuilder()
         .traceId(serverSpan.traceId()).id("b")
         .kind(Span.Kind.CLIENT)
@@ -130,8 +121,7 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "name")).isEqualTo("unknown");
   }
 
-  @Test
-  public void writeJson_client_nameIsHost() throws Exception {
+  @Test void writeJson_client_nameIsHost() throws Exception {
     Span span = serverSpan.toBuilder()
         .kind(Span.Kind.CLIENT)
         .name("get /")
@@ -143,8 +133,7 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "name")).isEqualTo("facebook.com");
   }
 
-  @Test
-  public void writeJson_client_nameIsName() throws Exception {
+  @Test void writeJson_client_nameIsName() throws Exception {
     Span span = serverSpan.toBuilder()
         .kind(Span.Kind.CLIENT)
         .name("get /")
@@ -155,8 +144,7 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "name")).isEqualTo("get /");
   }
 
-  @Test
-  public void writeJson_client_nameIsUnknownWhenNameNull() throws Exception {
+  @Test void writeJson_client_nameIsUnknownWhenNameNull() throws Exception {
     Span span = Span.newBuilder()
         .traceId(serverSpan.traceId()).id("b")
         .kind(Span.Kind.CLIENT)
@@ -166,8 +154,7 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "name")).isEqualTo("unknown");
   }
 
-  @Test
-  public void writeJson_client_remoteEndpointIsName() throws Exception {
+  @Test void writeJson_client_remoteEndpointIsName() throws Exception {
     Span span = serverSpan.toBuilder()
         .kind(Span.Kind.CLIENT)
         .remoteEndpoint(Endpoint.newBuilder().serviceName("master").build())
@@ -177,8 +164,7 @@ public class UDPMessageEncoderTest {
     assertThat(readString(json, "name")).isEqualTo("master");
   }
 
-  @Test
-  public void writeJson_http() throws Exception {
+  @Test void writeJson_http() throws Exception {
     Span span =
         serverSpan
             .toBuilder()
@@ -193,8 +179,7 @@ public class UDPMessageEncoderTest {
     assertThat(readMap(json, "http.response")).containsExactly(entry("status", 200));
   }
 
-  @Test
-  public void writeJson_http_clientError() throws Exception {
+  @Test void writeJson_http_clientError() throws Exception {
     Span span =
         serverSpan
             .toBuilder()
@@ -208,8 +193,7 @@ public class UDPMessageEncoderTest {
     assertThat(readBoolean(json, "fault")).isNull();
   }
 
-  @Test
-  public void writeJson_http_serverError() throws Exception {
+  @Test void writeJson_http_serverError() throws Exception {
     Span span =
         serverSpan
             .toBuilder()
@@ -223,16 +207,14 @@ public class UDPMessageEncoderTest {
     assertThat(readBoolean(json, "fault")).isTrue();
   }
 
-  @Test
-  public void writeJson_sql() throws Exception {
+  @Test void writeJson_sql() throws Exception {
     Span span = serverSpan.toBuilder().putTag("sql.url", "jdbc:test").build();
 
     String json = writeJson(span);
     assertThat(readMap(json, "sql")).containsExactly(entry("url", "jdbc:test"));
   }
 
-  @Test
-  public void writeJson_aws() throws Exception {
+  @Test void writeJson_aws() throws Exception {
     Span span =
         serverSpan
             .toBuilder()
@@ -250,8 +232,7 @@ public class UDPMessageEncoderTest {
     });
   }
 
-  @Test
-  public void writeJson_sdkProvided() throws Exception {
+  @Test void writeJson_sdkProvided() throws Exception {
     Span span =
         serverSpan
             .toBuilder()
@@ -264,8 +245,7 @@ public class UDPMessageEncoderTest {
     });
   }
 
-  @Test
-  public void writeJson_aws_ec2() throws Exception {
+  @Test void writeJson_aws_ec2() throws Exception {
     Span span =
             serverSpan
                     .toBuilder()

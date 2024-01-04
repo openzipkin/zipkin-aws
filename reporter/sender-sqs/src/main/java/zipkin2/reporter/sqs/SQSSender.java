@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -198,7 +198,7 @@ public final class SQSSender extends Sender {
 
   static boolean isAscii(byte[] encodedSpans) {
     for (int i = 0; i < encodedSpans.length; i++) {
-      if (encodedSpans[i] >= 0x80) {
+      if (Byte.toUnsignedInt(encodedSpans[i]) >= 0x80) {
         return false;
       }
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2023 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -25,26 +25,24 @@ import com.amazonaws.services.sqs.model.SendMessageRequest;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 
 import static brave.Span.Kind.PRODUCER;
 import static org.assertj.core.api.Assertions.assertThat;
 
-public class SendMessageTracingRequestHandlerTest {
+class SendMessageTracingRequestHandlerTest {
   TestSpanHandler spans = new TestSpanHandler();
   Tracing tracing = Tracing.newBuilder().addSpanHandler(spans).build();
   Extractor<Map<String, MessageAttributeValue>> extractor =
       tracing.propagation().extractor(SendMessageTracingRequestHandler.GETTER);
   SendMessageTracingRequestHandler handler = new SendMessageTracingRequestHandler(tracing);
 
-  @After
-  public void cleanup() {
+  @AfterEach void cleanup() {
     tracing.close();
   }
 
-  @Test
-  public void handleSendMessageRequest() {
+  @Test void handleSendMessageRequest() {
     SendMessageRequest request = new SendMessageRequest("queueUrl", "test message content");
 
     handler.beforeExecution(request);
@@ -58,8 +56,7 @@ public class SendMessageTracingRequestHandlerTest {
     verifyReportedPublishSpan(reportedSpan);
   }
 
-  @Test
-  public void handleSendMessageBatchRequest() {
+  @Test void handleSendMessageBatchRequest() {
     SendMessageBatchRequest request = new SendMessageBatchRequest("queueUrl");
     SendMessageBatchRequestEntry entry1 =
         new SendMessageBatchRequestEntry("id1", "test message body 1");

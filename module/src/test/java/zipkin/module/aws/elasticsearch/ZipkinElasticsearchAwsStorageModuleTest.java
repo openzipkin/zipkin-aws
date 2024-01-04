@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2023 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -21,8 +21,8 @@ import com.linecorp.armeria.common.SessionProtocol;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import org.junit.After;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.NoSuchBeanDefinitionException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -37,14 +37,14 @@ import static com.linecorp.armeria.common.SessionProtocol.HTTP;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-public class ZipkinElasticsearchAwsStorageModuleTest {
+class ZipkinElasticsearchAwsStorageModuleTest {
   AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
 
-  @After public void close() {
+  @AfterEach public void close() {
     context.close();
   }
 
-  @Test public void providesBeans_whenStorageTypeElasticsearchAndHostsAreAwsUrls() {
+  @Test void providesBeans_whenStorageTypeElasticsearchAndHostsAreAwsUrls() {
     refreshContextWithProperties("zipkin.storage.type:elasticsearch",
         "zipkin.storage.elasticsearch.hosts:https://search-domain-xyzzy.us-west-2.es.amazonaws.com");
 
@@ -52,7 +52,7 @@ public class ZipkinElasticsearchAwsStorageModuleTest {
     expectNoDomainEndpoint();
   }
 
-  @Test public void providesBeans_whenStorageTypeElasticsearchAndDomain() {
+  @Test void providesBeans_whenStorageTypeElasticsearchAndDomain() {
     refreshContextWithProperties(
         "zipkin.storage.type:elasticsearch",
         "zipkin.storage.elasticsearch.aws.domain:foobar",
@@ -63,21 +63,21 @@ public class ZipkinElasticsearchAwsStorageModuleTest {
     expectDomainEndpoint();
   }
 
-  @Test public void doesntProvideBeans_whenStorageTypeNotElasticsearch() {
+  @Test void doesntProvideBeans_whenStorageTypeNotElasticsearch() {
     refreshContextWithProperties("zipkin.storage.type:cassandra");
 
     expectNoInterceptors();
     expectNoDomainEndpoint();
   }
 
-  @Test public void doesntProvideBeans_whenStorageTypeElasticsearchAndHostsNotUrls() {
+  @Test void doesntProvideBeans_whenStorageTypeElasticsearchAndHostsNotUrls() {
     refreshContextWithProperties("zipkin.storage.type:elasticsearch");
 
     expectNoInterceptors();
     expectNoDomainEndpoint();
   }
 
-  @Test public void doesntProvideBeans_whenStorageTypeElasticsearchAndHostsNotAwsUrls() {
+  @Test void doesntProvideBeans_whenStorageTypeElasticsearchAndHostsNotAwsUrls() {
     refreshContextWithProperties(
         "zipkin.storage.type:elasticsearch",
         "zipkin.storage.elasticsearch.hosts:https://localhost:9200"

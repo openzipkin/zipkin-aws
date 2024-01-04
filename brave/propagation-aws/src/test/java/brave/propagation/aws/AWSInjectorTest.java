@@ -15,8 +15,8 @@ package brave.propagation.aws;
 
 import brave.propagation.Propagation;
 import brave.propagation.TraceContext;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import static brave.internal.codec.HexCodec.lowerHexToUnsignedLong;
 import static brave.propagation.aws.AWSPropagation.AMZN_TRACE_ID_NAME;
@@ -24,7 +24,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
-public class AWSInjectorTest {
+class AWSInjectorTest {
   private AWSInjector<Object> instance;
   private Propagation.Setter<Object, String> setterMock;
 
@@ -58,8 +58,7 @@ public class AWSInjectorTest {
       .sampled(true)
       .build();
 
-  @Before
-  public void setUp() {
+  @BeforeEach void setUp() {
     // The setter is used to verify that the correct trace ID is generated.
     setterMock = (Propagation.Setter<Object, String>) mock(Propagation.Setter.class);
     // The AWSPropagator is unused, so passing null is fine for testing.
@@ -67,8 +66,7 @@ public class AWSInjectorTest {
     instance = new AWSInjector<>(null, setterMock);
   }
 
-  @Test
-  public void injectTraceContext_ExpectTraceId() {
+  @Test void injectTraceContext_ExpectTraceId() {
     Object requestMock = mock(Object.class);
 
     // When injecting a trace context.
@@ -78,8 +76,7 @@ public class AWSInjectorTest {
     verify(setterMock, times(1)).put(requestMock, AMZN_TRACE_ID_NAME, traceId);
   }
 
-  @Test
-  public void injectTraceContextWithCustomFields_ExpectTraceIdWithCustomFields() {
+  @Test void injectTraceContextWithCustomFields_ExpectTraceIdWithCustomFields() {
     Object requestMock = mock(Object.class);
 
     // When injecting a trace context with custom fields.
@@ -89,8 +86,7 @@ public class AWSInjectorTest {
     verify(setterMock, times(1)).put(requestMock, AMZN_TRACE_ID_NAME, traceIdCustomFields);
   }
 
-  @Test
-  public void injectTraceContextWithNoExtras_ExpectTraceId() {
+  @Test void injectTraceContextWithNoExtras_ExpectTraceId() {
     Object requestMock = mock(Object.class);
 
     // When injecting a trace context with no extras set.
