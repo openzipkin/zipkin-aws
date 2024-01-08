@@ -518,8 +518,6 @@
             <version>${maven-compiler-plugin.version}</version>
             <inherited>true</inherited>
             <configuration>
-              <source>${main.java.version}</source>
-              <target>${main.java.version}</target>
               <fork>true</fork>
               <showWarnings>true</showWarnings>
             </configuration>
