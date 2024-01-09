@@ -20,7 +20,7 @@
   <parent>
     <artifactId>zipkin-aws-parent</artifactId>
     <groupId>io.zipkin.aws</groupId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0</version>
     <relativePath>../../pom.xml</relativePath>
   </parent>
 
