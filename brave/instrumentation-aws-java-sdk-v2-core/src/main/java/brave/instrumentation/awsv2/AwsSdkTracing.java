@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -14,13 +14,13 @@
 package brave.instrumentation.awsv2;
 
 import brave.http.HttpTracing;
+import brave.internal.Nullable;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
 import software.amazon.awssdk.http.SdkHttpRequest;
 import software.amazon.awssdk.http.SdkHttpResponse;
-import zipkin2.internal.Nullable;
 
 public final class AwsSdkTracing {
   public static AwsSdkTracing create(HttpTracing httpTracing) {

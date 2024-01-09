@@ -17,9 +17,9 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
-import zipkin2.Call;
-import zipkin2.codec.Encoding;
 import zipkin2.reporter.BytesMessageEncoder;
+import zipkin2.reporter.Call;
+import zipkin2.reporter.Encoding;
 import zipkin2.reporter.Sender;
 
 abstract class AbstractSender extends Sender {
@@ -74,5 +74,4 @@ abstract class AbstractSender extends Sender {
     int listSize = encoding.listSizeInBytes(list);
     return (listSize + 2) * 4 / 3; // account for base64 encoding
   }
-
 }
