@@ -14,10 +14,7 @@
 package brave.instrumentation.awsv2;
 
 import brave.Span;
-import brave.SpanCustomizer;
 import brave.handler.MutableSpan;
-import brave.http.HttpAdapter;
-import brave.http.HttpClientParser;
 import brave.http.HttpResponseParser;
 import brave.http.HttpTags;
 import brave.test.http.ITHttpClient;
@@ -152,50 +149,6 @@ public class ITTracingExecutionInterceptor extends ITHttpClient<DynamoDbClient> 
 
     assertThat(span.tags())
         .containsEntry("http.url", url(uri))
-        .containsEntry("request_customizer.is_span", "false")
-        .containsEntry("response_customizer.is_span", "false");
-  }
-
-  /** Service and span names don't conform to expectations. */
-  @Override
-  @Deprecated @Test public void supportsDeprecatedPortableCustomization() throws IOException {
-    String uri = "/"; // This test doesn't currently allow non-root HTTP paths
-
-    closeClient(client);
-    httpTracing = httpTracing.toBuilder()
-        .clientParser(new HttpClientParser() {
-          @Override
-          public <Req> void request(HttpAdapter<Req, ?> adapter, Req req,
-              SpanCustomizer customizer) {
-            customizer.name(adapter.method(req).toLowerCase() + " " + adapter.path(req));
-            customizer.tag("http.url", adapter.url(req)); // just the path is tagged by default
-            customizer.tag("context.visible", String.valueOf(currentTraceContext.get() != null));
-            customizer.tag("request_customizer.is_span", (customizer instanceof brave.Span) + "");
-          }
-
-          @Override
-          public <Resp> void response(HttpAdapter<?, Resp> adapter, Resp res, Throwable error,
-              SpanCustomizer customizer) {
-            super.response(adapter, res, error, customizer);
-            customizer.tag("response_customizer.is_span", (customizer instanceof brave.Span) + "");
-          }
-        })
-        .build().clientOf("remote-service");
-
-    client = newClient(server.getPort());
-    server.enqueue(new MockResponse());
-    get(client, uri);
-
-    MutableSpan span = testSpanHandler.takeRemoteSpan(Span.Kind.CLIENT);
-    assertThat(span.name())
-        .isEqualTo("GetItem"); // Overwrites default span name
-
-    assertThat(span.remoteServiceName())
-        .isEqualTo("DynamoDb"); // Ignores HttpTracing.serverName()
-
-    assertThat(span.tags())
-        .containsEntry("http.url", url(uri))
-        .containsEntry("context.visible", "true")
         .containsEntry("request_customizer.is_span", "false")
         .containsEntry("response_customizer.is_span", "false");
   }

@@ -16,7 +16,6 @@ package brave.propagation.aws;
 import brave.Tracing;
 import brave.baggage.BaggageField;
 import brave.internal.Nullable;
-import brave.internal.propagation.StringPropagationAdapter;
 import brave.propagation.Propagation;
 import brave.propagation.TraceContext;
 import brave.propagation.TraceContext.Extractor;
@@ -70,11 +69,7 @@ public final class AWSPropagation implements Propagation<String> {
   /** When present, this context was created with AWSPropagation */
   static final AmznTraceId NO_CUSTOM_FIELDS = new AmznTraceId("");
   static final Extractor<String> STRING_EXTRACTOR =
-      INSTANCE.extractor(new Getter<String, String>() {
-        @Override public String get(String request, String key) {
-          return request;
-        }
-      });
+      INSTANCE.extractor((request, key) -> request);
   public static final Propagation.Factory FACTORY = new Factory();
 
   static final char[] ROOT = "Root=".toCharArray();
@@ -85,16 +80,6 @@ public final class AWSPropagation implements Propagation<String> {
   static final class Factory extends Propagation.Factory {
     @Override public Propagation<String> get() {
       return INSTANCE;
-    }
-
-    /**
-     * @deprecated end users and instrumentation should never call this, and instead use
-     * {@link #get()}. This only remains to avoid rev-lock upgrading to Brave 6.
-     */
-    // This only exists for spring-cloud-sleuth, which is no longer being released. It hasn't and
-    // might not upgrade to Brave 5.18 which implements the same way.
-    @Deprecated public <K> Propagation<K> create(KeyFactory<K> unused) {
-      throw new UnsupportedOperationException("As of Brave 5.12, call PropagationFactory.get()");
     }
 
     @Override public boolean supportsJoin() {

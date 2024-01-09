@@ -24,14 +24,14 @@ import com.amazonaws.util.Base64;
 import java.nio.charset.Charset;
 import java.util.List;
 import java.util.concurrent.Future;
-import zipkin2.Call;
-import zipkin2.Callback;
-import zipkin2.CheckResult;
-import zipkin2.codec.Encoding;
-import zipkin2.internal.Nullable;
 import zipkin2.reporter.AsyncReporter;
 import zipkin2.reporter.BytesMessageEncoder;
+import zipkin2.reporter.Call;
+import zipkin2.reporter.Callback;
+import zipkin2.reporter.CheckResult;
+import zipkin2.reporter.Encoding;
 import zipkin2.reporter.Sender;
+import zipkin2.reporter.internal.Nullable;
 
 /**
  * Zipkin Sender implementation that sends spans to an SQS queue.

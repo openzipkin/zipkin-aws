@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -18,6 +18,7 @@ import brave.http.HttpClientHandler;
 import brave.http.HttpTracing;
 import brave.instrumentation.awsv2.AwsSdkTracing.HttpClientRequest;
 import brave.instrumentation.awsv2.AwsSdkTracing.HttpClientResponse;
+import brave.internal.Nullable;
 import software.amazon.awssdk.awscore.exception.AwsServiceException;
 import software.amazon.awssdk.core.SdkRequest;
 import software.amazon.awssdk.core.interceptor.Context;
@@ -26,7 +27,6 @@ import software.amazon.awssdk.core.interceptor.ExecutionAttributes;
 import software.amazon.awssdk.core.interceptor.ExecutionInterceptor;
 import software.amazon.awssdk.core.interceptor.SdkExecutionAttribute;
 import software.amazon.awssdk.http.SdkHttpRequest;
-import zipkin2.internal.Nullable;
 
 /**
  * Traces AWS Java SDK V2 calls. Adds on the standard zipkin/brave http tags, as well as tags that

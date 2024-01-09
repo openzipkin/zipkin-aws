@@ -19,7 +19,7 @@
 
   <groupId>io.zipkin.aws</groupId>
   <artifactId>zipkin-aws-parent</artifactId>
-  <version>0.24.1-SNAPSHOT</version>
+  <version>1.0.0-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -78,8 +78,8 @@
     <!-- matching armeria/grpc/zipkin -->
     <zipkin.groupId>io.zipkin.zipkin2</zipkin.groupId>
     <!-- when updating, update docker/Dockerfile and storage/src/test/java/zipkin2/storage/kafka/IT* -->
-    <zipkin.version>2.27.0</zipkin.version>
-    <zipkin-reporter.version>2.17.2</zipkin-reporter.version>
+    <zipkin.version>2.27.1</zipkin.version>
+    <zipkin-reporter.version>3.0.2</zipkin-reporter.version>
     <spring-boot.version>2.7.18</spring-boot.version>
     <jackson.version>2.16.1</jackson.version>
     <!-- armeria.groupId allows you to test feature branches with jitpack -->
@@ -92,7 +92,7 @@
     <!--    <brave.groupId>com.github.openzipkin.brave</brave.groupId>-->
     <!--    <brave.version>master-SNAPSHOT</brave.version>-->
     <brave.groupId>io.zipkin.brave</brave.groupId>
-    <brave.version>5.18.1</brave.version>
+    <brave.version>6.0.0</brave.version>
 
     <aws-java-sdk.version>1.12.633</aws-java-sdk.version>
     <sdk-core.version>2.22.13</sdk-core.version>
