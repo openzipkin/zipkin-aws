@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -36,13 +36,7 @@ import zipkin2.storage.StorageComponent;
 public final class XRayUDPStorage extends StorageComponent implements SpanStore, SpanConsumer {
 
   static final int PACKET_LENGTH = 256 * 1024;
-  static final ThreadLocal<byte[]> BUF =
-      new ThreadLocal<byte[]>() {
-        @Override
-        protected byte[] initialValue() {
-          return new byte[PACKET_LENGTH];
-        }
-      };
+  static final ThreadLocal<byte[]> BUF = ThreadLocal.withInitial(() -> new byte[PACKET_LENGTH]);
 
   public static Builder newBuilder() {
     return new Builder();
@@ -178,7 +172,7 @@ public final class XRayUDPStorage extends StorageComponent implements SpanStore,
     }
   }
 
-  @Override public final String toString() {
+  @Override public String toString() {
     return "XRayUDPStorage{address=" + address + "}";
   }
 

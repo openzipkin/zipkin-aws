@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -69,8 +69,8 @@ class ZipkinSQSCredentialsConfiguration {
     AWSCredentialsProvider provider = new DefaultAWSCredentialsProviderChain();
 
     // Create credentials provider from ID and secret if given.
-    if (!isNullOrEmpty(properties.awsAccessKeyId)
-        && !isNullOrEmpty(properties.awsSecretAccessKey)) {
+    if (notNullOrEmpty(properties.awsAccessKeyId)
+        && notNullOrEmpty(properties.awsSecretAccessKey)) {
       provider =
           new AWSStaticCredentialsProvider(
               new BasicAWSCredentials(properties.awsAccessKeyId, properties.awsSecretAccessKey));
@@ -79,8 +79,8 @@ class ZipkinSQSCredentialsConfiguration {
     return provider;
   }
 
-  private static boolean isNullOrEmpty(String value) {
-    return (value == null || value.equals(""));
+  private static boolean notNullOrEmpty(String value) {
+    return (value != null && !value.isEmpty());
   }
 
   /**

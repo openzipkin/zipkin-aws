@@ -36,33 +36,39 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static zipkin2.TestObjects.CLIENT_SPAN;
 
 class SQSSenderTest {
-  @RegisterExtension AmazonSQSExtension sqs = new AmazonSQSExtension();
+  @RegisterExtension
+  AmazonSQSExtension sqs = new AmazonSQSExtension();
 
   private SQSSender sender;
 
-  @BeforeEach public void setup() {
+  @BeforeEach
+  public void setup() {
     sender =
-      SQSSender.newBuilder()
-          .queueUrl(sqs.queueUrl())
-          .endpointConfiguration(new EndpointConfiguration(sqs.queueUrl(), "us-east-1"))
-          .credentialsProvider(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
-          .build();
+        SQSSender.newBuilder()
+            .queueUrl(sqs.queueUrl())
+            .endpointConfiguration(new EndpointConfiguration(sqs.queueUrl(), "us-east-1"))
+            .credentialsProvider(
+                new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
+            .build();
   }
 
-  @Test void sendsSpans() throws Exception {
+  @Test
+  void sendsSpans() throws Exception {
     send(CLIENT_SPAN, CLIENT_SPAN).execute();
 
     assertThat(readSpans()).containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test void sendsSpans_json_unicode() throws Exception {
+  @Test
+  void sendsSpans_json_unicode() throws Exception {
     Span unicode = CLIENT_SPAN.toBuilder().putTag("error", "\uD83D\uDCA9").build();
     send(unicode).execute();
 
     assertThat(readSpans()).containsExactly(unicode);
   }
 
-  @Test void sendsSpans_PROTO3() throws Exception {
+  @Test
+  void sendsSpans_PROTO3() throws Exception {
     sender.close();
     sender = sender.toBuilder().encoding(Encoding.PROTO3).build();
 
@@ -71,30 +77,31 @@ class SQSSenderTest {
     assertThat(readSpans()).containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test void outOfBandCancel() throws Exception {
+  @Test
+  void outOfBandCancel() throws Exception {
     SQSSender.SQSCall call = (SQSSender.SQSCall) send(CLIENT_SPAN, CLIENT_SPAN);
     assertThat(call.isCanceled()).isFalse(); // sanity check
 
     CountDownLatch latch = new CountDownLatch(1);
-    call.enqueue(
-        new Callback<Void>() {
-          @Override
-          public void onSuccess(Void aVoid) {
-            call.future.cancel(true);
-            latch.countDown();
-          }
+    call.enqueue(new Callback<>() {
+      @Override
+      public void onSuccess(Void aVoid) {
+        call.future.cancel(true);
+        latch.countDown();
+      }
 
-          @Override
-          public void onError(Throwable throwable) {
-            latch.countDown();
-          }
-        });
+      @Override
+      public void onError(Throwable throwable) {
+        latch.countDown();
+      }
+    });
 
     latch.await(5, TimeUnit.SECONDS);
     assertThat(call.isCanceled()).isTrue();
   }
 
-  @Test void checkOk() {
+  @Test
+  void checkOk() {
     assertThat(sender.check()).isEqualTo(CheckResult.OK);
   }
 

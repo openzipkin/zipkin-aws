@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -23,14 +23,15 @@ import zipkin2.collector.Collector;
 import zipkin2.collector.CollectorMetrics;
 
 final class KinesisSpanProcessor implements IRecordProcessor {
-  static final Callback<Void> NOOP =
-      new Callback<Void>() {
-        @Override
-        public void onSuccess(Void value) {}
+  static final Callback<Void> NOOP = new Callback<>() {
+    @Override
+    public void onSuccess(Void value) {
+    }
 
-        @Override
-        public void onError(Throwable t) {}
-      };
+    @Override
+    public void onError(Throwable t) {
+    }
+  };
 
   final Collector collector;
   final CollectorMetrics metrics;
@@ -41,7 +42,8 @@ final class KinesisSpanProcessor implements IRecordProcessor {
   }
 
   @Override
-  public void initialize(InitializationInput initializationInput) {}
+  public void initialize(InitializationInput initializationInput) {
+  }
 
   @Override
   public void processRecords(ProcessRecordsInput processRecordsInput) {
@@ -54,5 +56,6 @@ final class KinesisSpanProcessor implements IRecordProcessor {
   }
 
   @Override
-  public void shutdown(ShutdownInput shutdownInput) {}
+  public void shutdown(ShutdownInput shutdownInput) {
+  }
 }

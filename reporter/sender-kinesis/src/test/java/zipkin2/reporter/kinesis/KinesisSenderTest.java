@@ -52,17 +52,20 @@ class KinesisSenderTest {
   ObjectMapper mapper = new ObjectMapper(new CBORFactory());
   KinesisSender sender;
 
-  @BeforeEach void setup() {
+  @BeforeEach
+  void setup() {
     sender =
         KinesisSender.newBuilder()
             .streamName("test")
             .endpointConfiguration(
                 new EndpointConfiguration(server.url("/").toString(), "us-east-1"))
-            .credentialsProvider(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
+            .credentialsProvider(
+                new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()))
             .build();
   }
 
-  @Test void sendsSpans() throws Exception {
+  @Test
+  void sendsSpans() throws Exception {
     server.enqueue(new MockResponse());
 
     send(CLIENT_SPAN, CLIENT_SPAN).execute();
@@ -71,7 +74,8 @@ class KinesisSenderTest {
         .containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test void sendsSpans_PROTO3() throws Exception {
+  @Test
+  void sendsSpans_PROTO3() throws Exception {
     server.enqueue(new MockResponse());
 
     sender.close();
@@ -83,32 +87,33 @@ class KinesisSenderTest {
         .containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test void outOfBandCancel() throws Exception {
+  @Test
+  void outOfBandCancel() throws Exception {
     server.enqueue(new MockResponse());
 
     KinesisSender.KinesisCall call = (KinesisSender.KinesisCall) send(CLIENT_SPAN, CLIENT_SPAN);
     assertThat(call.isCanceled()).isFalse(); // sanity check
 
     CountDownLatch latch = new CountDownLatch(1);
-    call.enqueue(
-        new Callback<Void>() {
-          @Override
-          public void onSuccess(Void aVoid) {
-            call.future.cancel(true);
-            latch.countDown();
-          }
+    call.enqueue(new Callback<>() {
+      @Override
+      public void onSuccess(Void aVoid) {
+        call.future.cancel(true);
+        latch.countDown();
+      }
 
-          @Override
-          public void onError(Throwable throwable) {
-            latch.countDown();
-          }
-        });
+      @Override
+      public void onError(Throwable throwable) {
+        latch.countDown();
+      }
+    });
 
     latch.await(5, TimeUnit.SECONDS);
     assertThat(call.isCanceled()).isTrue();
   }
 
-  @Test void sendsSpans_json_unicode() throws Exception {
+  @Test
+  void sendsSpans_json_unicode() throws Exception {
     server.enqueue(new MockResponse());
 
     Span unicode = CLIENT_SPAN.toBuilder().putTag("error", "\uD83D\uDCA9").build();
@@ -117,7 +122,8 @@ class KinesisSenderTest {
     assertThat(extractSpans(server.takeRequest().getBody())).containsExactly(unicode);
   }
 
-  @Test void checkPasses() throws Exception {
+  @Test
+  void checkPasses() throws Exception {
     enqueueCborResponse(
         mapper
             .createObjectNode()
@@ -127,7 +133,8 @@ class KinesisSenderTest {
     assertThat(result.ok()).isTrue();
   }
 
-  @Test void checkFailsWithStreamNotActive() throws Exception {
+  @Test
+  void checkFailsWithStreamNotActive() throws Exception {
     enqueueCborResponse(
         mapper
             .createObjectNode()
@@ -138,7 +145,8 @@ class KinesisSenderTest {
     assertThat(result.error()).isInstanceOf(IllegalStateException.class);
   }
 
-  @Test void checkFailsWithException() {
+  @Test
+  void checkFailsWithException() {
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
     // 3 retries after initial failure
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
@@ -171,7 +179,8 @@ class KinesisSenderTest {
     return sender.sendSpans(Stream.of(spans).map(bytesEncoder::encode).collect(toList()));
   }
 
-  @AfterEach void afterEachTest() throws IOException {
+  @AfterEach
+  void afterEachTest() throws IOException {
     server.close();
   }
 }

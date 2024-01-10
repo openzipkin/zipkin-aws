@@ -39,40 +39,45 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static zipkin2.TestObjects.CLIENT_SPAN;
 
 class SQSAsyncSenderTest {
-  @RegisterExtension AmazonSQSExtension sqs = new AmazonSQSExtension();
+  @RegisterExtension
+  AmazonSQSExtension sqs = new AmazonSQSExtension();
 
-  private SqsClient sqsClient;
   private SQSSender sender;
 
-  @BeforeEach public void setup() {
-    sqsClient = SqsClient.builder()
-      .httpClient(UrlConnectionHttpClient.create())
-      .region(Region.US_EAST_1)
-      .endpointOverride(URI.create(sqs.queueUrl()))
-      .credentialsProvider(
-          StaticCredentialsProvider.create(AwsBasicCredentials.create("x", "x")))
-      .build();
+  @BeforeEach
+  public void setup() {
+    SqsClient sqsClient = SqsClient.builder()
+        .httpClient(UrlConnectionHttpClient.create())
+        .region(Region.US_EAST_1)
+        .endpointOverride(URI.create(sqs.queueUrl()))
+        .credentialsProvider(
+            StaticCredentialsProvider.create(
+                AwsBasicCredentials.create("x", "x")))
+        .build();
 
     sender = SQSSender.newBuilder()
-      .queueUrl(sqs.queueUrl())
-      .sqsClient(sqsClient)
-      .build();
+        .queueUrl(sqs.queueUrl())
+        .sqsClient(sqsClient)
+        .build();
   }
 
-  @Test void sendsSpans() throws Exception {
+  @Test
+  void sendsSpans() throws Exception {
     send(CLIENT_SPAN, CLIENT_SPAN).execute();
 
     assertThat(readSpans()).containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test void sendsSpans_json_unicode() throws Exception {
+  @Test
+  void sendsSpans_json_unicode() throws Exception {
     Span unicode = CLIENT_SPAN.toBuilder().putTag("error", "\uD83D\uDCA9").build();
     send(unicode).execute();
 
     assertThat(readSpans()).containsExactly(unicode);
   }
 
-  @Test void sendsSpans_PROTO3() throws Exception {
+  @Test
+  void sendsSpans_PROTO3() throws Exception {
     sender.close();
     sender = sender.toBuilder().encoding(Encoding.PROTO3).build();
 
@@ -81,30 +86,31 @@ class SQSAsyncSenderTest {
     assertThat(readSpans()).containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test void outOfBandCancel() throws Exception {
+  @Test
+  void outOfBandCancel() throws Exception {
     SQSSender.SQSCall call = (SQSSender.SQSCall) send(CLIENT_SPAN, CLIENT_SPAN);
     assertThat(call.isCanceled()).isFalse(); // sanity check
 
     CountDownLatch latch = new CountDownLatch(1);
-    call.enqueue(
-        new Callback<Void>() {
-          @Override
-          public void onSuccess(Void aVoid) {
-            call.cancel();
-            latch.countDown();
-          }
+    call.enqueue(new Callback<>() {
+      @Override
+      public void onSuccess(Void aVoid) {
+        call.cancel();
+        latch.countDown();
+      }
 
-          @Override
-          public void onError(Throwable throwable) {
-            latch.countDown();
-          }
-        });
+      @Override
+      public void onError(Throwable throwable) {
+        latch.countDown();
+      }
+    });
 
     latch.await(5, TimeUnit.SECONDS);
     assertThat(call.isCanceled()).isTrue();
   }
 
-  @Test void checkOk() {
+  @Test
+  void checkOk() {
     assertThat(sender.check()).isEqualTo(CheckResult.OK);
   }
 

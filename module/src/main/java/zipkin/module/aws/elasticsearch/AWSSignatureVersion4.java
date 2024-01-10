@@ -41,7 +41,6 @@ import javax.crypto.spec.SecretKeySpec;
 
 import static com.linecorp.armeria.common.HttpHeaderNames.AUTHORITY;
 import static com.linecorp.armeria.common.HttpHeaderNames.HOST;
-import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 
 // http://docs.aws.amazon.com/general/latest/gr/signature-version-4.html
@@ -171,8 +170,8 @@ final class AWSSignatureVersion4 extends SimpleDecoratingHttpClient {
 
   static byte[] sha256(HttpData data) {
     final ByteBuffer buf;
-    if (data instanceof ByteBufHolder) {
-      buf = ((ByteBufHolder) data).content().nioBuffer();
+    if (data instanceof ByteBufHolder holder) {
+      buf = holder.content().nioBuffer();
     } else {
       buf = ByteBuffer.wrap(data.array());
     }
@@ -250,7 +249,7 @@ final class AWSSignatureVersion4 extends SimpleDecoratingHttpClient {
   }
 
   static String credentialScope(String yyyyMMdd, String region) {
-    return format("%s/%s/%s/%s", yyyyMMdd, region, SERVICE, "aws4_request");
+    return "%s/%s/%s/%s".formatted(yyyyMMdd, region, SERVICE, "aws4_request");
   }
 
   byte[] signatureKey(String secretKey, String yyyyMMdd) {

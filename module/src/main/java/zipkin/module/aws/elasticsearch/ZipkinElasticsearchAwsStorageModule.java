@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -44,8 +44,6 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.type.AnnotatedTypeMetadata;
 
-import static java.lang.String.format;
-
 @Configuration
 @EnableConfigurationProperties(ZipkinElasticsearchAwsStorageProperties.class)
 @Conditional(ZipkinElasticsearchAwsStorageModule.AwsMagic.class)
@@ -87,10 +85,12 @@ class ZipkinElasticsearchAwsStorageModule {
     hosts = ZipkinElasticsearchAwsStorageProperties.emptyToNull(hosts);
     String domain = aws.getDomain();
     if (hosts != null && domain != null) {
-      log.warning(format(
-          "Expected exactly one of hosts or domain: instead saw hosts '%s' and domain '%s'."
-              + " Ignoring hosts and proceeding to look for domain. Either unset ES_HOSTS or "
-              + "ES_AWS_DOMAIN to suppress this message.",
+      log.warning((
+          """
+          Expected exactly one of hosts or domain: instead saw hosts '%s' and domain '%s'.\
+           Ignoring hosts and proceeding to look for domain. Either unset ES_HOSTS or \
+          ES_AWS_DOMAIN to suppress this message.\
+          """).formatted(
           hosts, domain));
     }
 
@@ -115,8 +115,8 @@ class ZipkinElasticsearchAwsStorageModule {
       @Override public AWSCredentials get() {
         com.amazonaws.auth.AWSCredentials result = delegate.getCredentials();
         String sessionToken =
-            result instanceof AWSSessionCredentials
-                ? ((AWSSessionCredentials) result).getSessionToken()
+            result instanceof AWSSessionCredentials awssc
+                ? awssc.getSessionToken()
                 : null;
         return new AWSCredentials(
             result.getAWSAccessKeyId(), result.getAWSSecretKey(), sessionToken);

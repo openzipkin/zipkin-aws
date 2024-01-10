@@ -70,23 +70,24 @@
     <maven.compiler.release>8</maven.compiler.release>
 
     <!-- Tests use the floor Java version (used in release) -->
-    <maven.compiler.testSource>11</maven.compiler.testSource>
-    <maven.compiler.testTarget>11</maven.compiler.testTarget>
-    <maven.compiler.testRelease>11</maven.compiler.testRelease>
+    <maven.compiler.testSource>17</maven.compiler.testSource>
+    <maven.compiler.testTarget>17</maven.compiler.testTarget>
+    <maven.compiler.testRelease>17</maven.compiler.testRelease>
 
     <!-- groupId overrides allow testing feature branches with jitpack -->
     <!-- matching armeria/grpc/zipkin -->
     <zipkin.groupId>io.zipkin.zipkin2</zipkin.groupId>
     <!-- when updating, update docker/Dockerfile and storage/src/test/java/zipkin2/storage/kafka/IT* -->
-    <zipkin.version>2.27.1</zipkin.version>
-    <zipkin-reporter.version>3.0.2</zipkin-reporter.version>
-    <spring-boot.version>2.7.18</spring-boot.version>
+    <zipkin.version>3.0.0-SNAPSHOT</zipkin.version>
+    <zipkin-reporter.version>3.1.1</zipkin-reporter.version>
+    <spring-boot.version>3.2.1</spring-boot.version>
     <jackson.version>2.16.1</jackson.version>
     <!-- armeria.groupId allows you to test feature branches with jitpack -->
     <armeria.groupId>com.linecorp.armeria</armeria.groupId>
     <armeria.version>1.26.4</armeria.version>
     <!-- Match Armeria version to avoid conflicts including running tests in the IDE -->
     <netty.version>4.1.100.Final</netty.version>
+    <log4j.version>2.21.1</log4j.version>
 
     <!-- This allows you to test feature branches with jitpack -->
     <!--    <brave.groupId>com.github.openzipkin.brave</brave.groupId>-->
@@ -97,7 +98,6 @@
     <aws-java-sdk.version>1.12.633</aws-java-sdk.version>
     <sdk-core.version>2.22.13</sdk-core.version>
 
-    <log4j.version>2.22.1</log4j.version>
     <okhttp.version>4.12.0</okhttp.version>
 
     <assertj.version>3.25.1</assertj.version>
@@ -169,6 +169,22 @@
       <url>https://gitter.im/openzipkin/zipkin</url>
     </developer>
   </developers>
+
+
+  <!-- TODO: delete -->
+  <repositories>
+    <repository>
+      <id>sonatype.snapshots</id>
+      <name>Sonatype Snapshot Repository</name>
+      <url>https://oss.sonatype.org/content/repositories/snapshots/</url>
+      <releases>
+        <enabled>false</enabled>
+      </releases>
+      <snapshots>
+        <enabled>true</enabled>
+      </snapshots>
+    </repository>
+  </repositories>
 
   <dependencyManagement>
     <!-- Be careful here, especially to not import BOMs as it causes version confusion.

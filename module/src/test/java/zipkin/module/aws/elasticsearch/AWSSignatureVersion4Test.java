@@ -125,15 +125,16 @@ class AWSSignatureVersion4Test {
 
     writeCanonicalString(ctx, request.headers(), request.content(), result);
     // Ensure that the canonical string encodes commas with %2C
-    assertThat(result.toString(UTF_8)).isEqualTo(""
-        + "POST\n"
-        + "/zipkin-2016-10-05%2Czipkin-2016-10-06/dependencylink/_search\n"
-        + "allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true\n"
-        + "host:search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com\n"
-        + "x-amz-date:20161004T132314Z\n"
-        + "\n"
-        + "host;x-amz-date\n"
-        + "2fd35cb36e5de91bbae279313c371fb630a6b3aab1478df378c5e73e667a1747");
+    assertThat(result.toString(UTF_8)).isEqualTo("""
+        POST
+        /zipkin-2016-10-05%2Czipkin-2016-10-06/dependencylink/_search
+        allow_no_indices=true&expand_wildcards=open&ignore_unavailable=true
+        host:search-zipkin-2rlyh66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com
+        x-amz-date:20161004T132314Z
+        
+        host;x-amz-date
+        2fd35cb36e5de91bbae279313c371fb630a6b3aab1478df378c5e73e667a1747\
+        """);
   }
 
   /** Starting with Zipkin 1.31 colons are used to delimit index types in ES */
@@ -153,15 +154,16 @@ class AWSSignatureVersion4Test {
     writeCanonicalString(ctx, request.headers(), request.content(), result);
 
     // Ensure that the canonical string encodes commas with %2C
-    assertThat(result.toString(UTF_8)).isEqualTo(""
-        + "GET\n"
-        + "/_cluster/health/zipkin%3Aspan-%2A\n"
-        + "\n"
-        + "host:search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com\n"
-        + "x-amz-date:20170830T143137Z\n"
-        + "\n"
-        + "host;x-amz-date\n"
-        + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    assertThat(result.toString(UTF_8)).isEqualTo("""
+        GET
+        /_cluster/health/zipkin%3Aspan-%2A
+        
+        host:search-zipkin53-mhdyquzbwwzwvln6phfzr3mmdi.ap-southeast-1.es.amazonaws.com
+        x-amz-date:20170830T143137Z
+        
+        host;x-amz-date
+        e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\
+        """);
   }
 
   @Test void canonicalString_getDomain() {
@@ -180,24 +182,24 @@ class AWSSignatureVersion4Test {
 
     writeCanonicalString(ctx, request.headers(), request.content(),
         canonicalString);
-    assertThat(canonicalString.toString(UTF_8)).isEqualTo(""
-        + "GET\n"
-        + "/2015-01-01/es/domain/zipkin\n"
-        + "\n"
-        + "host:es.ap-southeast-1.amazonaws.com\n"
-        + "x-amz-date:" + timestamp + "\n"
-        + "\n"
-        + "host;x-amz-date\n"
-        + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
+    assertThat(canonicalString.toString(UTF_8)).isEqualTo("GET\n"
+                                                          + "/2015-01-01/es/domain/zipkin\n"
+                                                          + "\n"
+                                                          + "host:es.ap-southeast-1.amazonaws.com\n"
+                                                          + "x-amz-date:" + timestamp + "\n"
+                                                          + "\n"
+                                                          + "host;x-amz-date\n"
+                                                          + "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
 
     ByteBuf toSign = Unpooled.buffer();
     AWSSignatureVersion4.writeToSign(timestamp,
         AWSSignatureVersion4.credentialScope(yyyyMMdd, "ap-southeast-1"), canonicalString, toSign);
 
-    assertThat(toSign.toString(UTF_8)).isEqualTo(""
-        + "AWS4-HMAC-SHA256\n"
-        + "20190730T134617Z\n"
-        + "20190730/ap-southeast-1/es/aws4_request\n"
-        + "129dd8ded740553cd28544b4000982b8f88d7199b36a013fa89ee8e56c23f80e");
+    assertThat(toSign.toString(UTF_8)).isEqualTo("""
+        AWS4-HMAC-SHA256
+        20190730T134617Z
+        20190730/ap-southeast-1/es/aws4_request
+        129dd8ded740553cd28544b4000982b8f88d7199b36a013fa89ee8e56c23f80e\
+        """);
   }
 }

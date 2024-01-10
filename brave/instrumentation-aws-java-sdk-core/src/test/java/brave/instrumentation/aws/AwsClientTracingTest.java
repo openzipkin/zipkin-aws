@@ -45,7 +45,7 @@ class AwsClientTracingTest extends ITRemote {
   public MockWebServer mockServer = new MockWebServer();
 
   @SystemStub
-  private EnvironmentVariables variables = new EnvironmentVariables();
+  private final EnvironmentVariables variables = new EnvironmentVariables();
   private AmazonDynamoDB dbClient;
   private AmazonS3 s3Client;
 
@@ -68,7 +68,7 @@ class AwsClientTracingTest extends ITRemote {
         .enableForceGlobalBucketAccess());
   }
 
-  @Test void testSpanCreatedAndTagsApplied() throws InterruptedException {
+  @Test void testSpanCreatedAndTagsApplied() {
     mockServer.enqueue(createDeleteItemResponse());
 
     dbClient.deleteItem("test", Collections.singletonMap("key", new AttributeValue("value")));
@@ -89,7 +89,7 @@ class AwsClientTracingTest extends ITRemote {
     AwsClientTracing.create(httpTracing).build(AmazonDynamoDBAsyncClientBuilder.standard());
   }
 
-  @Test void testInternalAwsRequestsDoNotThrowNPE() throws InterruptedException {
+  @Test void testInternalAwsRequestsDoNotThrowNPE() {
     // Responds to the internal HEAD request
     mockServer.enqueue(new MockResponse()
         .setResponseCode(400)
@@ -125,22 +125,23 @@ class AwsClientTracingTest extends ITRemote {
   }
 
   private MockResponse getExistsResponse() {
-    return new MockResponse().setBody("<AccessControlPolicy>\n"
-        + "  <Owner>\n"
-        + "    <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>\n"
-        + "    <DisplayName>CustomersName@amazon.com</DisplayName>\n"
-        + "  </Owner>\n"
-        + "  <AccessControlList>\n"
-        + "    <Grant>\n"
-        + "      <Grantee xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"\n"
-        + "\t\t\txsi:type=\"CanonicalUser\">\n"
-        + "        <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>\n"
-        + "        <DisplayName>CustomersName@amazon.com</DisplayName>\n"
-        + "      </Grantee>\n"
-        + "      <Permission>FULL_CONTROL</Permission>\n"
-        + "    </Grant>\n"
-        + "  </AccessControlList>\n"
-        + "</AccessControlPolicy> ")
+    return new MockResponse().setBody("""
+        <AccessControlPolicy>
+          <Owner>
+            <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+            <DisplayName>CustomersName@amazon.com</DisplayName>
+          </Owner>
+          <AccessControlList>
+            <Grant>
+              <Grantee xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        			xsi:type="CanonicalUser">
+                <ID>75aa57f09aa0c8caeab4f8c24e99d10f8e7faeebf76c078efc7c6caea54ba06a</ID>
+                <DisplayName>CustomersName@amazon.com</DisplayName>
+              </Grantee>
+              <Permission>FULL_CONTROL</Permission>
+            </Grant>
+          </AccessControlList>
+        </AccessControlPolicy>""")
         .setResponseCode(200)
         .addHeader("x-amz-request-id", "abcd");
   }
