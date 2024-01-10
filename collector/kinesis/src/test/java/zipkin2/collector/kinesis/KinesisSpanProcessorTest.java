@@ -40,7 +40,7 @@ class KinesisSpanProcessorTest {
           TestObjects.LOTS_OF_SPANS[0], TestObjects.LOTS_OF_SPANS[1], TestObjects.LOTS_OF_SPANS[2]);
 
   private InMemoryStorage storage;
-  private InMemoryCollectorMetrics metrics = new InMemoryCollectorMetrics();
+  private final InMemoryCollectorMetrics metrics = new InMemoryCollectorMetrics();
 
   private Collector collector;
   private KinesisSpanProcessor kinesisSpanProcessor;
@@ -80,7 +80,7 @@ class KinesisSpanProcessorTest {
   void messageWithMultipleSpans(SpanBytesEncoder encoder) {
     byte[] message = encoder.encodeList(spans);
 
-    List<Record> records = Arrays.asList(new Record().withData(ByteBuffer.wrap(message)));
+    List<Record> records = Collections.singletonList(new Record().withData(ByteBuffer.wrap(message)));
     kinesisSpanProcessor.processRecords(new ProcessRecordsInput().withRecords(records));
 
     assertThat(storage.spanStore().getTraces().size()).isEqualTo(spans.size());

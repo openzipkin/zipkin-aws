@@ -64,12 +64,14 @@ class ElasticsearchDomainEndpointTest {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
-        "{\n"
-            + "  \"DomainStatus\": {\n"
-            + "    \"Endpoint\": \"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\",\n"
-            + "    \"Endpoints\": null\n"
-            + "  }\n"
-            + "}"));
+        """
+        {
+          "DomainStatus": {
+            "Endpoint": "search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com",
+            "Endpoints": null
+          }
+        }\
+        """));
 
     assertThat(client.get()).extracting("hostname")
         .isEqualTo(
@@ -80,14 +82,16 @@ class ElasticsearchDomainEndpointTest {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
-        "{\n"
-            + "  \"DomainStatus\": {\n"
-            + "    \"Endpoint\": null,\n"
-            + "    \"Endpoints\": {\n"
-            + "      \"vpc\":\"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}"));
+        """
+        {
+          "DomainStatus": {
+            "Endpoint": null,
+            "Endpoints": {
+              "vpc":"search-zipkin53-mhdyquzbwwzwvln6phfzr3lldi.ap-southeast-1.es.amazonaws.com"
+            }
+          }
+        }\
+        """));
 
     assertThat(client.get()).extracting("hostname")
         .isEqualTo(
@@ -98,14 +102,16 @@ class ElasticsearchDomainEndpointTest {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
-        "{\n"
-            + "  \"DomainStatus\": {\n"
-            + "    \"Endpoint\": \"isnotvpc\",\n"
-            + "    \"Endpoints\": {\n"
-            + "      \"vpc\":\"isvpc\"\n"
-            + "    }\n"
-            + "  }\n"
-            + "}"));
+        """
+        {
+          "DomainStatus": {
+            "Endpoint": "isnotvpc",
+            "Endpoints": {
+              "vpc":"isvpc"
+            }
+          }
+        }\
+        """));
 
     assertThat(client.get()).extracting("hostname")
         .isEqualTo("isvpc");
@@ -115,12 +121,14 @@ class ElasticsearchDomainEndpointTest {
     MOCK_RESPONSE.set(AggregatedHttpResponse.of(
         HttpStatus.OK,
         MediaType.JSON_UTF_8,
-        "{\n"
-            + "  \"DomainStatus\": {\n"
-            + "    \"Endpoint\": \"isnotvpc\",\n"
-            + "    \"Endpoints\": {}\n"
-            + "  }\n"
-            + "}"));
+        """
+        {
+          "DomainStatus": {
+            "Endpoint": "isnotvpc",
+            "Endpoints": {}
+          }
+        }\
+        """));
 
     assertThat(client.get()).extracting("hostname")
         .isEqualTo("isnotvpc");

@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -25,7 +25,7 @@ import zipkin2.storage.xray_udp.XRayUDPStorage;
 
 /**
  * Reports Zipkin spans to AWS X-Ray via the X-Ray daemon, contacted using UDP.
- *
+ * <p>
  * Note that, unlike AsyncReporter, this reporter attempts to encode and send
  * the span immediately on the calling thread. As UDP is used, there is no
  * latency in waiting for the daemon to accept and respond to the data.

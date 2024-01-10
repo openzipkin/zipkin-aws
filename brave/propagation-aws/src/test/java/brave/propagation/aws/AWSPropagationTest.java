@@ -55,9 +55,11 @@ class AWSPropagationTest {
   @Test void traceIdWhenPassThrough() {
     carrier.put(
         "x-amzn-trace-id",
-        "Robot=Hello;Self=1-582113d1-1e48b74b3603af8479078ed6;  "
-            + "Root=1-58211399-36d228ad5d99923122bbe354;  "
-            + "TotalTimeSoFar=112ms;CalledFrom=Foo");
+        """
+        Robot=Hello;Self=1-582113d1-1e48b74b3603af8479078ed6;  \
+        Root=1-58211399-36d228ad5d99923122bbe354;  \
+        TotalTimeSoFar=112ms;CalledFrom=Foo\
+        """);
 
     TraceContext context = contextWithPassThrough();
 
@@ -186,9 +188,11 @@ class AWSPropagationTest {
     // we currently permit them
     carrier.put(
         "x-amzn-trace-id",
-        "Robot=Hello;Self=1-582113d1-1e48b74b3603af8479078ed6;  "
-            + "Root=1-58211399-36d228ad5d99923122bbe354;  "
-            + "TotalTimeSoFar=112ms;CalledFrom=Foo");
+        """
+        Robot=Hello;Self=1-582113d1-1e48b74b3603af8479078ed6;  \
+        Root=1-58211399-36d228ad5d99923122bbe354;  \
+        TotalTimeSoFar=112ms;CalledFrom=Foo\
+        """);
 
     TraceContextOrSamplingFlags extracted = extractor.extract(carrier);
     assertThat(extracted.traceIdContext())

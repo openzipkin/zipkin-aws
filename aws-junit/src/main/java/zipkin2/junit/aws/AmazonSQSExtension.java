@@ -59,7 +59,7 @@ public class AmazonSQSExtension implements BeforeEachCallback, AfterEachCallback
       client = AmazonSQSClientBuilder.standard()
           .withCredentials(new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
           .withEndpointConfiguration(
-              new EndpointConfiguration(String.format("http://localhost:%d", serverPort), null))
+              new EndpointConfiguration("http://localhost:%d".formatted(serverPort), null))
           .build();
       queueUrl = client.createQueue("zipkin").getQueueUrl();
     }
@@ -75,7 +75,7 @@ public class AmazonSQSExtension implements BeforeEachCallback, AfterEachCallback
       client = null;
     }
 
-    if (server == null) {
+    if (server != null) {
       server.stopAndWait();
       server = null;
     }
@@ -112,7 +112,7 @@ public class AmazonSQSExtension implements BeforeEachCallback, AfterEachCallback
 
     ReceiveMessageResult result = client.receiveMessage(queueUrl);
 
-    while (result != null && result.getMessages().size() > 0) {
+    while (result != null && !result.getMessages().isEmpty()) {
 
       spans = Stream.concat(spans,
           result.getMessages().stream().flatMap(AmazonSQSExtension::decodeSpans));
@@ -123,7 +123,7 @@ public class AmazonSQSExtension implements BeforeEachCallback, AfterEachCallback
         List<DeleteMessageRequest> deletes = result.getMessages()
             .stream()
             .map(m -> new DeleteMessageRequest(queueUrl, m.getReceiptHandle()))
-            .collect(Collectors.toList());
+            .toList();
         deletes.forEach(d -> client.deleteMessage(d));
       }
     }

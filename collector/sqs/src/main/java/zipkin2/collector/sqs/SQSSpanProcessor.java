@@ -1,5 +1,5 @@
 /*
- * Copyright 2016-2020 The OpenZipkin Authors
+ * Copyright 2016-2024 The OpenZipkin Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may not use this file except
  * in compliance with the License. You may obtain a copy of the License at
@@ -16,11 +16,11 @@ package zipkin2.collector.sqs;
 import com.amazonaws.AbortedException;
 import com.amazonaws.services.sqs.AmazonSQS;
 import com.amazonaws.services.sqs.model.DeleteMessageBatchRequestEntry;
-import com.amazonaws.services.sqs.model.DeleteMessageBatchResult;
 import com.amazonaws.services.sqs.model.Message;
 import com.amazonaws.services.sqs.model.ReceiveMessageRequest;
 import com.amazonaws.util.Base64;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -37,7 +37,7 @@ final class SQSSpanProcessor extends Component implements Runnable {
 
   private static final Logger logger = Logger.getLogger(SQSSpanProcessor.class.getName());
 
-  private static final Charset UTF_8 = Charset.forName("UTF-8");
+  private static final Charset UTF_8 = StandardCharsets.UTF_8;
   private static final long DEFAULT_BACKOFF = 100;
   private static final long MAX_BACKOFF = 30000;
 
@@ -96,7 +96,7 @@ final class SQSSpanProcessor extends Component implements Runnable {
   }
 
   private void process(final List<Message> messages) {
-    if (messages.size() == 0) return;
+    if (messages.isEmpty()) return;
 
     final List<DeleteMessageBatchRequestEntry> toDelete = new ArrayList<>();
     int count = 0;
@@ -110,26 +110,24 @@ final class SQSSpanProcessor extends Component implements Runnable {
             stringBody.charAt(0) == '[' ? stringBody.getBytes(UTF_8) : Base64.decode(stringBody);
         metrics.incrementMessages();
         metrics.incrementBytes(serialized.length);
-        collector.acceptSpans(
-            serialized,
-            new Callback<Void>() {
-              @Override
-              public void onSuccess(Void value) {
-                toDelete.add(
-                    new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
-              }
+        collector.acceptSpans(serialized, new Callback<>() {
+          @Override
+          public void onSuccess(Void value) {
+            toDelete.add(
+                new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
+          }
 
-              @Override
-              public void onError(Throwable t) {
-                logger.log(Level.WARNING, "collector accept failed", t);
-                // for cases that are not recoverable just discard the message,
-                // otherwise ignore so processing can be retried.
-                if (t instanceof IllegalArgumentException) {
-                  toDelete.add(
-                      new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
-                }
-              }
-            });
+          @Override
+          public void onError(Throwable t) {
+            logger.log(Level.WARNING, "collector accept failed", t);
+            // for cases that are not recoverable just discard the message,
+            // otherwise ignore so processing can be retried.
+            if (t instanceof IllegalArgumentException) {
+              toDelete.add(
+                  new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
+            }
+          }
+        });
       } catch (RuntimeException | Error e) {
         logger.log(Level.WARNING, "message decoding failed", e);
         toDelete.add(new DeleteMessageBatchRequestEntry(deleteId, message.getReceiptHandle()));
@@ -141,11 +139,11 @@ final class SQSSpanProcessor extends Component implements Runnable {
     }
   }
 
-  private DeleteMessageBatchResult delete(List<DeleteMessageBatchRequestEntry> entries) {
-    return client.deleteMessageBatch(queueUrl, entries);
+  private void delete(List<DeleteMessageBatchRequestEntry> entries) {
+    client.deleteMessageBatch(queueUrl, entries);
   }
 
-  @Override public final String toString() {
+  @Override public String toString() {
     return "SQSSpanProcessor{queueUrl=" + queueUrl + "}";
   }
 }

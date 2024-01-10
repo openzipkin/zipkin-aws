@@ -25,7 +25,7 @@ $ curl -sSL https://zipkin.io/quickstart.sh | bash -s
 $ curl -sSL https://zipkin.io/quickstart.sh | bash -s io.zipkin.aws:zipkin-module-aws:LATEST:module sqs.jar
 $ SQS_QUEUE_URL=https://ap-southeast-1.queue.amazonaws.com/012345678901/zipkin \
   java -Dloader.path='aws.jar,aws.jar!/lib' -Dspring.profiles.active=aws \
-       -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
+       -cp zipkin.jar org.springframework.boot.loader.launch.PropertiesLauncher
 ```
 
 *Note:* By default, this module will search for credentials in the $HOME/.aws directory.
@@ -70,7 +70,7 @@ Example usage:
 ```bash
 $ KINESIS_STREAM_NAME=zipkin \
   java -Dloader.path='aws.jar,aws.jar!/lib' -Dspring.profiles.active=aws \
-    -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
+    -cp zipkin.jar org.springframework.boot.loader.launch.PropertiesLauncher
 ```
 
 #### Security
@@ -148,7 +148,7 @@ Example usage:
 ```bash
 $ SQS_QUEUE_URL=https://ap-southeast-1.queue.amazonaws.com/012345678901/zipkin \
   java -Dloader.path='aws.jar,aws.jar!/lib' -Dspring.profiles.active=aws \
-    -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
+    -cp zipkin.jar org.springframework.boot.loader.launch.PropertiesLauncher
 ```
 
 #### Security
@@ -215,14 +215,14 @@ Example usage:
 ```bash
 $ STORAGE_TYPE=elasticsearch ES_HOSTS=https://search-mydomain-2rlih66ibw43ftlk4342ceeewu.ap-southeast-1.es.amazonaws.com \
   java -Dloader.path='aws.jar,aws.jar!/lib' -Dspring.profiles.active=aws \
-    -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
+    -cp zipkin.jar org.springframework.boot.loader.launch.PropertiesLauncher
 ```
 
 Alternatively, you can have zipkin implicitly lookup your domain's URL:
 ```bash
 $ STORAGE_TYPE=elasticsearch ES_AWS_DOMAIN=mydomain ES_AWS_REGION=ap-southeast-1 \
   java -Dloader.path='aws.jar,aws.jar!/lib' -Dspring.profiles.active=aws \
-    -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
+    -cp zipkin.jar org.springframework.boot.loader.launch.PropertiesLauncher
 ```
 
 #### Security
@@ -258,7 +258,7 @@ Example usage:
 
 ```bash
 $ STORAGE_TYPE=xray java -Dloader.path='aws.jar,aws.jar!/lib' -Dspring.profiles.active=aws \
-    -cp zipkin.jar org.springframework.boot.loader.PropertiesLauncher
+    -cp zipkin.jar org.springframework.boot.loader.launch.PropertiesLauncher
 ```
 
 #### Experimental

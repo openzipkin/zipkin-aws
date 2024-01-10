@@ -104,7 +104,7 @@ class XRayUDPStorageTest {
     assertThat(receivedPayloads).isEmpty();
   }
 
-  @Test void sendAfterClose() throws Exception {
+  @Test void sendAfterClose() {
     XRayUDPStorage storage = XRayUDPStorage.newBuilder()
         .address("localhost:" + ((InetSocketAddress)serverChannel.localAddress()).getPort())
         .build();
