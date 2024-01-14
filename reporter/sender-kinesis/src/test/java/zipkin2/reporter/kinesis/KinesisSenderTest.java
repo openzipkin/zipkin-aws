@@ -17,14 +17,10 @@ import com.amazonaws.SdkClientException;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.AnonymousAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.cbor.CBORFactory;
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -35,14 +31,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import zipkin2.Span;
 import zipkin2.codec.SpanBytesDecoder;
-import zipkin2.reporter.Call;
-import zipkin2.reporter.Callback;
-import zipkin2.reporter.CheckResult;
 import zipkin2.reporter.Encoding;
 import zipkin2.reporter.SpanBytesEncoder;
 
 import static java.util.stream.Collectors.toList;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static zipkin2.TestObjects.CLIENT_SPAN;
 
 class KinesisSenderTest {
@@ -52,8 +46,7 @@ class KinesisSenderTest {
   ObjectMapper mapper = new ObjectMapper(new CBORFactory());
   KinesisSender sender;
 
-  @BeforeEach
-  void setup() {
+  @BeforeEach void setup() {
     sender =
         KinesisSender.newBuilder()
             .streamName("test")
@@ -64,105 +57,54 @@ class KinesisSenderTest {
             .build();
   }
 
-  @Test
-  void sendsSpans() throws Exception {
+  @Test void send() throws Exception {
     server.enqueue(new MockResponse());
 
-    send(CLIENT_SPAN, CLIENT_SPAN).execute();
+    sendSpans(CLIENT_SPAN, CLIENT_SPAN);
 
     assertThat(extractSpans(server.takeRequest().getBody()))
         .containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test
-  void sendsSpans_PROTO3() throws Exception {
+  @Test void send_empty() throws Exception {
+    server.enqueue(new MockResponse());
+
+    sendSpans();
+
+    assertThat(extractSpans(server.takeRequest().getBody()))
+        .isEmpty();
+  }
+
+  @Test void send_PROTO3() throws Exception {
     server.enqueue(new MockResponse());
 
     sender.close();
     sender = sender.toBuilder().encoding(Encoding.PROTO3).build();
 
-    send(CLIENT_SPAN, CLIENT_SPAN).execute();
+    sendSpans(CLIENT_SPAN, CLIENT_SPAN);
 
     assertThat(extractSpans(server.takeRequest().getBody()))
         .containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test
-  void outOfBandCancel() throws Exception {
-    server.enqueue(new MockResponse());
-
-    KinesisSender.KinesisCall call = (KinesisSender.KinesisCall) send(CLIENT_SPAN, CLIENT_SPAN);
-    assertThat(call.isCanceled()).isFalse(); // sanity check
-
-    CountDownLatch latch = new CountDownLatch(1);
-    call.enqueue(new Callback<>() {
-      @Override
-      public void onSuccess(Void aVoid) {
-        call.future.cancel(true);
-        latch.countDown();
-      }
-
-      @Override
-      public void onError(Throwable throwable) {
-        latch.countDown();
-      }
-    });
-
-    latch.await(5, TimeUnit.SECONDS);
-    assertThat(call.isCanceled()).isTrue();
-  }
-
-  @Test
-  void sendsSpans_json_unicode() throws Exception {
+  @Test void send_json_unicode() throws Exception {
     server.enqueue(new MockResponse());
 
     Span unicode = CLIENT_SPAN.toBuilder().putTag("error", "\uD83D\uDCA9").build();
-    send(unicode).execute();
+    sendSpans(unicode);
 
     assertThat(extractSpans(server.takeRequest().getBody())).containsExactly(unicode);
   }
 
-  @Test
-  void checkPasses() throws Exception {
-    enqueueCborResponse(
-        mapper
-            .createObjectNode()
-            .set("StreamDescription", mapper.createObjectNode().put("StreamStatus", "ACTIVE")));
-
-    CheckResult result = sender.check();
-    assertThat(result.ok()).isTrue();
-  }
-
-  @Test
-  void checkFailsWithStreamNotActive() throws Exception {
-    enqueueCborResponse(
-        mapper
-            .createObjectNode()
-            .set("StreamDescription", mapper.createObjectNode().put("StreamStatus", "DELETING")));
-
-    CheckResult result = sender.check();
-    assertThat(result.ok()).isFalse();
-    assertThat(result.error()).isInstanceOf(IllegalStateException.class);
-  }
-
-  @Test
-  void checkFailsWithException() {
+  @Test void sendFailsWithException() {
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
     // 3 retries after initial failure
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
     server.enqueue(new MockResponse().setSocketPolicy(SocketPolicy.DISCONNECT_DURING_REQUEST_BODY));
 
-    CheckResult result = sender.check();
-    assertThat(result.ok()).isFalse();
-    assertThat(result.error()).isInstanceOf(SdkClientException.class);
-  }
-
-  void enqueueCborResponse(JsonNode document) throws JsonProcessingException {
-    server.enqueue(
-        new MockResponse()
-            .addHeader("Content-Type", "application/x-amz-cbor-1.1")
-            .setBody(new Buffer().write(mapper.writeValueAsBytes(document))));
+    assertThatThrownBy(this::sendSpans)
+        .isInstanceOf(SdkClientException.class);
   }
 
   List<Span> extractSpans(Buffer body) throws IOException {
@@ -173,14 +115,13 @@ class KinesisSenderTest {
     return SpanBytesDecoder.PROTO3.decodeList(encodedSpans);
   }
 
-  Call<Void> send(zipkin2.Span... spans) {
+  void sendSpans(zipkin2.Span... spans) {
     SpanBytesEncoder bytesEncoder =
         sender.encoding() == Encoding.JSON ? SpanBytesEncoder.JSON_V2 : SpanBytesEncoder.PROTO3;
-    return sender.sendSpans(Stream.of(spans).map(bytesEncoder::encode).collect(toList()));
+    sender.send(Stream.of(spans).map(bytesEncoder::encode).collect(toList()));
   }
 
-  @AfterEach
-  void afterEachTest() throws IOException {
+  @AfterEach void afterEachTest() throws IOException {
     server.close();
   }
 }

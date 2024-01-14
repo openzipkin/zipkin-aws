@@ -26,6 +26,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 import zipkin2.reporter.BytesMessageEncoder;
 import zipkin2.reporter.BytesMessageSender;
+import zipkin2.reporter.ClosedSenderException;
 import zipkin2.reporter.Encoding;
 import zipkin2.reporter.internal.Nullable;
 
@@ -168,7 +169,7 @@ public final class KinesisSender extends BytesMessageSender.Base {
   }
 
   @Override public void send(List<byte[]> list) {
-    if (closeCalled) throw new IllegalStateException("closed");
+    if (closeCalled) throw new ClosedSenderException();
 
     ByteBuffer message = ByteBuffer.wrap(BytesMessageEncoder.forEncoding(encoding()).encode(list));
 
