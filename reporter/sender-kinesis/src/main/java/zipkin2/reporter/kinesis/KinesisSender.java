@@ -15,27 +15,22 @@ package zipkin2.reporter.kinesis;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.handlers.AsyncHandler;
-import com.amazonaws.services.kinesis.AmazonKinesisAsync;
-import com.amazonaws.services.kinesis.AmazonKinesisAsyncClientBuilder;
+import com.amazonaws.services.kinesis.AmazonKinesis;
+import com.amazonaws.services.kinesis.AmazonKinesisClientBuilder;
 import com.amazonaws.services.kinesis.model.PutRecordRequest;
-import com.amazonaws.services.kinesis.model.PutRecordResult;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicReference;
 import zipkin2.reporter.BytesMessageEncoder;
-import zipkin2.reporter.Call;
-import zipkin2.reporter.Callback;
-import zipkin2.reporter.CheckResult;
+import zipkin2.reporter.BytesMessageSender;
+import zipkin2.reporter.ClosedSenderException;
 import zipkin2.reporter.Encoding;
-import zipkin2.reporter.Sender;
 import zipkin2.reporter.internal.Nullable;
 
-public final class KinesisSender extends Sender {
+public final class KinesisSender extends BytesMessageSender.Base {
 
   public static KinesisSender create(String streamName) {
     return newBuilder().streamName(streamName).build();
@@ -127,31 +122,17 @@ public final class KinesisSender extends Sender {
   @Nullable final AWSCredentialsProvider credentialsProvider;
   @Nullable final EndpointConfiguration endpointConfiguration;
   final int messageMaxBytes;
-  final Encoding encoding;
 
   KinesisSender(Builder builder) {
+    super(builder.encoding);
     this.streamName = builder.streamName;
     this.region = builder.region;
     this.credentialsProvider = builder.credentialsProvider;
     this.endpointConfiguration = builder.endpointConfiguration;
     this.messageMaxBytes = builder.messageMaxBytes;
-    this.encoding = builder.encoding;
   }
 
   private final AtomicReference<String> partitionKey = new AtomicReference<>("");
-
-  @Override public CheckResult check() {
-    try {
-      String status = get().describeStream(streamName).getStreamDescription().getStreamStatus();
-      if (status.equalsIgnoreCase("ACTIVE")) {
-        return CheckResult.OK;
-      } else {
-        return CheckResult.failed(new IllegalStateException("Stream is not active"));
-      }
-    } catch (Exception e) {
-      return CheckResult.failed(e);
-    }
-  }
 
   private String getPartitionKey() {
     if (partitionKey.get().isEmpty()) {
@@ -166,37 +147,29 @@ public final class KinesisSender extends Sender {
   }
 
   /** get and close are typically called from different threads */
-  volatile AmazonKinesisAsync asyncClient;
+  volatile AmazonKinesis client;
   volatile boolean closeCalled;
 
-  AmazonKinesisAsync get() {
-    if (asyncClient == null) {
+  AmazonKinesis get() {
+    if (client == null) {
       synchronized (this) {
-        if (asyncClient != null) return asyncClient;
-        AmazonKinesisAsyncClientBuilder builder = AmazonKinesisAsyncClientBuilder.standard()
+        if (client != null) return client;
+        AmazonKinesisClientBuilder builder = AmazonKinesisClientBuilder.standard()
             .withCredentials(credentialsProvider)
             .withEndpointConfiguration(endpointConfiguration);
         if (region != null) builder.withRegion(region);
-        asyncClient = builder.build();
+        client = builder.build();
       }
     }
-    return asyncClient;
-  }
-
-  @Override public Encoding encoding() {
-    return encoding;
+    return client;
   }
 
   @Override public int messageMaxBytes() {
     return messageMaxBytes;
   }
 
-  @Override public int messageSizeInBytes(List<byte[]> list) {
-    return encoding().listSizeInBytes(list);
-  }
-
-  @Override public Call<Void> sendSpans(List<byte[]> list) {
-    if (closeCalled) throw new IllegalStateException("closed");
+  @Override public void send(List<byte[]> list) {
+    if (closeCalled) throw new ClosedSenderException();
 
     ByteBuffer message = ByteBuffer.wrap(BytesMessageEncoder.forEncoding(encoding()).encode(list));
 
@@ -205,67 +178,13 @@ public final class KinesisSender extends Sender {
     request.setData(message);
     request.setPartitionKey(getPartitionKey());
 
-    return new KinesisCall(request);
+    get().putRecord(request);
   }
 
   @Override public synchronized void close() {
     if (closeCalled) return;
-    AmazonKinesisAsync asyncClient = this.asyncClient;
-    if (asyncClient != null) asyncClient.shutdown();
+    AmazonKinesis client = this.client;
+    if (client != null) client.shutdown();
     closeCalled = true;
-  }
-
-  @Override public final String toString() {
-    return "KinesisSender{region=" + region + ", streamName=" + streamName + "}";
-  }
-
-  class KinesisCall extends Call.Base<Void> {
-    private final PutRecordRequest message;
-    volatile Future<PutRecordResult> future;
-
-    KinesisCall(PutRecordRequest message) {
-      this.message = message;
-    }
-
-    @Override protected Void doExecute() {
-      get().putRecord(message);
-      return null;
-    }
-
-    @Override protected void doEnqueue(Callback<Void> callback) {
-      future = get().putRecordAsync(message, new AsyncHandlerAdapter(callback));
-      if (future.isCancelled()) throw new IllegalStateException("cancelled sending spans");
-    }
-
-    @Override protected void doCancel() {
-      Future<PutRecordResult> maybeFuture = future;
-      if (maybeFuture != null) maybeFuture.cancel(true);
-    }
-
-    @Override protected boolean doIsCanceled() {
-      Future<PutRecordResult> maybeFuture = future;
-      return maybeFuture != null && maybeFuture.isCancelled();
-    }
-
-    @Override public Call<Void> clone() {
-      return new KinesisCall(message.clone());
-    }
-  }
-
-  static final class AsyncHandlerAdapter
-      implements AsyncHandler<PutRecordRequest, PutRecordResult> {
-    final Callback<Void> callback;
-
-    AsyncHandlerAdapter(Callback<Void> callback) {
-      this.callback = callback;
-    }
-
-    @Override public void onError(Exception e) {
-      callback.onError(e);
-    }
-
-    @Override public void onSuccess(PutRecordRequest request, PutRecordResult result) {
-      callback.onSuccess(null);
-    }
   }
 }

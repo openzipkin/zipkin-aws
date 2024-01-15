@@ -15,26 +15,21 @@ package zipkin2.reporter.sqs;
 
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.handlers.AsyncHandler;
-import com.amazonaws.services.sqs.AmazonSQSAsync;
-import com.amazonaws.services.sqs.AmazonSQSAsyncClientBuilder;
+import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
 import com.amazonaws.services.sqs.model.SendMessageRequest;
-import com.amazonaws.services.sqs.model.SendMessageResult;
 import com.amazonaws.util.Base64;
 import java.nio.charset.Charset;
 import java.util.List;
-import java.util.concurrent.Future;
 import zipkin2.reporter.AsyncReporter;
 import zipkin2.reporter.BytesMessageEncoder;
-import zipkin2.reporter.Call;
-import zipkin2.reporter.Callback;
-import zipkin2.reporter.CheckResult;
+import zipkin2.reporter.BytesMessageSender;
+import zipkin2.reporter.ClosedSenderException;
 import zipkin2.reporter.Encoding;
-import zipkin2.reporter.Sender;
 import zipkin2.reporter.internal.Nullable;
 
 /**
- * Zipkin Sender implementation that sends spans to an SQS queue.
+ * Zipkin {@link BytesMessageSender} implementation that sends spans to an SQS queue.
  *
  * <p>The {@link AsyncReporter} batches spans into a single message to improve throughput and lower
  * API requests to SQS. Based on current service capabilities, a message will contain roughly 256KiB
@@ -42,7 +37,7 @@ import zipkin2.reporter.internal.Nullable;
  *
  * <p>This sends (usually TBinaryProtocol big-endian) encoded spans to an SQS queue.
  */
-public final class SQSSender extends Sender {
+public final class SQSSender extends BytesMessageSender.Base {
   private static final Charset UTF_8 = Charset.forName("UTF-8");
 
   public static SQSSender create(String url) {
@@ -127,40 +122,31 @@ public final class SQSSender extends Sender {
   @Nullable final AWSCredentialsProvider credentialsProvider;
   @Nullable final EndpointConfiguration endpointConfiguration;
   final int messageMaxBytes;
-  final Encoding encoding;
 
   SQSSender(Builder builder) {
+    super(builder.encoding);
     this.queueUrl = builder.queueUrl;
     this.credentialsProvider = builder.credentialsProvider;
     this.endpointConfiguration = builder.endpointConfiguration;
     this.messageMaxBytes = builder.messageMaxBytes;
-    this.encoding = builder.encoding;
-  }
-
-  @Override public CheckResult check() {
-    // TODO need to do something better here.
-    return CheckResult.OK;
   }
 
   /** get and close are typically called from different threads */
-  volatile AmazonSQSAsync asyncClient;
+  volatile AmazonSQS client;
   volatile boolean closeCalled;
 
-  AmazonSQSAsync get() {
-    if (asyncClient == null) {
+  AmazonSQS get() {
+    if (client == null) {
       synchronized (this) {
-        if (asyncClient == null) {
-          asyncClient = AmazonSQSAsyncClientBuilder.standard()
+        if (client == null) {
+          client = AmazonSQSClientBuilder.standard()
               .withCredentials(credentialsProvider)
-              .withEndpointConfiguration(endpointConfiguration).build();
+              .withEndpointConfiguration(endpointConfiguration)
+              .build();
         }
       }
     }
-    return asyncClient;
-  }
-
-  @Override public Encoding encoding() {
-    return encoding;
+    return client;
   }
 
   @Override public int messageMaxBytes() {
@@ -172,27 +158,25 @@ public final class SQSSender extends Sender {
     return (listSize + 2) * 4 / 3; // account for base64 encoding
   }
 
-  @Override
-  public Call<Void> sendSpans(List<byte[]> list) {
-    if (closeCalled) throw new IllegalStateException("closed");
+  @Override public void send(List<byte[]> list) {
+    if (closeCalled) throw new ClosedSenderException();
 
     byte[] encodedSpans = BytesMessageEncoder.forEncoding(encoding()).encode(list);
     String body =
-        encoding() == Encoding.JSON && isAscii(encodedSpans)
-            ? new String(encodedSpans, UTF_8)
+        encoding() == Encoding.JSON && isAscii(encodedSpans) ? new String(encodedSpans, UTF_8)
             : Base64.encodeAsString(encodedSpans);
 
-    return new SQSCall(new SendMessageRequest(queueUrl, body));
+    get().sendMessage(new SendMessageRequest(queueUrl, body));
   }
 
   @Override public synchronized void close() {
     if (closeCalled) return;
-    AmazonSQSAsync asyncClient = this.asyncClient;
-    if (asyncClient != null) asyncClient.shutdown();
+    AmazonSQS client = this.client;
+    if (client != null) client.shutdown();
     closeCalled = true;
   }
 
-  @Override public final String toString() {
+  @Override public String toString() {
     return "SQSSender{queueUrl=" + queueUrl + "}";
   }
 
@@ -203,56 +187,5 @@ public final class SQSSender extends Sender {
       }
     }
     return true;
-  }
-
-  class SQSCall extends Call.Base<Void> {
-    private final SendMessageRequest message;
-    volatile Future<SendMessageResult> future;
-
-    SQSCall(SendMessageRequest message) {
-      this.message = message;
-    }
-
-    @Override
-    protected Void doExecute() {
-      get().sendMessage(message);
-      return null;
-    }
-
-    @Override protected void doEnqueue(Callback<Void> callback) {
-      future = get().sendMessageAsync(message, new AsyncHandlerAdapter(callback));
-      if (future.isCancelled()) throw new IllegalStateException("cancelled sending spans");
-    }
-
-    @Override protected void doCancel() {
-      Future<SendMessageResult> maybeFuture = future;
-      if (maybeFuture != null) maybeFuture.cancel(true);
-    }
-
-    @Override protected boolean doIsCanceled() {
-      Future<SendMessageResult> maybeFuture = future;
-      return maybeFuture != null && maybeFuture.isCancelled();
-    }
-
-    @Override public Call<Void> clone() {
-      return new SQSCall(message.clone());
-    }
-  }
-
-  static final class AsyncHandlerAdapter
-      implements AsyncHandler<SendMessageRequest, SendMessageResult> {
-    final Callback<Void> callback;
-
-    AsyncHandlerAdapter(Callback<Void> callback) {
-      this.callback = callback;
-    }
-
-    @Override public void onError(Exception e) {
-      callback.onError(e);
-    }
-
-    @Override public void onSuccess(SendMessageRequest request, SendMessageResult result) {
-      callback.onSuccess(null);
-    }
   }
 }

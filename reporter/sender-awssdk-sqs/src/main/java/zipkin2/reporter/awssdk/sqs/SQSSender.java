@@ -15,8 +15,6 @@ package zipkin2.reporter.awssdk.sqs;
 
 import software.amazon.awssdk.services.sqs.SqsClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
-import zipkin2.reporter.Call;
-import zipkin2.reporter.Callback;
 import zipkin2.reporter.Encoding;
 
 public final class SQSSender extends AbstractSender {
@@ -93,43 +91,7 @@ public final class SQSSender extends AbstractSender {
     closeCalled = true;
   }
 
-  @Override
-  protected Call<Void> call(SendMessageRequest request) {
-    return new SQSCall(request);
-  }
-
-  @Override
-  public final String toString() {
-    return "SQSSender{queueUrl= " + queueUrl + "}";
-  }
-
-  class SQSCall extends Call.Base<Void> {
-
-    private final SendMessageRequest message;
-
-    SQSCall(SendMessageRequest message) {
-      this.message = message;
-    }
-
-    @Override
-    protected Void doExecute() {
-      sqsClient.sendMessage(message);
-      return null;
-    }
-
-    @Override
-    protected void doEnqueue(Callback<Void> callback) {
-      try {
-        sqsClient.sendMessage(message);
-        callback.onSuccess(null);
-      } catch (RuntimeException e) {
-        callback.onError(e);
-      }
-    }
-
-    @Override
-    public Call<Void> clone() {
-      return new SQSCall(message);
-    }
+  @Override protected void call(SendMessageRequest request) {
+    sqsClient.sendMessage(request);
   }
 }

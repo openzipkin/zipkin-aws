@@ -17,17 +17,12 @@ import com.amazonaws.auth.AWSStaticCredentialsProvider;
 import com.amazonaws.auth.BasicAWSCredentials;
 import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
 import zipkin2.Span;
 import zipkin2.junit.aws.AmazonSQSExtension;
-import zipkin2.reporter.Call;
-import zipkin2.reporter.Callback;
-import zipkin2.reporter.CheckResult;
 import zipkin2.reporter.Encoding;
 import zipkin2.reporter.SpanBytesEncoder;
 
@@ -36,13 +31,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static zipkin2.TestObjects.CLIENT_SPAN;
 
 class SQSSenderTest {
-  @RegisterExtension
-  AmazonSQSExtension sqs = new AmazonSQSExtension();
+  @RegisterExtension AmazonSQSExtension sqs = new AmazonSQSExtension();
 
   private SQSSender sender;
 
-  @BeforeEach
-  public void setup() {
+  @BeforeEach void setup() {
     sender =
         SQSSender.newBuilder()
             .queueUrl(sqs.queueUrl())
@@ -52,63 +45,38 @@ class SQSSenderTest {
             .build();
   }
 
-  @Test
-  void sendsSpans() throws Exception {
-    send(CLIENT_SPAN, CLIENT_SPAN).execute();
+  @Test void send() {
+    sendSpans(CLIENT_SPAN, CLIENT_SPAN);
 
     assertThat(readSpans()).containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test
-  void sendsSpans_json_unicode() throws Exception {
+  @Test void send_empty() {
+    sendSpans();
+
+    assertThat(readSpans()).isEmpty();
+  }
+
+  @Test void send_json_unicode() {
     Span unicode = CLIENT_SPAN.toBuilder().putTag("error", "\uD83D\uDCA9").build();
-    send(unicode).execute();
+    sendSpans(unicode);
 
     assertThat(readSpans()).containsExactly(unicode);
   }
 
-  @Test
-  void sendsSpans_PROTO3() throws Exception {
+  @Test void send_PROTO3() {
     sender.close();
     sender = sender.toBuilder().encoding(Encoding.PROTO3).build();
 
-    send(CLIENT_SPAN, CLIENT_SPAN).execute();
+    sendSpans(CLIENT_SPAN, CLIENT_SPAN);
 
     assertThat(readSpans()).containsExactly(CLIENT_SPAN, CLIENT_SPAN);
   }
 
-  @Test
-  void outOfBandCancel() throws Exception {
-    SQSSender.SQSCall call = (SQSSender.SQSCall) send(CLIENT_SPAN, CLIENT_SPAN);
-    assertThat(call.isCanceled()).isFalse(); // sanity check
-
-    CountDownLatch latch = new CountDownLatch(1);
-    call.enqueue(new Callback<>() {
-      @Override
-      public void onSuccess(Void aVoid) {
-        call.future.cancel(true);
-        latch.countDown();
-      }
-
-      @Override
-      public void onError(Throwable throwable) {
-        latch.countDown();
-      }
-    });
-
-    latch.await(5, TimeUnit.SECONDS);
-    assertThat(call.isCanceled()).isTrue();
-  }
-
-  @Test
-  void checkOk() {
-    assertThat(sender.check()).isEqualTo(CheckResult.OK);
-  }
-
-  Call<Void> send(Span... spans) {
+  void sendSpans(Span... spans) {
     SpanBytesEncoder bytesEncoder =
         sender.encoding() == Encoding.JSON ? SpanBytesEncoder.JSON_V2 : SpanBytesEncoder.PROTO3;
-    return sender.sendSpans(Stream.of(spans).map(bytesEncoder::encode).collect(toList()));
+    sender.send(Stream.of(spans).map(bytesEncoder::encode).collect(toList()));
   }
 
   List<Span> readSpans() {

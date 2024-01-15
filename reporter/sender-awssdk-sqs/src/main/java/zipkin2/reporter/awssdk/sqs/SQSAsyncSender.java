@@ -13,14 +13,12 @@
  */
 package zipkin2.reporter.awssdk.sqs;
 
-import java.util.concurrent.CompletableFuture;
 import software.amazon.awssdk.services.sqs.SqsAsyncClient;
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest;
-import software.amazon.awssdk.services.sqs.model.SendMessageResponse;
-import zipkin2.reporter.Call;
-import zipkin2.reporter.Callback;
 import zipkin2.reporter.Encoding;
 
+/** @deprecated as all senders are synchronous now, this will be removed in v2.0 */
+@Deprecated
 public final class SQSAsyncSender extends AbstractSender {
 
   public static SQSAsyncSender create(String queueUrl) {
@@ -95,53 +93,7 @@ public final class SQSAsyncSender extends AbstractSender {
     closeCalled = true;
   }
 
-  @Override protected Call<Void> call(SendMessageRequest request) {
-    return new SQSCall(request);
-  }
-
-  @Override public final String toString() {
-    return "SQSAsyncSender{queueUrl= " + queueUrl + "}";
-  }
-
-  class SQSCall extends Call.Base<Void> {
-
-    private final SendMessageRequest message;
-    volatile CompletableFuture<SendMessageResponse> future;
-
-    SQSCall(SendMessageRequest message) {
-      this.message = message;
-    }
-
-    @Override protected Void doExecute() {
-      sqsClient.sendMessage(message);
-      return null;
-    }
-
-    @Override protected void doEnqueue(Callback<Void> callback) {
-      future = sqsClient.sendMessage(message).handle((response, throwable) -> {
-        if (throwable != null) {
-          callback.onError(throwable);
-        } else {
-          callback.onSuccess(null);
-        }
-        return null;
-      });
-      if (future.isCancelled()) throw new IllegalStateException("cancelled sending spans");
-    }
-
-    @Override public Call<Void> clone() {
-      return new SQSCall(message);
-    }
-
-    @Override protected void doCancel() {
-      CompletableFuture<SendMessageResponse> maybeFuture = future;
-      if (maybeFuture != null) maybeFuture.cancel(true);
-    }
-
-    @Override
-    protected boolean doIsCanceled() {
-      CompletableFuture<SendMessageResponse> maybeFuture = future;
-      return maybeFuture != null && maybeFuture.isCancelled();
-    }
+  @Override protected void call(SendMessageRequest request) {
+    sqsClient.sendMessage(request);
   }
 }
