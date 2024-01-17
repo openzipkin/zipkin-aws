@@ -78,7 +78,7 @@
     <!-- matching armeria/grpc/zipkin -->
     <zipkin.groupId>io.zipkin.zipkin2</zipkin.groupId>
     <!-- when updating, update docker/Dockerfile and storage/src/test/java/zipkin2/storage/kafka/IT* -->
-    <zipkin.version>3.0.3</zipkin.version>
+    <zipkin.version>3.0.4</zipkin.version>
     <zipkin-reporter.version>3.2.1</zipkin-reporter.version>
     <spring-boot.version>3.2.1</spring-boot.version>
     <jackson.version>2.16.1</jackson.version>
@@ -95,15 +95,15 @@
     <brave.groupId>io.zipkin.brave</brave.groupId>
     <brave.version>6.0.0</brave.version>
 
-    <aws-java-sdk.version>1.12.633</aws-java-sdk.version>
-    <sdk-core.version>2.22.13</sdk-core.version>
+    <aws-java-sdk.version>1.12.638</aws-java-sdk.version>
+    <sdk-core.version>2.23.4</sdk-core.version>
 
     <okhttp.version>4.12.0</okhttp.version>
 
     <assertj.version>3.25.1</assertj.version>
     <awaitility.version>4.2.0</awaitility.version>
     <junit-jupiter.version>5.10.1</junit-jupiter.version>
-    <mockito.version>5.8.0</mockito.version>
+    <mockito.version>5.9.0</mockito.version>
 
     <!-- override to set exclusions per-project -->
     <errorprone.args />
