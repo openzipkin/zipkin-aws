@@ -78,15 +78,15 @@
     <!-- matching armeria/grpc/zipkin -->
     <zipkin.groupId>io.zipkin.zipkin2</zipkin.groupId>
     <!-- when updating, update docker/Dockerfile and storage/src/test/java/zipkin2/storage/kafka/IT* -->
-    <zipkin.version>3.0.5</zipkin.version>
+    <zipkin.version>3.0.6</zipkin.version>
     <zipkin-reporter.version>3.2.1</zipkin-reporter.version>
     <spring-boot.version>3.2.2</spring-boot.version>
     <jackson.version>2.16.1</jackson.version>
-    <!-- armeria.groupId allows you to test feature branches with jitpack -->
+    <!-- This allows you to test feature branches with jitpack -->
     <armeria.groupId>com.linecorp.armeria</armeria.groupId>
-    <armeria.version>1.26.4</armeria.version>
+    <armeria.version>1.27.1</armeria.version>
     <!-- Match Armeria version to avoid conflicts including running tests in the IDE -->
-    <netty.version>4.1.100.Final</netty.version>
+    <netty.version>4.1.106.Final</netty.version>
     <log4j.version>2.21.1</log4j.version>
 
     <!-- This allows you to test feature branches with jitpack -->
@@ -95,15 +95,15 @@
     <brave.groupId>io.zipkin.brave</brave.groupId>
     <brave.version>6.0.0</brave.version>
 
-    <aws-java-sdk.version>1.12.643</aws-java-sdk.version>
-    <sdk-core.version>2.23.9</sdk-core.version>
+    <aws-java-sdk.version>1.12.656</aws-java-sdk.version>
+    <sdk-core.version>2.24.0</sdk-core.version>
 
     <okhttp.version>4.12.0</okhttp.version>
 
-    <assertj.version>3.25.1</assertj.version>
+    <assertj.version>3.25.3</assertj.version>
     <awaitility.version>4.2.0</awaitility.version>
-    <junit-jupiter.version>5.10.1</junit-jupiter.version>
-    <mockito.version>5.9.0</mockito.version>
+    <junit-jupiter.version>5.10.2</junit-jupiter.version>
+    <mockito.version>5.10.0</mockito.version>
 
     <!-- override to set exclusions per-project -->
     <errorprone.args />
