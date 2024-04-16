@@ -21,11 +21,26 @@
   <properties>
     <main.basedir>${project.basedir}/..</main.basedir>
 
+    <!-- CVE fix versions -->
+    <!-- TODO: considering switching to something that doesn't use scala, such
+         as testcontainers+localstack, as CVEs are common here. -->
+    <scala.version>2.13.13</scala.version>
+
     <!-- Only used in this repo's tests, which use floor JDK 17 -->
     <maven.compiler.source>17</maven.compiler.source>
     <maven.compiler.target>17</maven.compiler.target>
     <maven.compiler.release>17</maven.compiler.release>
   </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.scala-lang</groupId>
+        <artifactId>scala-library</artifactId>
+        <version>${scala.version}</version>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
 
   <dependencies>
     <dependency>
