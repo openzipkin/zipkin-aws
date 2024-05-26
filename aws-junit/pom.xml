@@ -24,7 +24,7 @@
     <!-- CVE fix versions -->
     <!-- TODO: considering switching to something that doesn't use scala, such
          as testcontainers+localstack, as CVEs are common here. -->
-    <scala.version>2.13.13</scala.version>
+    <scala.version>2.13.14</scala.version>
 
     <!-- Only used in this repo's tests, which use floor JDK 17 -->
     <maven.compiler.source>17</maven.compiler.source>
@@ -64,7 +64,7 @@
     <dependency>
       <groupId>org.elasticmq</groupId>
       <artifactId>elasticmq-server_2.13</artifactId>
-      <version>1.6.0</version>
+      <version>1.6.1</version>
       <exclusions>
         <exclusion>
           <groupId>ch.qos.logback</groupId>
