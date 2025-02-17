@@ -10,7 +10,7 @@
 
   <groupId>io.zipkin.aws</groupId>
   <artifactId>zipkin-aws-parent</artifactId>
-  <version>1.3.0</version>
+  <version>1.3.1-SNAPSHOT</version>
   <packaging>pom</packaging>
 
   <modules>
@@ -149,7 +149,7 @@
     <url>https://github.com/openzipkin/zipkin-aws</url>
     <connection>scm:git:https://github.com/openzipkin/zipkin-aws.git</connection>
     <developerConnection>scm:git:https://github.com/openzipkin/zipkin-aws.git</developerConnection>
-    <tag>1.3.0</tag>
+    <tag>HEAD</tag>
   </scm>
 
   <!-- Developer section is needed for Maven Central, but doesn't need to include each person -->
