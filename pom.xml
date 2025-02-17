@@ -78,7 +78,7 @@
     <armeria.version>1.31.3</armeria.version>
     <!-- Match Armeria version to avoid conflicts including running tests in the IDE -->
     <netty.version>4.1.118.Final</netty.version>
-    <log4j.version>2.24.0</log4j.version>
+    <log4j.version>2.24.3</log4j.version>
 
     <!-- This allows you to test feature branches with jitpack -->
     <!--    <brave.groupId>com.github.openzipkin.brave</brave.groupId>-->
