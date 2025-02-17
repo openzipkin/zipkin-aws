@@ -3,7 +3,7 @@ services:
   # TODO: this will pass because X-Ray just sends UDP at the moment.
   # Authenticate and use the other modules: sqs,kinesis,elasticsearch
 
-  # Use fixed service and container name 'sut; so our test script can copy/pasta
+  # Use fixed service and container name sut; so our test script can copy/pasta
   sut:
     # This is the image just built. It is not in a remote repository.
     image: openzipkin/zipkin-aws:test

@@ -69,7 +69,7 @@
     <!-- matching armeria/grpc/zipkin -->
     <zipkin.groupId>io.zipkin.zipkin2</zipkin.groupId>
     <!-- when updating, update docker/Dockerfile and storage/src/test/java/zipkin2/storage/kafka/IT* -->
-    <zipkin.version>3.4.1</zipkin.version>
+    <zipkin.version>3.5.0</zipkin.version>
     <zipkin-reporter.version>3.4.0</zipkin-reporter.version>
     <spring-boot.version>3.3.3</spring-boot.version>
     <jackson.version>2.17.2</jackson.version>
@@ -497,10 +497,10 @@
 
   <profiles>
     <profile>
-      <id>error-prone-11+</id>
+      <id>error-prone-17+</id>
       <activation>
-        <!-- Only LTS versions -->
-        <jdk>[11,12),[17,18),[21,22)</jdk>
+        <!-- Only LTS versions that work with errorprone -->
+        <jdk>[17,18),[21,22)</jdk>
       </activation>
       <build>
         <plugins>
@@ -524,8 +524,9 @@
                   <forceJavacCompilerUse>true</forceJavacCompilerUse>
                   <compilerArgs>
                     <arg>-XDcompilePolicy=simple</arg>
+                    <arg>--should-stop=ifError=FLOW</arg>
                     <arg>-Xplugin:ErrorProne ${errorprone.args}</arg>
-                    <!-- below needed for JDK16+ per https://errorprone.info/docs/installation -->
+                    <!-- below needed per https://errorprone.info/docs/installation -->
                     <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
                     <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
                     <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</arg>
