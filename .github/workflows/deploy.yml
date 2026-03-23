@@ -9,7 +9,8 @@ name: deploy
 on:
   push:
     # Don't deploy tags as they conflict with [maven-release-plugin] prepare release MAJOR.MINOR.PATCH
-    tags: ''
+    tags-ignore:
+      - '*'
     branches: master
 
 jobs:
