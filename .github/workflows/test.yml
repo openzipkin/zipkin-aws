@@ -22,18 +22,18 @@ jobs:
     if: "!contains(github.event.head_commit.message, 'maven-release-plugin')"
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'  # zulu as it supports a wide version range
-          java-version: '17'  # earliest LTS supported by Spring Boot 3
+          java-version: '21'  # earliest LTS that can compile this project
       - name: Cache local Maven repository
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository
-          key: ${{ runner.os }}-jdk-17-maven-${{ hashFiles('**/pom.xml') }}
-          restore-keys: ${{ runner.os }}-jdk-17-maven-
+          key: ${{ runner.os }}-jdk-21-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: ${{ runner.os }}-jdk-21-maven-
       - name: Build JavaDoc
         run: ./mvnw clean javadoc:aggregate -Prelease
 
@@ -45,19 +45,19 @@ jobs:
       fail-fast: false  # don't fail fast as sometimes failures are operating system specific
       matrix:  # use latest available versions and be consistent on all workflows!
         include:
-          - java_version: 17  # earliest LTS supported by Spring Boot 3
+          - java_version: 21  # earliest LTS that can compile this project
             maven_args: -Prelease -Dgpg.skip -Dmaven.javadoc.skip=true
-          - java_version: 21  # Most recent LTS
+          - java_version: 25  # Most recent LTS
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'zulu'  # zulu as it supports a wide version range
           java-version: ${{ matrix.java_version }}
       - name: Cache local Maven repository
-        uses: actions/cache@v3
+        uses: actions/cache@v5
         with:
           path: ~/.m2/repository
           key: ${{ runner.os }}-jdk-${{ matrix.java_version }}-maven-${{ hashFiles('**/pom.xml') }}

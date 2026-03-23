@@ -87,14 +87,14 @@
 
     <okhttp.version>4.12.0</okhttp.version>
 
-    <assertj.version>3.27.3</assertj.version>
+    <assertj.version>3.27.7</assertj.version>
     <awaitility.version>4.2.2</awaitility.version>
     <junit-jupiter.version>5.11.4</junit-jupiter.version>
-    <mockito.version>5.15.2</mockito.version>
+    <mockito.version>5.23.0</mockito.version>
 
     <!-- override to set exclusions per-project -->
     <errorprone.args />
-    <errorprone.version>2.36.0</errorprone.version>
+    <errorprone.version>2.48.0</errorprone.version>
     <auto-value.version>1.11.0</auto-value.version>
 
     <license.skip>${skipTests}</license.skip>
@@ -393,7 +393,7 @@
                 <requireJavaVersion>
                   <!-- Change this to control LTS JDK versions allowed to build
                        the project. Keep in sync with .github/workflows -->
-                  <version>[11,12),[17,18),[21,22)</version>
+                  <version>[21,22),[25,26)</version>
                 </requireJavaVersion>
               </rules>
             </configuration>
@@ -493,10 +493,10 @@
 
   <profiles>
     <profile>
-      <id>error-prone-17+</id>
+      <id>error-prone-21+</id>
       <activation>
         <!-- Only LTS versions that work with errorprone -->
-        <jdk>[17,18),[21,22)</jdk>
+        <jdk>[21,22),[25,26)</jdk>
       </activation>
       <build>
         <plugins>
@@ -523,6 +523,7 @@
                     <arg>--should-stop=ifError=FLOW</arg>
                     <arg>-Xplugin:ErrorProne ${errorprone.args}</arg>
                     <!-- below needed per https://errorprone.info/docs/installation -->
+                    <arg>-XDaddTypeAnnotationsToSymbol=true</arg>
                     <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.api=ALL-UNNAMED</arg>
                     <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</arg>
                     <arg>-J--add-exports=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</arg>
