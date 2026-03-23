@@ -95,8 +95,6 @@
     <!-- override to set exclusions per-project -->
     <errorprone.args />
     <errorprone.version>2.48.0</errorprone.version>
-    <auto-value.version>1.11.0</auto-value.version>
-
     <license.skip>${skipTests}</license.skip>
 
     <maven-surefire-plugin.argLine />
@@ -540,13 +538,6 @@
                       <groupId>com.google.errorprone</groupId>
                       <artifactId>error_prone_core</artifactId>
                       <version>${errorprone.version}</version>
-                    </processorPath>
-                    <!-- auto-value is placed here even though not needed for all projects as
-                         configuring along with errorprone is tricky in subprojects -->
-                    <processorPath>
-                      <groupId>com.google.auto.value</groupId>
-                      <artifactId>auto-value</artifactId>
-                      <version>${auto-value.version}</version>
                     </processorPath>
                   </annotationProcessorPaths>
                 </configuration>
