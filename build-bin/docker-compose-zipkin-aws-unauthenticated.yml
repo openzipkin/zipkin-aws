@@ -1,4 +1,3 @@
-version: "3.6"
 services:
   # TODO: this will pass because X-Ray just sends UDP at the moment.
   # Authenticate and use the other modules: sqs,kinesis,elasticsearch
