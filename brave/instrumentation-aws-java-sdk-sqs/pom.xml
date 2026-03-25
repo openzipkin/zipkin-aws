@@ -16,6 +16,7 @@
   </parent>
 
   <artifactId>brave-instrumentation-aws-java-sdk-sqs</artifactId>
+  <name>Brave Instrumentation: AWS Java SDK SQS</name>
 
   <properties>
     <main.basedir>${project.basedir}/../..</main.basedir>
