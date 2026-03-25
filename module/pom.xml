@@ -49,6 +49,12 @@
       <groupId>com.amazonaws</groupId>
       <artifactId>aws-java-sdk-sts</artifactId>
       <version>${aws-java-sdk.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.fasterxml.jackson.core</groupId>
+          <artifactId>jackson-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
@@ -92,10 +98,27 @@
       <version>${armeria.version}</version>
       <scope>provided</scope>
     </dependency>
+    <!-- Armeria's transitive Netty deps are runtime scope; we compile against them -->
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-buffer</artifactId>
+      <scope>provided</scope>
+    </dependency>
+    <dependency>
+      <groupId>io.netty</groupId>
+      <artifactId>netty-common</artifactId>
+      <scope>provided</scope>
+    </dependency>
     <dependency>
       <artifactId>aws-java-sdk-core</artifactId>
       <groupId>com.amazonaws</groupId>
       <version>${aws-java-sdk.version}</version>
+      <exclusions>
+        <exclusion>
+          <groupId>com.fasterxml.jackson.core</groupId>
+          <artifactId>jackson-core</artifactId>
+        </exclusion>
+      </exclusions>
     </dependency>
 
     <dependency>
@@ -133,7 +156,7 @@
           <classifier>module</classifier>
           <!-- https://github.com/spring-projects/spring-boot/issues/3426 transitive exclude doesn't work -->
           <excludeGroupIds>
-            ${zipkin.groupId},org.springframework.boot,org.springframework,com.fasterxml.jackson.core,com.google.auto.value,com.google.code.gson,org.reactivestreams,com.google.code.findbugs,javax.annotation,org.slf4j,io.netty,io.micrometer,org.hdrhistogram,org.latencyutils,${armeria.groupId},javax.inject,com.fasterxml.jackson.datatype,com.aayushatharva.brotli4j,commons-logging
+            ${zipkin.groupId},org.springframework.boot,org.springframework,com.fasterxml.jackson.core,com.google.auto.value,com.google.code.gson,org.reactivestreams,com.google.code.findbugs,javax.annotation,org.slf4j,io.netty,io.micrometer,org.hdrhistogram,org.latencyutils,${armeria.groupId},javax.inject,com.fasterxml.jackson.datatype,com.aayushatharva.brotli4j,commons-logging,org.jspecify
           </excludeGroupIds>
           <excludes>
             <!-- zipkin-server depends on armeria and its grpc protocol-->

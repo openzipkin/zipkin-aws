@@ -4,7 +4,7 @@
 #
 # See [README.md] for an explanation of this and how CI should use it.
 echo "Running Maven tests and integration tests..."
-./mvnw -T1C -nsu verify
+./mvnw -T1C -nsu verify "$@"
 
 echo "Building Docker image..."
 export RELEASE_FROM_MAVEN_BUILD=true
