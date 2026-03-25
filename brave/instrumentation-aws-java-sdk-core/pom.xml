@@ -16,6 +16,7 @@
   </parent>
 
   <artifactId>brave-instrumentation-aws-java-sdk-core</artifactId>
+  <name>Brave Instrumentation: AWS Java SDK Core</name>
 
   <properties>
     <main.basedir>${project.basedir}/../..</main.basedir>
