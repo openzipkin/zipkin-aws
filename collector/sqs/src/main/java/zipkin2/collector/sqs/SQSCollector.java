@@ -4,11 +4,7 @@
  */
 package zipkin2.collector.sqs;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import com.amazonaws.services.sqs.AmazonSQS;
-import com.amazonaws.services.sqs.AmazonSQSClientBuilder;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -16,6 +12,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.http.urlconnection.UrlConnectionHttpClient;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sqs.SqsClient;
+import software.amazon.awssdk.services.sqs.SqsClientBuilder;
 import zipkin2.CheckResult;
 import zipkin2.collector.Collector;
 import zipkin2.collector.CollectorComponent;
@@ -37,8 +39,9 @@ public final class SQSCollector extends CollectorComponent {
     String queueUrl;
     int waitTimeSeconds = 20; // aws sqs max wait time is 20 seconds
     int maxNumberOfMessages = 10; // aws sqs max messages for a receive call is 10
-    EndpointConfiguration endpointConfiguration;
-    AWSCredentialsProvider credentialsProvider = new DefaultAWSCredentialsProviderChain();
+    URI endpointOverride;
+    String region = "us-east-1";
+    AwsCredentialsProvider credentialsProvider = DefaultCredentialsProvider.create();
     int parallelism = 1;
 
     @Override
@@ -66,14 +69,20 @@ public final class SQSCollector extends CollectorComponent {
       return this;
     }
 
-    /** Endpoint and signing configuration for SQS. */
-    public Builder endpointConfiguration(EndpointConfiguration endpointConfiguration) {
-      this.endpointConfiguration = endpointConfiguration;
+    /** Endpoint override for SQS. */
+    public Builder endpointOverride(URI endpointOverride) {
+      this.endpointOverride = endpointOverride;
+      return this;
+    }
+
+    /** AWS region for SQS. */
+    public Builder region(String region) {
+      this.region = region;
       return this;
     }
 
     /** AWS credentials for authenticating calls to SQS. */
-    public Builder credentialsProvider(AWSCredentialsProvider credentialsProvider) {
+    public Builder credentialsProvider(AwsCredentialsProvider credentialsProvider) {
       this.credentialsProvider = credentialsProvider;
       return this;
     }
@@ -112,7 +121,7 @@ public final class SQSCollector extends CollectorComponent {
   }
 
   final AtomicBoolean closed = new AtomicBoolean(false);
-  final LazyAmazonSQSClient client;
+  final LazySqsClient client;
   final List<SQSSpanProcessor> processors = new ArrayList<>();
   final ExecutorService pool;
   final int parallelism;
@@ -123,7 +132,7 @@ public final class SQSCollector extends CollectorComponent {
   final CollectorMetrics metrics;
 
   SQSCollector(Builder builder) {
-    client = new LazyAmazonSQSClient(builder);
+    client = new LazySqsClient(builder);
     collector = builder.delegate.build();
     metrics = builder.metrics;
     parallelism = builder.parallelism;
@@ -165,7 +174,7 @@ public final class SQSCollector extends CollectorComponent {
     }
   }
 
-  AmazonSQS client() {
+  SqsClient client() {
     return client.get();
   }
 
@@ -182,21 +191,27 @@ public final class SQSCollector extends CollectorComponent {
     }
   }
 
-  private static final class LazyAmazonSQSClient {
-    final AmazonSQSClientBuilder builder;
-    volatile AmazonSQS client;
+  private static final class LazySqsClient {
+    final AwsCredentialsProvider credentialsProvider;
+    final URI endpointOverride;
+    final String region;
+    volatile SqsClient client;
 
-    LazyAmazonSQSClient(Builder builder) {
-      this.builder =
-          AmazonSQSClientBuilder.standard()
-              .withEndpointConfiguration(builder.endpointConfiguration)
-              .withCredentials(builder.credentialsProvider);
+    LazySqsClient(Builder builder) {
+      this.credentialsProvider = builder.credentialsProvider;
+      this.endpointOverride = builder.endpointOverride;
+      this.region = builder.region;
     }
 
-    AmazonSQS get() {
+    SqsClient get() {
       if (client == null) {
         synchronized (this) {
           if (client == null) {
+            SqsClientBuilder builder = SqsClient.builder()
+                .httpClient(UrlConnectionHttpClient.create())
+                .credentialsProvider(credentialsProvider);
+            if (endpointOverride != null) builder.endpointOverride(endpointOverride);
+            if (region != null) builder.region(Region.of(region));
             client = builder.build();
           }
         }
@@ -205,9 +220,9 @@ public final class SQSCollector extends CollectorComponent {
     }
 
     void close() {
-      AmazonSQS maybeClient = client;
+      SqsClient maybeClient = client;
       if (maybeClient == null) return;
-      maybeClient.shutdown();
+      maybeClient.close();
     }
   }
 }

@@ -4,11 +4,8 @@
  */
 package zipkin2.collector.sqs;
 
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-
 import java.io.IOException;
+import java.net.URI;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
@@ -17,6 +14,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.RegisterExtension;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import zipkin2.Span;
 import zipkin2.TestObjects;
 import zipkin2.codec.SpanBytesEncoder;
@@ -50,9 +49,10 @@ class ITSQSCollector {
         .queueUrl(sqs.queueUrl())
         .parallelism(2)
         .waitTimeSeconds(1) // using short wait time to make test teardown faster
-        .endpointConfiguration(new EndpointConfiguration(sqs.queueUrl(), "us-east-1"))
+        .endpointOverride(URI.create(sqs.queueUrl()))
+        .region("us-east-1")
         .credentialsProvider(
-            new AWSStaticCredentialsProvider(new BasicAWSCredentials("x", "x")))
+            StaticCredentialsProvider.create(AwsBasicCredentials.create("x", "x")))
         .metrics(metrics)
         .sampler(CollectorSampler.ALWAYS_SAMPLE)
         .storage(store)

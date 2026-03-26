@@ -4,13 +4,6 @@
  */
 package zipkin.module.aws.kinesis;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
@@ -21,50 +14,61 @@ import org.springframework.context.annotation.ConditionContext;
 import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.type.AnnotatedTypeMetadata;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
+import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 
 @Configuration
 @EnableConfigurationProperties(ZipkinKinesisCollectorProperties.class)
 @Conditional(ZipkinKinesisCollectorModule.KinesisSetCondition.class)
 class ZipkinKinesisCredentialsConfiguration {
 
-  /** Setup {@link AWSSecurityTokenService} client an IAM role to assume is given. */
+  /** Setup {@link StsClient} client an IAM role to assume is given. */
   @Bean
   @ConditionalOnMissingBean
   @Conditional(STSSetCondition.class)
-  AWSSecurityTokenService securityTokenService(ZipkinKinesisCollectorProperties properties) {
-    return AWSSecurityTokenServiceClientBuilder.standard()
-        .withCredentials(getDefaultCredentialsProvider(properties))
-        .withRegion(properties.getAwsStsRegion())
+  StsClient securityTokenService(ZipkinKinesisCollectorProperties properties) {
+    return StsClient.builder()
+        .credentialsProvider(getDefaultCredentialsProvider(properties))
+        .region(Region.of(properties.getAwsStsRegion()))
         .build();
   }
 
   @Autowired(required = false)
-  private AWSSecurityTokenService securityTokenService;
+  private StsClient securityTokenService;
 
-  /** By default, get credentials from the {@link DefaultAWSCredentialsProviderChain */
+  /** By default, get credentials from the {@link DefaultCredentialsProvider */
   @Bean
   @ConditionalOnMissingBean
-  AWSCredentialsProvider credentialsProvider(ZipkinKinesisCollectorProperties properties) {
+  AwsCredentialsProvider credentialsProvider(ZipkinKinesisCollectorProperties properties) {
     if (securityTokenService != null) {
-      return new STSAssumeRoleSessionCredentialsProvider.Builder(
-              properties.getAwsStsRoleArn(), "zipkin-server")
-          .withStsClient(securityTokenService)
+      return StsAssumeRoleCredentialsProvider.builder()
+          .stsClient(securityTokenService)
+          .refreshRequest(AssumeRoleRequest.builder()
+              .roleArn(properties.getAwsStsRoleArn())
+              .roleSessionName("zipkin-server")
+              .build())
           .build();
     } else {
       return getDefaultCredentialsProvider(properties);
     }
   }
 
-  private static AWSCredentialsProvider getDefaultCredentialsProvider(
+  private static AwsCredentialsProvider getDefaultCredentialsProvider(
       ZipkinKinesisCollectorProperties properties) {
-    AWSCredentialsProvider provider = new DefaultAWSCredentialsProviderChain();
+    AwsCredentialsProvider provider = DefaultCredentialsProvider.create();
 
     // Create credentials provider from ID and secret if given.
     if (notNullOrEmpty(properties.getAwsAccessKeyId())
         && notNullOrEmpty(properties.getAwsSecretAccessKey())) {
       provider =
-          new AWSStaticCredentialsProvider(
-              new BasicAWSCredentials(properties.getAwsAccessKeyId(), properties.getAwsSecretAccessKey()));
+          StaticCredentialsProvider.create(
+              AwsBasicCredentials.create(properties.getAwsAccessKeyId(), properties.getAwsSecretAccessKey()));
     }
 
     return provider;

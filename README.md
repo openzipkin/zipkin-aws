@@ -26,6 +26,7 @@ Instrumentation | Description
 [AWS SDK](brave/instrumentation-aws-java-sdk-core) | Traces [AmazonWebServiceClient](https://github.com/aws/aws-sdk-java)
 [AWS SDK V2](brave/instrumentation-aws-java-sdk-v2-core) | Traces [SdkClient](https://github.com/aws/aws-sdk-java-v2)
 [AWS SQS Messaging](brave/instrumentation-aws-java-sdk-sqs) | Traces [AmazonSQS](https://docs.aws.amazon.com/AWSJavaSDK/latest/javadoc/com/amazonaws/services/sqs/AmazonSQS.html)
+[AWS SQS V2 Messaging](brave/instrumentation-awssdk-sqs) | Traces [SqsClient](https://sdk.amazonaws.com/java/api/latest/software/amazon/awssdk/services/sqs/SqsClient.html)
 
 We also have a [library to read Amazon's trace header](brave/propagation-aws).
 
@@ -49,6 +50,7 @@ Sender | Description
 [SQS](reporter/sender-sqs) | Sends tracing data to Zipkin using [SQS](https://aws.amazon.com/sqs/), a message queue service.
 [SQS v2](reporter/sender-awssdk-sqs) | Sends tracing data to Zipkin using [SQS](https://aws.amazon.com/sqs/), a message queue service.
 [Kinesis](reporter/sender-kinesis) | Sends tracing data to Zipkin using [Kinesis](https://aws.amazon.com/kinesis/), an alternative similar to Kafka.
+[Kinesis v2](reporter/sender-awssdk-kinesis) | Sends tracing data to Zipkin using [Kinesis](https://aws.amazon.com/kinesis/) with the [V2 AWS SDK](https://github.com/aws/aws-sdk-java-v2).
 
 ## Collectors
 The component in a zipkin server that receives trace data is called a

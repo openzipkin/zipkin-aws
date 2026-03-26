@@ -4,9 +4,6 @@
  */
 package zipkin.module.aws.sqs;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.client.builder.AwsClientBuilder.EndpointConfiguration;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.AutoConfigureAfter;
 import org.springframework.boot.autoconfigure.condition.ConditionOutcome;
 import org.springframework.boot.autoconfigure.condition.SpringBootCondition;
@@ -17,6 +14,7 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
 import org.springframework.core.type.AnnotatedTypeMetadata;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import zipkin2.collector.CollectorMetrics;
 import zipkin2.collector.CollectorSampler;
 import zipkin2.collector.sqs.SQSCollector;
@@ -29,13 +27,10 @@ import zipkin2.storage.StorageComponent;
 @AutoConfigureAfter(name = "zipkin2.server.internal.ZipkinServerConfiguration")
 class ZipkinSQSCollectorModule {
 
-  @Autowired(required = false)
-  EndpointConfiguration endpointConfiguration;
-
   @Bean
   SQSCollector sqsCollector(
       ZipkinSQSCollectorProperties properties,
-      AWSCredentialsProvider credentialsProvider,
+      AwsCredentialsProvider credentialsProvider,
       CollectorSampler sampler,
       CollectorMetrics metrics,
       StorageComponent storage) {
@@ -44,7 +39,6 @@ class ZipkinSQSCollectorModule {
         .queueUrl(properties.getQueueUrl())
         .waitTimeSeconds(properties.getWaitTimeSeconds())
         .parallelism(properties.getParallelism())
-        .endpointConfiguration(endpointConfiguration)
         .credentialsProvider(credentialsProvider)
         .sampler(sampler)
         .metrics(metrics)

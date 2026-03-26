@@ -4,10 +4,6 @@
  */
 package zipkin.module.aws.elasticsearch;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSSessionCredentials;
-import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
-import com.amazonaws.regions.DefaultAwsRegionProviderChain;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.linecorp.armeria.client.ClientOptionsBuilder;
 import com.linecorp.armeria.client.Endpoint;
@@ -34,6 +30,10 @@ import org.springframework.context.annotation.Conditional;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.core.type.AnnotatedTypeMetadata;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.auth.credentials.AwsSessionCredentials;
+import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
+import software.amazon.awssdk.regions.providers.DefaultAwsRegionProviderChain;
 
 @Configuration
 @EnableConfigurationProperties(ZipkinElasticsearchAwsStorageProperties.class)
@@ -88,7 +88,7 @@ class ZipkinElasticsearchAwsStorageModule {
     if (aws.getRegion() != null) {
       return aws.getRegion();
     } else if (domain != null) {
-      return new DefaultAwsRegionProviderChain().getRegion();
+      return DefaultAwsRegionProviderChain.builder().build().getRegion().id();
     } else if (hosts != null) {
       String awsRegion = regionFromAwsUrls(hosts);
       if (awsRegion == null) throw new IllegalArgumentException("Couldn't find region in " + hosts);
@@ -97,20 +97,20 @@ class ZipkinElasticsearchAwsStorageModule {
     throw new AssertionError(AwsMagic.class.getName() + " should ensure this line isn't reached");
   }
 
-  /** By default, get credentials from the {@link DefaultAWSCredentialsProviderChain} */
+  /** By default, get credentials from the {@link DefaultCredentialsProvider} */
   @Bean @ConditionalOnMissingBean
   AWSCredentials.Provider credentials() {
     return new AWSCredentials.Provider() {
-      final AWSCredentialsProvider delegate = new DefaultAWSCredentialsProviderChain();
+      final AwsCredentialsProvider delegate = DefaultCredentialsProvider.create();
 
       @Override public AWSCredentials get() {
-        com.amazonaws.auth.AWSCredentials result = delegate.getCredentials();
+        software.amazon.awssdk.auth.credentials.AwsCredentials result = delegate.resolveCredentials();
         String sessionToken =
-            result instanceof AWSSessionCredentials awssc
-                ? awssc.getSessionToken()
+            result instanceof AwsSessionCredentials awssc
+                ? awssc.sessionToken()
                 : null;
         return new AWSCredentials(
-            result.getAWSAccessKeyId(), result.getAWSSecretKey(), sessionToken);
+            result.accessKeyId(), result.secretAccessKey(), sessionToken);
       }
     };
   }
