@@ -4,9 +4,6 @@
  */
 package zipkin.module.aws.kinesis;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.STSAssumeRoleSessionCredentialsProvider;
-import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +13,9 @@ import org.springframework.boot.test.util.TestPropertyValues;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.services.sts.StsClient;
+import software.amazon.awssdk.services.sts.auth.StsAssumeRoleCredentialsProvider;
 import zipkin2.collector.CollectorMetrics;
 import zipkin2.collector.CollectorSampler;
 import zipkin2.collector.kinesis.KinesisCollector;
@@ -80,9 +80,9 @@ class ZipkinKinesisCollectorModuleTest {
     context.refresh();
 
     assertThat(context.getBean(KinesisCollector.class)).isNotNull();
-    assertThat(context.getBean(AWSSecurityTokenService.class)).isNotNull();
-    assertThat(context.getBean(AWSCredentialsProvider.class))
-        .isInstanceOf(STSAssumeRoleSessionCredentialsProvider.class);
+    assertThat(context.getBean(StsClient.class)).isNotNull();
+    assertThat(context.getBean(AwsCredentialsProvider.class))
+        .isInstanceOf(StsAssumeRoleCredentialsProvider.class);
   }
 
   @Test void kinesisCollectorConfiguredWithCorrectRegion() {

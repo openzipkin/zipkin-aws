@@ -4,17 +4,20 @@
  */
 package zipkin2.collector.kinesis;
 
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessor;
-import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessorFactory;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.KinesisClientLibConfiguration;
-import com.amazonaws.services.kinesis.clientlibrary.lib.worker.Worker;
-import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.UUID;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.cloudwatch.CloudWatchAsyncClient;
+import software.amazon.awssdk.services.dynamodb.DynamoDbAsyncClient;
+import software.amazon.awssdk.services.kinesis.KinesisAsyncClient;
+import software.amazon.kinesis.common.ConfigsBuilder;
+import software.amazon.kinesis.coordinator.Scheduler;
+import software.amazon.kinesis.processor.ShardRecordProcessor;
+import software.amazon.kinesis.processor.ShardRecordProcessorFactory;
 import zipkin2.CheckResult;
 import zipkin2.collector.Collector;
 import zipkin2.collector.CollectorComponent;
@@ -33,10 +36,10 @@ public final class KinesisCollector extends CollectorComponent {
     Collector.Builder delegate = Collector.newBuilder(KinesisCollector.class);
     CollectorMetrics metrics = CollectorMetrics.NOOP_METRICS;
 
-    AWSCredentialsProvider credentialsProvider;
+    AwsCredentialsProvider credentialsProvider;
     String appName;
     String streamName;
-    String regionName;
+    String regionName = "us-east-1";
 
     @Override
     public Builder storage(StorageComponent storageComponent) {
@@ -57,7 +60,7 @@ public final class KinesisCollector extends CollectorComponent {
       return this;
     }
 
-    public Builder credentialsProvider(AWSCredentialsProvider credentialsProvider) {
+    public Builder credentialsProvider(AwsCredentialsProvider credentialsProvider) {
       this.credentialsProvider = credentialsProvider;
       return this;
     }
@@ -89,13 +92,16 @@ public final class KinesisCollector extends CollectorComponent {
   private final CollectorMetrics metrics;
   private final String appName;
   private final String streamName;
-  private final AWSCredentialsProvider credentialsProvider;
+  private final AwsCredentialsProvider credentialsProvider;
   private final String regionName;
 
   private final Executor executor;
-  private Worker worker;
+  private Scheduler scheduler;
+  private KinesisAsyncClient kinesisClient;
+  private DynamoDbAsyncClient dynamoClient;
+  private CloudWatchAsyncClient cloudWatchClient;
 
-    KinesisCollector(Builder builder) {
+  KinesisCollector(Builder builder) {
     this.collector = builder.delegate.build();
     this.metrics = builder.metrics;
     this.appName = builder.appName;
@@ -103,11 +109,12 @@ public final class KinesisCollector extends CollectorComponent {
     this.credentialsProvider = builder.credentialsProvider;
     this.regionName = builder.regionName;
 
-    executor =
-        Executors.newSingleThreadExecutor(
-            new ThreadFactoryBuilder()
-                .setNameFormat("KinesisCollector-" + streamName + "-%d")
-                .build());
+    executor = Executors.newSingleThreadExecutor(r -> {
+      Thread thread = new Thread(r);
+      thread.setName("KinesisCollector-" + streamName);
+      thread.setDaemon(true);
+      return thread;
+    });
   }
 
   @Override
@@ -119,14 +126,40 @@ public final class KinesisCollector extends CollectorComponent {
       workerId = UUID.randomUUID().toString();
     }
 
-    KinesisClientLibConfiguration config =
-        new KinesisClientLibConfiguration(appName, streamName, credentialsProvider, workerId);
-    config.withRegionName(regionName);
+    Region region = Region.of(regionName);
 
-      IRecordProcessorFactory processor = new KinesisRecordProcessorFactory(collector, metrics);
-    worker = new Worker.Builder().recordProcessorFactory(processor).config(config).build();
+    kinesisClient = KinesisAsyncClient.builder()
+        .credentialsProvider(credentialsProvider)
+        .region(region)
+        .build();
 
-    executor.execute(worker);
+    dynamoClient = DynamoDbAsyncClient.builder()
+        .credentialsProvider(credentialsProvider)
+        .region(region)
+        .build();
+
+    cloudWatchClient = CloudWatchAsyncClient.builder()
+        .credentialsProvider(credentialsProvider)
+        .region(region)
+        .build();
+
+    ShardRecordProcessorFactory processorFactory =
+        () -> new KinesisSpanProcessor(collector, metrics);
+
+    ConfigsBuilder configsBuilder = new ConfigsBuilder(
+        streamName, appName, kinesisClient, dynamoClient, cloudWatchClient,
+        workerId, processorFactory);
+
+    scheduler = new Scheduler(
+        configsBuilder.checkpointConfig(),
+        configsBuilder.coordinatorConfig(),
+        configsBuilder.leaseManagementConfig(),
+        configsBuilder.lifecycleConfig(),
+        configsBuilder.metricsConfig(),
+        configsBuilder.processorConfig(),
+        configsBuilder.retrievalConfig());
+
+    executor.execute(scheduler);
     return this;
   }
 
@@ -138,24 +171,11 @@ public final class KinesisCollector extends CollectorComponent {
 
   @Override
   public void close() {
-    // The executor is a single thread that is tied to this worker. Once the worker shuts down
-    // the executor will stop.
-    worker.shutdown();
-  }
-
-  private static final class KinesisRecordProcessorFactory implements IRecordProcessorFactory {
-
-    final Collector collector;
-    final CollectorMetrics metrics;
-
-    KinesisRecordProcessorFactory(Collector collector, CollectorMetrics metrics) {
-      this.collector = collector;
-      this.metrics = metrics;
+    if (scheduler != null) {
+      scheduler.shutdown();
     }
-
-    @Override
-    public IRecordProcessor createProcessor() {
-      return new KinesisSpanProcessor(collector, metrics);
-    }
+    if (kinesisClient != null) kinesisClient.close();
+    if (dynamoClient != null) dynamoClient.close();
+    if (cloudWatchClient != null) cloudWatchClient.close();
   }
 }

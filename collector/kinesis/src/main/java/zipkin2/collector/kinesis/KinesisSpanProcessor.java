@@ -4,16 +4,18 @@
  */
 package zipkin2.collector.kinesis;
 
-import com.amazonaws.services.kinesis.clientlibrary.interfaces.v2.IRecordProcessor;
-import com.amazonaws.services.kinesis.clientlibrary.types.InitializationInput;
-import com.amazonaws.services.kinesis.clientlibrary.types.ProcessRecordsInput;
-import com.amazonaws.services.kinesis.clientlibrary.types.ShutdownInput;
-import com.amazonaws.services.kinesis.model.Record;
+import software.amazon.kinesis.lifecycle.events.InitializationInput;
+import software.amazon.kinesis.lifecycle.events.LeaseLostInput;
+import software.amazon.kinesis.lifecycle.events.ProcessRecordsInput;
+import software.amazon.kinesis.lifecycle.events.ShardEndedInput;
+import software.amazon.kinesis.lifecycle.events.ShutdownRequestedInput;
+import software.amazon.kinesis.processor.ShardRecordProcessor;
+import software.amazon.kinesis.retrieval.KinesisClientRecord;
 import zipkin2.Callback;
 import zipkin2.collector.Collector;
 import zipkin2.collector.CollectorMetrics;
 
-final class KinesisSpanProcessor implements IRecordProcessor {
+final class KinesisSpanProcessor implements ShardRecordProcessor {
   static final Callback<Void> NOOP = new Callback<>() {
     @Override
     public void onSuccess(Void value) {
@@ -38,8 +40,9 @@ final class KinesisSpanProcessor implements IRecordProcessor {
 
   @Override
   public void processRecords(ProcessRecordsInput processRecordsInput) {
-    for (Record record : processRecordsInput.getRecords()) {
-      byte[] serialized = record.getData().array();
+    for (KinesisClientRecord record : processRecordsInput.records()) {
+      byte[] serialized = new byte[record.data().remaining()];
+      record.data().get(serialized);
       metrics.incrementMessages();
       metrics.incrementBytes(serialized.length);
       collector.acceptSpans(serialized, NOOP); // async
@@ -47,6 +50,14 @@ final class KinesisSpanProcessor implements IRecordProcessor {
   }
 
   @Override
-  public void shutdown(ShutdownInput shutdownInput) {
+  public void leaseLost(LeaseLostInput leaseLostInput) {
+  }
+
+  @Override
+  public void shardEnded(ShardEndedInput shardEndedInput) {
+  }
+
+  @Override
+  public void shutdownRequested(ShutdownRequestedInput shutdownRequestedInput) {
   }
 }

@@ -14,10 +14,12 @@
 !brave/instrumentation-aws-java-sdk-core/src/main/**
 !brave/instrumentation-aws-java-sdk-v2-core/src/main/**
 !brave/instrumentation-aws-java-sdk-sqs/src/main/**
+!brave/instrumentation-awssdk-sqs/src/main/**
 !brave/propagation-aws/src/main/**
 !module/src/main/**
 !reporter/reporter-xray-udp/src/main/**
 !reporter/sender-awssdk-sqs/src/main/**
+!reporter/sender-awssdk-kinesis/src/main/**
 !reporter/sender-kinesis/src/main/**
 !reporter/sender-sqs/src/main/**
 !storage/xray-udp/src/main/**
