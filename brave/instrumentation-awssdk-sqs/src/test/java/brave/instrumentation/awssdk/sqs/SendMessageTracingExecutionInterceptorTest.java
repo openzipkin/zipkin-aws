@@ -81,7 +81,9 @@ class SendMessageTracingExecutionInterceptorTest {
     }
 
     // Verify Span
+    assertThat(localParent.kind()).isEqualTo(PRODUCER);
     assertThat(localParent.name()).isEqualTo("publish-batch");
+    assertThat(localParent.remoteServiceName()).isEqualToIgnoringCase("amazon-sqs");
 
     List<MutableSpan> messageSpans =
         spans.spans().stream().filter(s -> s != localParent).collect(Collectors.toList());

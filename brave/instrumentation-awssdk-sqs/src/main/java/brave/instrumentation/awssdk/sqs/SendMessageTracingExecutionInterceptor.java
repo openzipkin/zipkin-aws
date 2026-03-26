@@ -101,7 +101,7 @@ final class SendMessageTracingExecutionInterceptor implements ExecutionIntercept
       span = tracer.newChild(maybeParent);
     }
 
-    span.name("publish-batch").remoteServiceName("amazon-sqs").start();
+    span.name("publish-batch").kind(PRODUCER).remoteServiceName("amazon-sqs").start();
     List<SendMessageBatchRequestEntry> modifiedEntries;
     try (SpanInScope scope = tracer.withSpanInScope(span)) {
       modifiedEntries = new ArrayList<>(request.entries().size());
