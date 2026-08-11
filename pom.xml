@@ -70,7 +70,7 @@
     <zipkin.version>3.6.1</zipkin.version>
     <zipkin-reporter.version>3.5.3</zipkin-reporter.version>
     <spring-boot.version>3.5.12</spring-boot.version>
-    <jackson.version>2.21.2</jackson.version>
+    <jackson.version>2.21.5</jackson.version>
     <!-- This allows you to test feature branches with jitpack -->
     <armeria.groupId>com.linecorp.armeria</armeria.groupId>
     <armeria.version>1.38.0</armeria.version>
